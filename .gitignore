@@ -1,0 +1,54 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+bot_nohup.log
+web_nohup.log
+
+# Cache
+*.cache
+.cache/
+
+# Backups
+backup/
+backup_*.tar.gz
+*_old_*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large data files
+web_results.json
+web_reports.json
+market_stats.db
+prev_stats.json
+signal_history.json
+
+# Analysis documents (optional - versiyonluyorsan bunu kaldır)
+CODE_ANALYSIS_TR.md
+REFACTORING_PLAN.md
+OZET_RAPOR.md
+INDEX.md
+DEPLOYMENT_GUIDE.md
+
+# Core modules (if not deploying)
+core_data_manager.py
+core_cache_manager.py
