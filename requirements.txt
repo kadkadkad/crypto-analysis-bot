@@ -16,6 +16,8 @@ huggingface-hub==0.19.4
 openai==1.6.1
 tenacity==8.2.3
 cachetools==5.3.2
+matplotlib==3.8.2
+plotly==5.18.0
 
 # Security & Production
 flask-httpauth==4.8.0
