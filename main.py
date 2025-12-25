@@ -19,7 +19,7 @@ from ta.volume import MFIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import MinMaxScaler
-from prophet import Prophet
+# from prophet import Prophet # Disabled for speed on Render
 import aiohttp
 import asyncio
 import sqlite3
@@ -5161,45 +5161,17 @@ def generate_coin_full_report(symbol):
 def train_prophet_model(df):
     """
     Prophet modeli eğitir ve tahmin yapar
-
-    Args:
-        df (pd.DataFrame): Fiyat verisi içeren DataFrame
-
-    Returns:
-        float: Tahmin edilen gelecek fiyat
+    Prophet tahmini devre dışı bırakıldı (Render hızı için).
+    Mevcut fiyatı döner.
     """
     try:
-        # DataFrame'i Prophet formatına dönüştür
-        if 'price' not in df.columns and 'close' in df.columns:
-            df['price'] = df['close']
-
-        # Tarih sütunu oluştur
-        if 'timestamp' not in df.columns:
-            df['timestamp'] = pd.to_datetime(df.index)
-
-        prophet_df = df[['timestamp', 'price']].reset_index(drop=True).rename(columns={'timestamp': 'ds', 'price': 'y'})
-
-        # NaN değerleri kontrol et
-        prophet_df = prophet_df.dropna()
-
-        if len(prophet_df) < 10:
-            raise ValueError(f"Prophet modeli için yeterli veri yok: {len(prophet_df)} satır")
-
-        # Prophet modelini oluştur ve eğit
-        model = Prophet(daily_seasonality=True, changepoint_prior_scale=0.05)
-        model.fit(prophet_df)
-
-        # Gelecek için tahmin yap (12 periyod sonrası)
-        future = model.make_future_dataframe(periods=12, freq='5min')
-        forecast = model.predict(future)
-
-        # Son tahmin değerini döndür
-        return forecast['yhat'].iloc[-1]
-    except Exception as e:
-        print(f"[HATA] Prophet modeli eğitimi sırasında hata: {e}")
-        # Veri varsa son değeri döndür, yoksa 0
-        return df['price'].iloc[-1] if len(df) > 0 and 'price' in df.columns else 0.0
-
+        if 'price' in df.columns:
+            return df['price'].iloc[-1]
+        elif 'close' in df.columns:
+            return df['close'].iloc[-1]
+    except:
+        pass
+    return 0.0
 
 
 def predict_with_cached_model(symbol, df):
