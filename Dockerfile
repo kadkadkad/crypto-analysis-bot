@@ -2,25 +2,25 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# System dependencies
+# Sistem bağımlılıkları
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Python dependencies
+# Python bağımlılıkları
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application
+# Proje dosyalarını kopyala
 COPY . .
 
-# Environment
+# Environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=5001
 
-# Expose port
+# Önemli: Render PORT'u 10000 civarı bir şey atar, web sunucusu onu dinlemeli
 EXPOSE 5001
 
-# Run with gunicorn
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 web_dashboard:app
+# Hem botu hem webi çalıştıran ana dosyayı başlat
+CMD ["python", "run.py"]
