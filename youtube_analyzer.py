@@ -1,7 +1,7 @@
 import feedparser
 import requests
 from youtube_transcript_api import YouTubeTranscriptApi
-from google import genai
+import google.generativeai as genai
 import config
 import os
 from datetime import datetime
