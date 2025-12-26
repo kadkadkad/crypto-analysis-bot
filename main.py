@@ -5160,18 +5160,14 @@ def generate_coin_full_report(symbol):
 
 def train_prophet_model(df):
     """
-    Prophet modeli eğitir ve tahmin yapar
-    Prophet tahmini devre dışı bırakıldı (Render hızı için).
-    Mevcut fiyatı döner.
+    Returns current price as fallback (Prophet disabled for Render performance).
     """
     try:
         if 'price' in df.columns:
-            return df['price'].iloc[-1]
-        elif 'close' in df.columns:
-            return df['close'].iloc[-1]
+            return float(df['price'].iloc[-1])
+        return float(df['close'].iloc[-1])
     except:
-        pass
-    return 0.0
+        return 0.0
 
 
 def predict_with_cached_model(symbol, df):
@@ -11603,6 +11599,7 @@ def analyze_market():
             # Base returns already pre-calculated above as ref_returns
 
             # Enumerate results
+            results = []
             for i, data in enumerate(fetched_data_list):
                 if data:
                     try:
@@ -11753,61 +11750,46 @@ def analyze_market():
                         
                         # Prepare complete result dictionary with all required fields for the detailed report
                         pa_results = analyze_price_action(df_all)
+                        # PREDICTIVE INTELLIGENCE: Analyze metrics that signal moves BEFORE they happen
+                        ob_imb = ob_analysis.get('imbalance', 0)
+                        whale_buy = data.get('whale_buy_vol', 0)
+                        whale_sell = data.get('whale_sell_vol', 0)
+                        
+                        # Whale Aggression: If whales are buying 2x more than selling
+                        whale_bias = "Neutral"
+                        if whale_buy > whale_sell * 1.8: whale_bias = "Bullish Accumulation"
+                        elif whale_sell > whale_buy * 1.8: whale_bias = "Bearish Distribution"
+                        
+                        # Smart Money Flow: Combining Order Book + Whale activity
+                        smart_money_flow = "Steady"
+                        if ob_imb > 15 and whale_buy > whale_sell: smart_money_flow = "Strong Entry"
+                        elif ob_imb < -15 and whale_sell > whale_buy: smart_money_flow = "Heavy Exit"
+
                         res = {
                             "Coin": data["symbol"],
                             "Price": data["price"],
                             "Price_Display": format_money(data["price"]),
+                            "Whale Bias": whale_bias,
+                            "Smart Money": smart_money_flow,
+                            "OB Imbalance": f"{ob_imb:.2f}%",
                             "RSI": extract_numeric(data.get('rsi', 50)),
+                            "Composite Score": comp_score,
                             "RSI_4h": rsi_4h,
-                            "RSI_12h": extract_numeric(data.get("rsi_12h", 50)),
                             "RSI_1d": rsi_1d,
-                            "RSI Extended": rsi_ext,
                             "MACD": extract_numeric(data.get('macd', 0)),
-                            "MACD_4h": macd_4h,
-                            "MACD_12h": extract_numeric(data.get("macd_12h", 0)),
-                            "MACD_1d": macd_1d,
-                            "ADX": extract_numeric(data.get('adx', 0)),
-                            "ADX_4h": adx_4h,
-                            "ADX_12h": extract_numeric(data.get("adx_12h", 0)),
-                            "ADX_1d": adx_1d,
                             "MFI": data.get('mfi', 50),
-                            "MFI_4h": data.get('mfi_4h', 50),
-                            "MFI_12h": extract_numeric(data.get("mfi_12h", 50)),
-                            "MFI_1d": data.get('mfi_1d', 50),
                             "Momentum": data.get('momentum', 0),
                             "Net Accum": data.get('net_accumulation', 0),
-                            "NetAccum_raw": data.get('net_accumulation', 0),
-                            "Z-Score": data.get('z_score', 0),
                             "Volume Ratio": data.get('volume_ratio', 1.0),
-                            "StochRSI": data.get('stoch_rsi', 0.5),
-                            "Composite Score": comp_score,
-                            "BTC Correlation": btc_corr_1h,
-                            "ETH Correlation": eth_corr_1h,
-                            "SOL Correlation": sol_corr_1h,
-                            "BTC Correlation_4h": extract_numeric(data.get("btc_corr_4h", 0)),
-                            "BTC Correlation_1d": extract_numeric(data.get("btc_corr_1d", 0)),
-                            "ETH Correlation_4h": extract_numeric(data.get("eth_corr_4h", 0)),
-                            "ETH Correlation_1d": extract_numeric(data.get("eth_corr_1d", 0)),
-                            "SOL Correlation_4h": extract_numeric(data.get("sol_corr_4h", 0)),
-                            "SOL Correlation_1d": extract_numeric(data.get("sol_corr_1d", 0)),
-                            "OrderBook": ob_analysis,
-                            "Price ROC": data.get('roc', 0),
-                            "24h Volume": data["quote_volume"],
                             "Funding Rate": fr_str,
-                            "Funding_raw": fr_val,
                             "24h Change": data["price_change_percent"],
-                            "Taker Rate": data.get('whale_buy_vol', 0) / data.get('whale_sell_vol', 1) if data.get('whale_sell_vol', 0) > 0 else 1.0,
-                            "ATR": data.get('atr', 0),
-                            "ATR_raw": data.get('atr', 0),
-                            "Weekly Change": (weekly_close_str, weekly_diff),
-                            "4H Change": (four_h_str, four_h_diff_str),
-                            "Monthly Change": (monthly_close_str, monthly_diff),
                             "Open Interest": oi_str,
-                            "OI_raw": oi_val,
                             "Long/Short Ratio": ls_val,
                             "EMA Trend": ema_trend_val,
-                            "EMA_Crossover": ema_crossover_val,
-                            "EMA20_Crossover": ema20_cross,
+                            "OrderBook": ob_analysis,
+                            "df": data.get("df", []),
+                            # Keep old keys for UI compatibility
+                            "BTC Correlation": btc_corr_1h,
                             "EMA_20": data.get("ema_20", 0),
                             "EMA_50": data.get("ema_50"),
                             "EMA_100": data.get("ema_100"),
