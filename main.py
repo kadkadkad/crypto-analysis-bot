@@ -8178,10 +8178,19 @@ def generate_detailed_analysis_message(results):
         
         # 1. Price Information
         coin_report += "<b>📊 Price Information:</b>\n"
-        coin_report += f"• Price ($): {coin['Price_Display']}\n"
-        coin_report += f"• Weekly Close: {coin['Weekly Change'][0]} ({coin['Weekly Change'][1]})\n"
-        coin_report += f"• 4H Close: {coin['4H Change'][0]} ({coin['4H Change'][1]})\n"
-        coin_report += f"• Monthly Close: {coin['Monthly Change'][0]} ({coin['Monthly Change'][1]})\n"
+        coin_report += f"• Price ($): {coin.get('Price_Display', 'N/A')}\n"
+        
+        # Safe access for Weekly Change tuple
+        w_ch = coin.get('Weekly Change', ('N/A', 'N/A'))
+        coin_report += f"• Weekly Close: {w_ch[0]} ({w_ch[1]})\n"
+        
+        # Safe access for 4H Change tuple
+        h_ch = coin.get('4H Change', ('N/A', 'N/A'))
+        coin_report += f"• 4H Close: {h_ch[0]} ({h_ch[1]})\n"
+        
+        # Safe access for Monthly Change tuple
+        m_ch = coin.get('Monthly Change', ('N/A', 'N/A'))
+        coin_report += f"• Monthly Close: {m_ch[0]} ({m_ch[1]})\n"
         coin_report += f"• 24h Volume (USDT): {format_money(coin.get('24h Volume', 0))}\n"
 
         # 2. Position & EMA Status
@@ -11783,7 +11792,11 @@ def analyze_market():
                             "Volume Ratio": data.get('volume_ratio', 1.0),
                             "Funding Rate": fr_str,
                             "24h Change": data["price_change_percent"],
+                            "Weekly Change": (weekly_close_str, weekly_diff),
+                            "4H Change": (four_h_str, four_h_diff_str),
+                            "Monthly Change": (monthly_close_str, monthly_diff),
                             "Open Interest": oi_str,
+                            "OI_raw": oi_val,
                             "Long/Short Ratio": ls_val,
                             "EMA Trend": ema_trend_val,
                             "OrderBook": ob_analysis,
