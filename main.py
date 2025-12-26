@@ -5991,6 +5991,78 @@ def detect_significant_changes(results):
     return sorted(significant_changes, key=lambda x: abs(x["RankChange"]), reverse=True)
 
 
+def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
+    """
+    Antigravity Bot - Price Action Strateji Analizi (Efloud Metodolojisi)
+    """
+    try:
+        symbol = coin_data.get("Coin", "Unknown")
+        current_price = float(coin_data.get("Price", 0))
+        
+        # 1. HTF Analizi (Destek-Direnç-Dengesizlik)
+        htf_support_zone = "N/A"
+        htf_reason = "Belirlenemedi"
+        
+        # Önceki Akümülasyon Bölgesi (Lowest low in 30 days)
+        recent_low = df_1d['low'].tail(30).min()
+        recent_high = df_1d['high'].tail(30).max()
+        
+        # Dengesizlik (Imbalance/FVG) Tespiti
+        # 1. Mum Low > 3. Mum High ise arada boşluk vardır (Boğa FVG)
+        fvg_zones = []
+        for i in range(len(df_1d)-3, len(df_1d)-10, -1):
+            if df_1d['low'].iloc[i+2] > df_1d['high'].iloc[i]:
+                fvg_zones.append((df_1d['high'].iloc[i], df_1d['low'].iloc[i+2]))
+        
+        if fvg_zones:
+            htf_support_zone = f"{fvg_zones[0][0]:.4f} - {fvg_zones[0][1]:.4f}"
+            htf_reason = "Dengesizlik (Imbalance/FVG) Alanı"
+        else:
+            htf_support_zone = f"{recent_low:.4f} - {recent_low*1.05:.4f}"
+            htf_reason = "Önceki Akümülasyon/Talep Bölgesi"
+
+        # 2. LTF Analizi (Market Structure Break - MSB)
+        # Son 20 mumun en yüksek seviyesini kıran bir yapı var mı?
+        last_20_high = df_15m['high'].tail(20).max()
+        is_msb = df_15m['close'].iloc[-1] > last_20_high
+        ltf_signal = f"{last_20_high:.4f} seviyesindeki stop-high kırılımı" if not is_msb else "✅ MSB Gerçekleşti (Market Yapısı Kırıldı)"
+        
+        # 3. BTC Paritesi Teyidi (Basit Korelasyon/Strength)
+        btc_corr = float(coin_data.get("BTC Correlation", 0))
+        btc_conf = "Pozitif - Güçlü Duruyor" if btc_corr > 0.7 else "Nötr - Bağımsız Hareket"
+
+        # SPOT & MARGIN Planları
+        stop_spot = recent_low * 0.95
+        stop_margin = df_15m['low'].tail(10).min() * 0.99
+        tp1 = current_price * 1.10
+        tp2 = recent_high
+
+        # Markdown Raporu Oluşturma
+        report = f"""### **Ticaret Planı: {symbol}**
+
+*   **Piyasa Durumu:** {'Yükseliş Trendi' if current_price > df_1d['close'].iloc[-20:].mean() else 'Düzeltme / Yatay'}
+*   **Yüksek Zaman Dilimi (HTF) Analizi:**
+    *   **Önemli Destek Bölgesi:** {htf_support_zone}
+    *   **Gerekçe:** {htf_reason}
+    *   **BTC Paritesi Teyidi:** {btc_conf}
+*   **Düşük Zaman Dilimi (LTF) Giriş Teyidi:**
+    *   **Beklenen Sinyal:** {ltf_signal}
+*   **SPOT Ticaret Planı:**
+    *   **Giriş Bölgesi:** {htf_support_zone}
+    *   **Zararı Durdur (Stop-Loss):** {stop_spot:.4f} (Günlük kapanış şartı ile)
+    *   **Hedefler (Take-Profit):** {format_money(tp1)}, {format_money(tp2)}
+*   **MARJİN (Margin) Ticaret Planı:**
+    *   **Giriş Koşulu:** LTF teyit sinyali (MSB) {'BEKLENECEK' if not is_msb else 'AKTİF'}
+    *   **Giriş Seviyesi:** {current_price:.4f} (Teyit sonrası dinamik)
+    *   **Zararı Durdur (Stop-Loss):** {stop_margin:.4f} (LTF son dip altı)
+    *   **Hedefler (Take-Profit):** {format_money(tp1)}, {format_money(tp2)}
+*   **Temel Risk:** Bitcoin'in HTF desteği altındaki kapanışları ve paritenin yapısal bozulması."""
+        
+        return report
+
+    except Exception as e:
+        return f"PA Analiz hatası ({symbol}): {str(e)}"
+
 def generate_enhanced_manipulation_report():
     """
     Geliştirilmiş manipülasyon tespit raporu oluşturur.
