@@ -11801,47 +11801,37 @@ def analyze_market():
                         # Reconstruct combined DF for indicators
                         df_all = pd.DataFrame(data["df"])
                         
+                        # PREDICTIVE INTELLIGENCE (Antigravity PA Strategy)
+                        df_1d = data.get("df_1d") if data.get("df_1d") is not None else df_all
+                        df_15m = data.get("df_15m") if data.get("df_15m") is not None else df_all
+                        antigravity_pa_report = analyze_antigravity_pa_strategy(data, df_1d, df_15m)
+
                         # Calculate missing EMA trends
                         ema_trend_val = get_ema_cross_trend(df_all)
                         ema_crossover_val = get_ema_crossover(df_all)
                         ema20_cross = get_ema20_crossover(df_all)
                         
-                        # Calculate Support/Resistance from klines (rolling 20)
+                        # Support/Resistance
                         sup_val = df_all["low"].rolling(window=20).min().iloc[-1] if len(df_all) >= 20 else data["low"]
                         res_val = df_all["high"].rolling(window=20).max().iloc[-1] if len(df_all) >= 20 else data["high"]
                         
-                        # RSI Extended
-                        rsi_ext = get_extended_rsi(df_all)
-                        
-                        # Trap Detection
+                        # Traps & Activity
                         trap_val = detect_traps(df_all, data["price"], sup_val, res_val, data.get("volume_ratio", 1.0), data.get("rsi", 50))
-
-                        # Whale Activity (Trades and average size)
                         trades_count = int(data.get("trades", 0))
                         avg_vol = (data.get("quote_volume", 0) / trades_count) if trades_count > 0 else 0
                         whale_act_str = f"{trades_count} (Avg: ${format_money(avg_vol)})"
-
-                        # Funding Rate formatting
                         fr_val = data.get("funding_rate", 0)
                         fr_str = f"{fr_val * 100:.4f}%" if fr_val != 0 else "0.0000%"
-                        
-                        # TradeRecommendation
-                        # Liquidation Heatmap
                         liq_map = analyze_liquidation_heatmap(df_all, data["price"], data["symbol"])
-                        
-                        # Prepare complete result dictionary with all required fields for the detailed report
                         pa_results = analyze_price_action(df_all)
-                        # PREDICTIVE INTELLIGENCE: Analyze metrics that signal moves BEFORE they happen
+
+                        # Logic for predictive metrics
                         ob_imb = ob_analysis.get('imbalance', 0)
                         whale_buy = data.get('whale_buy_vol', 0)
                         whale_sell = data.get('whale_sell_vol', 0)
-                        
-                        # Whale Aggression: If whales are buying 2x more than selling
                         whale_bias = "Neutral"
                         if whale_buy > whale_sell * 1.8: whale_bias = "Bullish Accumulation"
                         elif whale_sell > whale_buy * 1.8: whale_bias = "Bearish Distribution"
-                        
-                        # Smart Money Flow: Combining Order Book + Whale activity
                         smart_money_flow = "Steady"
                         if ob_imb > 15 and whale_buy > whale_sell: smart_money_flow = "Strong Entry"
                         elif ob_imb < -15 and whale_sell > whale_buy: smart_money_flow = "Heavy Exit"
@@ -11850,11 +11840,13 @@ def analyze_market():
                             "Coin": data["symbol"],
                             "Price": data["price"],
                             "Price_Display": format_money(data["price"]),
+                            "Antigravity Strategy": antigravity_pa_report,
                             "Whale Bias": whale_bias,
                             "Smart Money": smart_money_flow,
                             "OB Imbalance": f"{ob_imb:.2f}%",
                             "RSI": extract_numeric(data.get('rsi', 50)),
                             "Composite Score": comp_score,
+                            # Keep old keys for UI compatibility
                             "RSI_4h": rsi_4h,
                             "RSI_1d": rsi_1d,
                             "MACD": extract_numeric(data.get('macd', 0)),
