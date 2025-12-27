@@ -5991,6 +5991,63 @@ def detect_significant_changes(results):
     return sorted(significant_changes, key=lambda x: abs(x["RankChange"]), reverse=True)
 
 
+def check_displacement(df, index, lookback=20):
+    """
+    Checks if a price move has 'Displacement' (Strong, impulsive movement).
+    Criteria: Candle body is significantly larger than average and has high volume.
+    """
+    try:
+        if index < lookback: return False
+        
+        # Calculate average body size of previous candles
+        bodies = (df['close'] - df['open']).abs()
+        avg_body = bodies.iloc[index-lookback:index].mean()
+        curr_body = bodies.iloc[index]
+        
+        # Calculate average volume
+        avg_vol = df['volume'].iloc[index-lookback:index].mean()
+        curr_vol = df['volume'].iloc[index]
+        
+        # Displacement: 1.5x average body AND 1.2x average volume
+        if curr_body > (avg_body * 1.5) and curr_vol > (avg_vol * 1.2):
+            return True
+        return False
+    except:
+        return False
+
+def check_smt_divergence(df_coin, df_btc):
+    """
+    Detects SMT Divergence between a coin and BTC.
+    Bullish SMT: BTC makes a Lower Low, but Coin makes a Higher Low.
+    Bearish SMT: BTC makes a Higher High, but Coin makes a Lower High.
+    """
+    try:
+        if len(df_coin) < 5 or len(df_btc) < 5: return "Neutral"
+        
+        # Last 5 candles for precise SMT
+        coin_lows = df_coin['low'].tail(5).values
+        btc_lows = df_btc['low'].tail(5).values
+        coin_highs = df_coin['high'].tail(5).values
+        btc_highs = df_btc['high'].tail(5).values
+        
+        # Check lows (Bullish SMT)
+        btc_making_lower_low = btc_lows[-1] < btc_lows[-5:].min() * 1.001 # Approximation
+        coin_making_higher_low = coin_lows[-1] > coin_lows[-5:].min()
+        
+        if btc_making_lower_low and coin_making_higher_low:
+            return "🛡️ Bullish SMT (Stronger than BTC)"
+            
+        # Check highs (Bearish SMT)
+        btc_making_higher_high = btc_highs[-1] > btc_highs[-5:].max() * 0.999
+        coin_making_lower_high = coin_highs[-1] < coin_highs[-5:].max()
+        
+        if btc_making_higher_high and coin_making_lower_high:
+            return "⚠️ Bearish SMT (Weaker than BTC)"
+            
+        return "Neutral"
+    except:
+        return "Neutral"
+
 def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
     """
     Antigravity Bot - Master Analytical Framework (Efloud & PO3/AMD Methodology) - ENGLISH
@@ -6003,16 +6060,18 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
         short_ema = df_1d['close'].iloc[-20:].mean()
         long_ema = df_1d['close'].iloc[-50:].mean()
         bias = "Sideways / Choppy ⚖️"
-        bias_desc = "Price is consolidating around key levels."
+        bias_desc = "Consolidating around key levels."
         if current_price > short_ema > long_ema: 
-            bias = "Bullish Trend Direction 📈"
-            bias_desc = "Higher highs and higher lows on HTF confirm the trend."
+            bias = "Bullish Trend 📈"
+            bias_desc = "HTF structure is making Higher Highs."
         elif current_price < short_ema < long_ema: 
-            bias = "Bearish Trend Direction 📉"
-            bias_desc = "Weak closes below HTF levels continue."
-        elif abs(current_price - short_ema) / short_ema < 0.02: 
-            bias = "Trend Reversal Potential 🔄"
-            bias_desc = "Signs of deceleration at a critical HTF zone."
+            bias = "Bearish Trend 📉"
+            bias_desc = "HTF structure is making Lower Lows."
+            
+        # SMT Analysis (Context with BTC)
+        # We need BTC 15m klines from somewhere - fetching from overall results for BTC if exists
+        df_btc_15m = ALL_RESULTS[0].get('df_15m', df_15m) if ALL_RESULTS and ALL_RESULTS[0]['Coin'] == 'BTCUSDT' else df_15m
+        smt_signal = check_smt_divergence(df_15m, df_btc_15m)
 
         # 2. HTF STRATEGIC LEVELS DETECTION
         recent_low = df_1d['low'].tail(30).min()
@@ -6032,6 +6091,15 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
         if curr_vol > vol_std * 2: 
             phase = "Manipulation (Stop Hunt) 🧛" if df_15m['close'].iloc[-1] < df_15m['open'].iloc[-1] else "Distribution (Expansion) 🚀"
 
+        # LTF Signal Validation with Displacement
+        last_high = df_15m['high'].iloc[-20:-1].max()
+        msb_detected = current_price > last_high
+        has_displacement = check_displacement(df_15m, len(df_15m)-1)
+        
+        ltf_status = "Waiting for MSB"
+        if msb_detected:
+            ltf_status = "✅ High Quality MSB (Displacement Detected)" if has_displacement else "⚠️ Weak MSB (No Displacement - Fakeout Risk)"
+
         # 4. ADVANCED LIQUIDITY ANALYSIS
         liq_type = "Liquidity Grab (Fast) ⚡" if curr_vol > vol_std * 3 else "Liquidity Sweep (Exhaustive) 🧹"
 
@@ -6045,6 +6113,7 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
 
 **1.0 General Market Bias:** {bias}
 *   **Reasoning:** {bias_desc}
+*   **SMT Context:** {smt_signal}
 
 **2.0 Key HTF (High Time Frame) Levels:**
 *   **Level:** {fvg_zone if fvg_detected else f"{recent_low:.4f} (Old Low)"}
@@ -6053,7 +6122,7 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
 **3.0 LTF Confirmation Model & PO3 Analysis:**
 *   **Current Phase:** {phase}
 *   **Liquidity Condition:** {liq_type}
-*   **LTF Signal (15m):** {'Waiting for MSB/Market Structure Shift' if phase == "Accumulation 📦" else '✅ Structure Shift/Confirmation Detected'}
+*   **LTF Signal (15m):** {ltf_status}
 
 **4.0 Probability & Strategy Matrix:**
 | Entry Strategy | Target R/R | Probability |
@@ -11933,6 +12002,7 @@ def analyze_market():
                             "vol_ratio_1d": vol_ratio_1d,
                             "quote_vol_4h": data.get("quote_vol_4h", 0),
                             "quote_vol_1d": data.get("quote_vol_1d", 0),
+                            "NetAccum_raw": data.get('net_accumulation', 0),
                             "df": [], # CRITICAL: Do NOT store raw candles in memory results to avoid RAM Limit Exceeded
                         }
                         
@@ -11951,9 +12021,12 @@ def analyze_market():
                                     incremental_data.append(cc)
                                 with open("web_results.json", "w") as f:
                                     json.dump(incremental_data, f, default=str)
-                                gc.collect() # Force free RAM
-                                print(f"[RAM-SAVER] Incremental save: {len(results)} coins processed. RAM optimized.")
-                            except: pass
+                                    f.flush()
+                                    os.fsync(f.fileno()) # Ensure it's written to disk
+                                gc.collect() 
+                                print(f"[WEB-SYNC] Incremental results saved to web_results.json ({len(results)} coins)")
+                            except Exception as e:
+                                print(f"[WEB-SYNC] Incremental save failed: {e}")
 
                     except Exception as e:
                         print(f"[ERROR] Result mapping error for {data.get('symbol', 'Unknown')}: {e}")
@@ -11981,6 +12054,9 @@ def analyze_market():
                             
                         with open("web_results.json", "w") as f:
                             json.dump(clean_results, f, default=str)
+                            f.flush()
+                            os.fsync(f.fileno())
+                        print(f"[WEB-SYNC] Final results saved safely.")
                     except Exception as e:
                         print(f"[HATA] Web verileri kaydedilemedi: {e}")
                     
