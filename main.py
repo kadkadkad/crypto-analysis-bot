@@ -51,6 +51,8 @@ from technical_pattern_analyzer import TechnicalPatternAnalyzer
 from money_flow_analyzer import MoneyFlowAnalyzer
 from market_regime import MarketRegimeDetector
 from signal_tracker import SignalWinRateTracker
+from smart_money_report import generate_smart_money_indicators_report
+
 
 # Start Menu Manager
 MENU_STATE = telegram_bot.MENU_STATE
@@ -12480,8 +12482,14 @@ def analyze_market():
                     except: pass
                     try: web_reports["Market Regime Data"] = json.dumps(market_regime)
                     except: pass
-                    try: web_reports["Signal Performance"] = SIGNAL_TRACKER.get_performance_report()
+                    try: web_reports[" Signal Performance"] = SIGNAL_TRACKER.get_performance_report()
                     except: pass
+                    
+                    # SMART MONEY INDICATORS (Deep Analysis)
+                    try: web_reports["Smart Money Indicators"] = generate_smart_money_indicators_report(ALL_RESULTS)
+                    except Exception as e: 
+                        print(f"[WARN] Smart Money Indicators report failed: {e}")
+                        pass
                     
                     try: web_reports["Live Ticker"] = get_live_ticker_string()
                     except: pass

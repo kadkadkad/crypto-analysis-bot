@@ -133,7 +133,8 @@ def get_report(report_type):
                 "Money Flow": "Money Flow",
                 "Market Regime": "Market Regime",
                 "Signal Performance": "Signal Performance",
-                "Antigravity PA": "Antigravity Strategy"
+                "Antigravity PA": "Antigravity Strategy",
+                "Smart Money Indicators": "Smart Money Indicators"
             }
             
             key = mapping.get(report_type, report_type)
