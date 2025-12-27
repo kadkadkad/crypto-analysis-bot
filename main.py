@@ -6186,16 +6186,28 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
     Methodology: HTF Bias -> Tactical Levels -> PO3/AMD -> LTF Confirmation
     """
     try:
-        symbol = coin_data.get("Coin", "Unknown")
-        current_price = float(coin_data.get("Price", 0))
+        # CRITICAL FIX: Extract symbol and price correctly
+        symbol_raw = coin_data.get("symbol", coin_data.get("Coin", "Unknown"))
+        symbol = symbol_raw.replace("USDT", "")  # Clean format
         
-        # 1. MARKET CONTEXT AND BIAS DETERMINATION (2.0)
+        # Try multiple price keys
+        current_price = 0
+        if "price" in coin_data:
+            current_price = float(coin_data["price"])
+        elif "Price" in coin_data:
+            current_price = float(coin_data["Price"])
+        
+        # Validation - skip if no valid price
+        if current_price == 0 or current_price is None:
+            return f"⚠️ Antigravity PA: Unable to analyze {symbol} - Invalid price data"
+        
+        # Validate DataFrames
+        if len(df_1d) < 50 or len(df_4h) < 20 or len(df_15m) < 30:
+            return f"⚠️ Antigravity PA: {symbol} - Insufficient candle data for analysis"
+        
+        # 1. MARKET CONTEXT AND BIAS DETERMINATION
         short_ema_1d = df_1d['close'].iloc[-20:].mean()
         long_ema_1d = df_1d['close'].iloc[-50:].mean()
-        
-        # Structure Check
-        last_highs = df_1d['high'].iloc[-20:].values
-        last_lows = df_1d['low'].iloc[-20:].values
         
         bias = "Sideways / Choppy ⚖️"
         bias_type = "Sideways"
@@ -6218,28 +6230,28 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
             bias_type = "Reversal"
             bias_desc = "Key HTF level reached, looking for signs of slowing momentum."
 
-        # 2. HTF ANALYSIS: STRATEGIC LEVELS (3.0)
-        # FVG Detection on 4H
+        # 2. HTF ANALYSIS: STRATEGIC LEVELS
         fvg_detected = False
         fvg_zone = "Not Found"
         if len(df_4h) > 15:
-            for i in range(len(df_4h)-3, len(df_4h)-15, -1):
-                if df_4h['low'].iloc[i+2] > df_4h['high'].iloc[i]: # Bullish FVG
-                    fvg_zone = f"4H Imbalance ({df_4h['high'].iloc[i]:.4f} - {df_4h['low'].iloc[i+2]:.4f})"
+            for i in range(len(df_4h)-3, max(len(df_4h)-15, 0), -1):
+                if df_4h['low'].iloc[i+2] > df_4h['high'].iloc[i]:  # Bullish FVG
+                    fvg_zone = f"4H Imbalance (${df_4h['high'].iloc[i]:.4f} - ${df_4h['low'].iloc[i+2]:.4f})"
                     fvg_detected = True
                     break
-                elif df_4h['high'].iloc[i+2] < df_4h['low'].iloc[i]: # Bearish FVG
-                    fvg_zone = f"4H Bearish Imbalance ({df_4h['low'].iloc[i+2]:.4f} - {df_4h['high'].iloc[i]:.4f})"
+                elif df_4h['high'].iloc[i+2] < df_4h['low'].iloc[i]:  # Bearish FVG
+                    fvg_zone = f"4H Bearish Imbalance (${df_4h['low'].iloc[i+2]:.4f} - ${df_4h['high'].iloc[i]:.4f})"
                     fvg_detected = True
                     break
 
         # S/R Flip Detection
         sr_flip = "Not Detected"
-        prev_major_high = df_1d['high'].iloc[-60:-10].max()
-        if current_price > prev_major_high and df_1d['low'].iloc[-10:].min() > prev_major_high:
-            sr_flip = f"S/R Flip Confirmed ({prev_major_high:.4f})"
+        if len(df_1d) >= 60:
+            prev_major_high = df_1d['high'].iloc[-60:-10].max()
+            if current_price > prev_major_high and df_1d['low'].iloc[-10:].min() > prev_major_high:
+                sr_flip = f"S/R Flip Confirmed (${prev_major_high:.4f})"
 
-        # 3. PO3 / AMD MODEL ANALYSIS (5.0)
+        # 3. PO3 / AMD MODEL ANALYSIS
         vol_avg = df_15m['volume'].tail(50).mean()
         curr_vol = df_15m['volume'].iloc[-1]
         phase = "Accumulation 📦"
@@ -6251,8 +6263,7 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
             else:
                 phase = "Distribution (Expansion) 🚀"
 
-        # 4. LTF CONFIRMATION MECHANISMS (4.0)
-        # MSB and Confirmation Type
+        # 4. LTF CONFIRMATION MECHANISMS
         last_local_high = df_15m['high'].iloc[-25:-1].max()
         last_local_low = df_15m['low'].iloc[-25:-1].min()
         
@@ -6262,7 +6273,7 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
         if bias_type == "Bullish" or bias_type == "Reversal":
             if current_price > last_local_high:
                 msb_status = "Analyzing"
-                # Check if it cleaned liquidity before MSB (Breaker vs Mitigation)
+                # Check if it cleaned liquidity before MSB
                 grabbed_liq = df_15m['low'].iloc[-10:].min() < df_15m['low'].iloc[-30:-10].min()
                 if grabbed_liq:
                     onay_modeli = "Breaker ✅"
@@ -6276,61 +6287,109 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
            (current_price > last_local_low and df_15m['low'].iloc[-1] < last_local_low):
             onay_modeli = "Swing Failure Pattern (SFP) ⚡"
 
-        # 5. LIQUIDITY ANALYSIS (6.0)
+        # 5. LIQUIDITY ANALYSIS
         liq_analysis = "Analyzing"
         if curr_vol > vol_avg * 4:
             liq_analysis = "Liquidity Sweep 🧹 - Major trend reversal signal."
         else:
             liq_analysis = "Liquidity Grab ⚡ - Trend direction fuel accumulation."
 
-        # 6. RISK/REWARD AND REPORTING (7.0)
-        tp1 = current_price * (1.05 if bias_type == "Bullish" else 0.95)
-        tp2 = current_price * (1.12 if bias_type == "Bullish" else 0.88)
-        sl = current_price * (0.96 if bias_type == "Bullish" else 1.04)
+        # 6. RISK/REWARD AND REPORTING (FIXED CALCULATIONS)
+        if bias_type == "Bullish":
+            tp1 = current_price * 1.05
+            tp2 = current_price * 1.12
+            sl = current_price * 0.96
+            direction_emoji = "🟢"
+        elif bias_type == "Bearish":
+            tp1 = current_price * 0.95
+            tp2 = current_price * 0.88
+            sl = current_price * 1.04
+            direction_emoji = "🔴"
+        else:  # Sideways/Reversal
+            tp1 = current_price * 1.03
+            tp2 = current_price * 1.08
+            sl = current_price * 0.97
+            direction_emoji = "⚖️"
         
-        report = f"""Asset Name: **{symbol}**
-Market Bias: **{bias}**
-Key HTF Level: **{fvg_zone if fvg_detected else (sr_flip if sr_flip != "Not Detected" else "HTF Mid Range")}**
+        # Calculate actual R/R
+        risk = abs(current_price - sl)
+        reward_tp1 = abs(tp1 - current_price)
+        reward_tp2 = abs(tp2 - current_price)
+        rr_tp1 = (reward_tp1 / risk) if risk > 0 else 0
+        rr_tp2 = (reward_tp2 / risk) if risk > 0 else 0
+        
+        report = f"""━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**1.0 Market Context Reasoning:**
-* {bias_desc}
-* HTF Strategic Zone: {fvg_zone if fvg_detected else "Tracking S/R Levels."}
+{direction_emoji} <b>${symbol} - ANTIGRAVITY PA ANALYSIS</b>
 
-**2.0 PO3 / AMD Model Status:**
-* Current Phase: {phase}
-* Liquidity Analysis: {liq_analysis}
+<b>📊 Asset:</b> {symbol_raw}
+<b>💵 Current Price:</b> ${current_price:.4f}
+<b>🎯 Market Bias:</b> {bias}
+<b>🗺️ Key HTF Level:</b> {fvg_zone if fvg_detected else (sr_flip if sr_flip != "Not Detected" else "HTF Mid Range")}
 
-**3.0 Observed LTF Confirmation:**
-* Confirmation Type: **{onay_modeli}**
-* Detail: {msb_status}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-**4.0 Analytical Strategy Matrix (R/R Comparison):**
-| Entry Strategy | Target R/R | Probability |
-| :--- | :--- | :--- |
-| Direct Limit Order | 1.08R | Low-Medium (Unconfirmed) |
-| Breaker Confirmation | 1.96R | Medium-High |
-| Mitigation Play | 2.16R | High |
+<b>1.0 MARKET CONTEXT & REASONING:</b>
+• {bias_desc}
+• HTF Strategic Zone: {fvg_zone if fvg_detected else "Tracking S/R Levels"}
+• EMA 20 (1D): ${short_ema_1d:.4f}
+• EMA 50 (1D): ${long_ema_1d:.4f}
 
-**5.0 Actionable Scenario:**
-* **Potential Entry Zone:** Retest/confirmation areas around {current_price:.4f}.
-* **Stop-Loss Level:** {sl:.4f} (Violation of Manipulation Low)
-* **Take-Profit (TP) Targets:**
-  * TP1: {tp1:.4f} (Local Liquidity Pool)
-  * TP2: {tp2:.4f} (HTF Main Target)
-* **Estimated Risk/Reward Ratio:** 2.12R
+<b>2.0 PO3 / AMD MODEL STATUS:</b>
+• Current Phase: <b>{phase}</b>
+• Liquidity Analysis: {liq_analysis}
+• 15M Volume: {curr_vol/vol_avg:.2f}x Average
 
-**General Assessment:** The formation of {onay_modeli} structure at the HTF support/resistance zone increases the probability of this scenario. Trend is king; stay in the direction of the main bias.
+<b>3.0 LTF CONFIRMATION MODEL:</b>
+• Confirmation Type: <b>{onay_modeli}</b>
+• Structure Status: {msb_status}
+• Local High: ${last_local_high:.4f}
+• Local Low: ${last_local_low:.4f}
+
+<b>4.0 STRATEGY MATRIX (R/R Analysis):</b>
+┌─────────────────────┬──────────┬─────────────┐
+│ Entry Strategy      │ Target R │ Probability │
+├─────────────────────┼──────────┼─────────────┤
+│ Direct Limit Order  │ 1.08R    │ Low-Medium  │
+│ Breaker Confirmation│ 1.96R    │ Medium-High │
+│ Mitigation Play     │ 2.16R    │ High        │
+└─────────────────────┴──────────┴─────────────┘
+
+<b>5.0 ACTIONABLE TRADE PLAN:</b>
+
+<b>📍 Entry Zone:</b>
+• Primary: ${current_price:.4f} (Current)
+• Retest: ${current_price * 0.98:.4f} - ${current_price * 1.02:.4f}
+
+<b>🛑 Stop-Loss:</b>
+• Level: ${sl:.4f}
+• Distance: {abs((current_price - sl) / current_price * 100):.2f}%
+• Reason: Invalidation of market structure
+
+<b>🎯 Take-Profit Targets:</b>
+• TP1: ${tp1:.4f} ({rr_tp1:.2f}R) - Local liquidity pool
+• TP2: ${tp2:.4f} ({rr_tp2:.2f}R) - HTF main target
+
+<b>⚖️ Risk Management:</b>
+• Risk per trade: {abs((current_price - sl) / current_price * 100):.2f}%
+• Reward to TP1: {abs((tp1 - current_price) / current_price * 100):.2f}%
+• Reward to TP2: {abs((tp2 - current_price) / current_price * 100):.2f}%
+• Overall R/R: <b>{rr_tp2:.2f}R</b>
+
+<b>💡 GENERAL ASSESSMENT:</b>
+The formation of <b>{onay_modeli}</b> structure at the HTF {fvg_zone if fvg_detected else 'support/resistance'} zone {'increases' if rr_tp2 > 2 else 'suggests moderate'} probability for this scenario. 
+
+<b>Key Principle:</b> Trend is king - align with the dominant {bias_type.lower()} bias for optimal execution.
+
+<i>⚡ Powered by Radar Ultra AI • Efloud Framework</i>
 """
         return report
 
     except Exception as e:
-        return f"Antigravity PA Analysis Error ({symbol}): {str(e)}"
+        symbol_fallback = coin_data.get("symbol", coin_data.get("Coin", "Unknown"))
+        return f"⚠️ <b>Antigravity PA Analysis Error</b>\n\n<b>Asset:</b> {symbol_fallback}\n<b>Error:</b> {str(e)}\n\n<i>This coin may have insufficient data for advanced PA analysis.</i>"
 
-    except Exception as e:
-        return f"Analitik PA Errorsı ({symbol}): {str(e)}"
 
-    except Exception as e:
-        return f"PA Analiz hatası ({symbol}): {str(e)}"
 
 def generate_enhanced_manipulation_report():
     """
