@@ -7230,11 +7230,17 @@ def get_filtered_coins():
         if response.status_code != 200:
             print(f"[HATA] Binance API hatası: {response.status_code}")
             return []
+        
         tickers = response.json()
+        ticker_volumes = {t["symbol"]: float(t.get("quoteVolume", 0)) for t in tickers}
+        
         # Stablecoin'leri hariç tut
-        stablecoins = ["USDCUSDT", "FDUSDUSDT", "BUSDUSDT", "TUSDUSDT"]
-        filtered = [t["symbol"] for t in tickers if t["symbol"].endswith("USDT") and t["symbol"] not in stablecoins]
-        sorted_filtered = sorted(filtered, key=lambda x: float([t for t in tickers if t["symbol"] == x][0]["quoteVolume"]), reverse=True)
+        stablecoins = ["USDCUSDT", "FDUSDUSDT", "BUSDUSDT", "TUSDUSDT", "USDPUSDT", "USDTUSDT"]
+        
+        filtered = [s for s in ticker_volumes.keys() if s.endswith("USDT") and s not in stablecoins]
+        
+        # Sort by volume O(N log N)
+        sorted_filtered = sorted(filtered, key=lambda x: ticker_volumes[x], reverse=True)
         return sorted_filtered[:50]
     except Exception as e:
         print(f"[HATA] Coin filtresi alınırken hata: {e}")
@@ -11672,7 +11678,8 @@ def analyze_market():
                   f"ETH_4H={len(ref_returns['eth_4h_ret']) if ref_returns['eth_4h_ret'] is not None else 0}")
 
             async def fetch_batch_indicators(coin_list, ref_rets):
-                sem = asyncio.Semaphore(15)
+                # Reduced semaphore to 5 to save RAM on Render
+                sem = asyncio.Semaphore(5)
                 async def fetch_with_sem(session, c):
                     async with sem:
                         try:
@@ -11918,18 +11925,31 @@ def analyze_market():
                             "vol_ratio_1d": vol_ratio_1d,
                             "quote_vol_4h": data.get("quote_vol_4h", 0),
                             "quote_vol_1d": data.get("quote_vol_1d", 0),
-                            "df": data.get("df", []),
+                            "df": [], # CRITICAL: Do NOT store raw candles in memory results to avoid RAM Limit Exceeded
                         }
                         
                         # Generate trade recommendation using the completed res dict
                         res["Advice"] = generate_trade_recommendation(res)
                         results.append(res)
+                        
+                        # Incremental Dashboard Update (Every 5 coins)
+                        if len(results) % 5 == 0:
+                            try:
+                                incremental_data = []
+                                for c in results:
+                                    cc = c.copy()
+                                    for k, v in cc.items():
+                                        if isinstance(v, float): cc[k] = round(v, 4)
+                                    incremental_data.append(cc)
+                                with open("web_results.json", "w") as f:
+                                    json.dump(incremental_data, f, default=str)
+                                gc.collect() # Force free RAM
+                                print(f"[RAM-SAVER] Incremental save: {len(results)} coins processed. RAM optimized.")
+                            except: pass
+
                     except Exception as e:
                         print(f"[ERROR] Result mapping error for {data.get('symbol', 'Unknown')}: {e}")
-                        import traceback
                         traceback.print_exc()
-                    except Exception as e:
-                        print(f"[UYARI] {coins[i]} eşleştirme hatası: {e}")
 
 
 
