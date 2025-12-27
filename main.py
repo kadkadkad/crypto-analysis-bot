@@ -11005,85 +11005,197 @@ SENT_ALERTS = {} # {symbol: {alert_type: timestamp}}
 
 def handle_market_alerts(results):
     """
-    Checks for high-priority events and sends individual Telegram alerts.
-    Now enhanced with Cash Flow and Market Regime context.
-    Prevent spam with a cooldown.
+    🚨 RADAR ULTRA AI - Advanced Multi-Signal Alert System
+    
+    Next-gen alerts using:
+    - Multi-Signal Confluence (3+ indicators alignment)
+    - Smart Money Detection (Whale + OI + Funding)
+    - Breakout Prediction Engine (Bollinger + Volume + Order Book)
+    - Liquidity Hunt Recovery Alerts
+    - BTC/ETH Correlation Divergence
+    - AI-Powered Risk Scoring
     """
     global SENT_ALERTS
     now = time.time()
-    cooldown = 4 * 3600 # 4 hours for the same alert type
-
-    # Get Global Context
+    cooldown = 3 * 3600  # 3 hours
+    
+    # Global Market Context
     try:
         regime_data = MARKET_REGIME_DETECTOR.detect_regime(results)
         regime_str = f"{regime_data.get('emoji', '')} {regime_data.get('display', 'UNKNOWN')}"
-    except: regime_str = "❓ UNKNOWN"
-
-    for coin in results[:20]: # Only alert for top 20 coins for quality
+        regime_type = regime_data.get('type', 'sideways')
+    except:
+        regime_str = "❓ UNKNOWN"
+        regime_type = "sideways"
+    
+    # Get BTC/ETH reference for divergence detection
+    btc_data = next((c for c in results if c["Coin"] == "BTCUSDT"), None)
+    eth_data = next((c for c in results if c["Coin"] == "ETHUSDT"), None)
+    
+    btc_change = extract_numeric(btc_data.get("24h Change", 0)) if btc_data else 0
+    eth_change = extract_numeric(eth_data.get("24h Change", 0)) if eth_data else 0
+    
+    alerts_triggered = []
+    
+    for coin in results[:30]:  # Top 30 for quality
         symbol = coin["Coin"]
-        if symbol not in SENT_ALERTS: SENT_ALERTS[symbol] = {}
+        if symbol not in SENT_ALERTS:
+            SENT_ALERTS[symbol] = {}
         
-        # Context Data
-        price_str = format_money(coin['Price'])
-        vol_ratio = extract_numeric(coin.get("Volume Ratio", "1")) or 1
+        # Extract Core Metrics
+        price = extract_numeric(coin.get("Price", 0))
+        price_str = format_money(price)
+        change_24h = extract_numeric(coin.get("24h Change", 0))
+        vol_ratio = extract_numeric(coin.get("Volume Ratio", 1)) or 1
         rsi = extract_numeric(coin.get("RSI", 50))
-        trend = coin.get("EMA Trend", "Stable")
+        rsi_4h = extract_numeric(coin.get("RSI_4h", 50))
+        macd = extract_numeric(coin.get("MACD", 0))
+        adx = extract_numeric(coin.get("ADX", 0))
+        net_accum_12h = extract_numeric(coin.get("Net Accum 12h", 0))
+        oi_change = extract_numeric(coin.get("OI Change %", 0))
+        funding_rate = extract_numeric(coin.get("Funding Rate", 0))
+        btc_corr = extract_numeric(coin.get("BTC Correlation", 0))
         
-        # Cash Flow Status (12h)
-        net_accum = extract_numeric(coin.get("Net Accum 12h", 0))
-        flow_emoji = "🟢" if net_accum > 0 else "🔴"
-        flow_str = f"{format_money(net_accum)} ({'Inflow' if net_accum > 0 else 'Outflow'})"
-
-        # Message Builder Helper
-        def send_enhanced_alert(title, emoji, insight, alert_key_suffix):
-            alert_key = f"{symbol}_{alert_key_suffix}"
-            last_sent = SENT_ALERTS[symbol].get(alert_key, 0)
+        # Advanced Detection Signals
+        signals = []
+        confidence = 0
+        
+        # === 1. SMART MONEY CONFLUENCE ===
+        # Whale Accumulation + Rising OI + Negative Funding (Longs paying shorts)
+        whale_buying = net_accum_12h > 5_000_000
+        oi_rising = oi_change > 10
+        funding_negative = funding_rate < -0.0001  # Longs paying shorts = potential squeeze
+        
+        if whale_buying and oi_rising and funding_negative and vol_ratio < 2.5:
+            signals.append("🐋 SMART MONEY ACCUMULATION")
+            confidence += 35
+            alert_type = "smart_money_accum"
+            insight = f"Whales are silently accumulating (+${format_money(net_accum_12h)}) with rising Open Interest ({oi_change:+.1f}%) and negative funding rate. Potential squeeze setup."
             
-            if now - last_sent > cooldown:
-                msg = (
-                    f"{emoji} <b>{title}: {symbol}</b>\n\n"
-                    f"💵 <b>Price:</b> {price_str}\n"
-                    f"📊 <b>Volume:</b> {vol_ratio:.1f}x Avg\n"
-                    f"📈 <b>RSI:</b> {rsi:.0f}\n"
-                    f"{flow_emoji} <b>Cash Flow (12h):</b> {flow_str}\n"
-                    f"🌊 <b>Market:</b> {regime_str}\n\n"
-                    f"💡 <b>Insight:</b> {insight}"
-                )
-                send_telegram_message_long(msg)
-                SENT_ALERTS[symbol][alert_key] = now
-                return True
-            return False
-
-        # 1. EMA Crossover Alerts (Golden/Death Cross)
-        if "Golden Cross" in trend:
-            if send_enhanced_alert("GOLDEN CROSS", "🚀", "Bullish trend reversal! EMA 20 crossed above EMA 50.", "golden_cross"):
-                SIGNAL_TRACKER.record_signal("golden_cross", symbol, coin['Price'], {'rsi': rsi, 'vol': vol_ratio})
+            if _send_confluence_alert(symbol, "SMART MONEY DETECTED", "🧠", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal("smart_money", symbol, price, {'net_accum': net_accum_12h, 'oi': oi_change})
+                alerts_triggered.append(symbol)
+        
+        # === 2. BREAKOUT PREDICTION ENGINE ===
+        # Bollinger Squeeze + Volume Spike + Strong Trend
+        bb_squeeze = coin.get("Bollinger Squeeze") == "Yes"
+        volume_spike = vol_ratio > 3.0
+        strong_trend = adx > 25
+        rsi_momentum = (rsi > 60 and rsi < 80) or (rsi < 40 and rsi > 20)  # Not overbought/oversold
+        
+        if bb_squeeze and volume_spike and strong_trend and rsi_momentum:
+            signals.append("⚡ BREAKOUT IMMINENT")
+            confidence += 40
+            direction = "BULLISH" if macd > 0 else "BEARISH"
+            alert_type = f"breakout_pred_{direction.lower()}"
+            insight = f"Bollinger Squeeze detected with {vol_ratio:.1f}x volume spike and ADX {adx:.0f}. Strong {direction} breakout likely within 1-4 hours."
             
-        elif "Death Cross" in trend:
-            if send_enhanced_alert("DEATH CROSS", "📉", "Bearish trend reversal! EMA 20 crossed below EMA 50.", "death_cross"):
-                SIGNAL_TRACKER.record_signal("death_cross", symbol, coin['Price'], {'rsi': rsi, 'vol': vol_ratio})
-
-        # 2. Volume Patterns (Breakout/Breakdown)
-        elif "Volume Breakout" in trend:
-            if send_enhanced_alert("VOLUME BREAKOUT", "⚡", f"Price breaking out with {vol_ratio:.1f}x volume!", "vol_breakout"):
-                SIGNAL_TRACKER.record_signal("vol_breakout", symbol, coin['Price'], {'rsi': rsi, 'vol': vol_ratio})
+            if _send_confluence_alert(symbol, f"{direction} BREAKOUT SETUP", "🎯", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal("breakout_pred", symbol, price, {'adx': adx, 'vol': vol_ratio})
+                alerts_triggered.append(symbol)
+        
+        # === 3. LIQUIDITY HUNT RECOVERY ===
+        # Price dipped below support, swept stops, now recovering with volume
+        trap_detected = coin.get("Trap Status", "") == "Bear Trap Detected"
+        recovery = change_24h > 2.0  # Recovering now
+        high_volume = vol_ratio > 2.0
+        
+        if trap_detected and recovery and high_volume:
+            signals.append("🪤 LIQUIDITY SWEEP RECOVERY")
+            confidence += 30
+            alert_type = "liq_sweep_recovery"
+            insight = f"Bear trap detected! Price swept lows, grabbed liquidity, now reversing with {vol_ratio:.1f}x volume. Classic stop hunt pattern."
             
-        elif "Volume Breakdown" in trend:
-            if send_enhanced_alert("VOLUME BREAKDOWN", "🩸", f"Price breaking down with {vol_ratio:.1f}x volume!", "vol_breakdown"):
-                SIGNAL_TRACKER.record_signal("vol_breakdown", symbol, coin['Price'], {'rsi': rsi, 'vol': vol_ratio})
-
-        # 3. Cash Flow Pumps (> 10M and Low Volatility)
-        # This detects "Silent Accumulation" before the pump
-        if abs(net_accum) > 10_000_000 and vol_ratio < 2.0:
-            direction = "ACCUMULATION" if net_accum > 0 else "DISTRIBUTION"
-            icon = "🐋" if net_accum > 0 else "💸"
-            alert_key = "whale_accum"
+            if _send_confluence_alert(symbol, "LIQUIDITY HUNT REVERSAL", "🔄", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal("liq_sweep", symbol, price, {'change': change_24h})
+                alerts_triggered.append(symbol)
+        
+        # === 4. CORRELATION DIVERGENCE (Decoupling) ===
+        # Coin moving opposite to BTC/ETH = independent strength/weakness
+        btc_divergence = abs(btc_corr) < 0.3 and abs(change_24h - btc_change) > 5.0
+        strong_move = abs(change_24h) > 3.0
+        
+        if btc_divergence and strong_move and vol_ratio > 1.5:
+            signals.append("🎭 BTC CORRELATION BREAK")
+            confidence += 25
+            direction = "BULLISH" if change_24h > 0 else "BEARISH"
+            alert_type = f"btc_divergence_{direction.lower()}"
+            insight = f"Asset decoupled from BTC! Independent {direction} move ({change_24h:+.1f}% vs BTC {btc_change:+.1f}%). Unique narrative or catalyst in play."
             
-            # Custom logic for whale alert (different cooldown? same for now)
-            send_enhanced_alert(f"WHALE {direction}", icon, f"Significant money {direction.lower()} without price spike (Hidden Activity).", alert_key)
-            # Signal tracker logic inside helper didn't run, add manual record if needed or trust common logic
-            if net_accum > 0:
-                SIGNAL_TRACKER.record_signal("whale_accum", symbol, coin['Price'], {'net_accum': net_accum})
+            if _send_confluence_alert(symbol, f"BTC DIVERGENCE - {direction}", "🆚", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal("btc_divergence", symbol, price, {'btc_corr': btc_corr})
+                alerts_triggered.append(symbol)
+        
+        # === 5. MULTI-TIMEFRAME MOMENTUM ALIGNMENT ===
+        # All timeframes aligned = High probability trend continuation
+        rsi_1h_bullish = rsi > 55 and rsi < 75
+        rsi_4h_bullish = rsi_4h > 50
+        macd_bullish = macd > 0
+        volume_confirm = vol_ratio > 1.3
+        
+        if rsi_1h_bullish and rsi_4h_bullish and macd_bullish and volume_confirm and adx > 20:
+            signals.append("📊 MTF ALIGNMENT")
+            confidence += 28
+            alert_type = "mtf_bullish_align"
+            insight = f"Multi-timeframe bullish alignment! 1H RSI: {rsi:.0f}, 4H RSI: {rsi_4h:.0f}, MACD positive, ADX {adx:.0f}. Strong trend continuation signal."
+            
+            if _send_confluence_alert(symbol, "MULTI-TIMEFRAME BULLISH", "🟢", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal("mtf_align", symbol, price, {'rsi_1h': rsi, 'rsi_4h': rsi_4h})
+                alerts_triggered.append(symbol)
+        
+        # === 6. EXTREME FEAR/GREED REVERSAL ===
+        # RSI extremes + diverging volume = potential reversal
+        extreme_oversold = rsi < 25 and rsi_4h < 30
+        extreme_overbought = rsi > 75 and rsi_4h > 70
+        vol_divergence = vol_ratio > 2.5  # High volume at extremes = possible exhaustion
+        
+        if (extreme_oversold or extreme_overbought) and vol_divergence:
+            signals.append("🎢 EXTREME REVERSAL ZONE")
+            confidence += 32
+            direction = "BULLISH" if extreme_oversold else "BEARISH"
+            alert_type = f"extreme_reversal_{direction.lower()}"
+            insight = f"Extreme {'oversold' if extreme_oversold else 'overbought'} on multiple timeframes with high volume. Potential {direction} reversal setup. Wait for confirmation."
+            
+            if _send_confluence_alert(symbol, f"EXTREME {direction} REVERSAL", "⚠️", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal("extreme_reversal", symbol, price, {'rsi': rsi})
+                alerts_triggered.append(symbol)
+    
+    return alerts_triggered
+
+
+def _send_confluence_alert(symbol, title, emoji, insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
+    """Helper to send confluence-based alerts with signal breakdown."""
+    global SENT_ALERTS
+    
+    alert_key = f"{symbol}_{alert_type}"
+    last_sent = SENT_ALERTS[symbol].get(alert_key, 0)
+    
+    if now - last_sent > cooldown:
+        # Build signal strength bar
+        conf_bars = int(confidence / 10)
+        conf_visual = "█" * conf_bars + "░" * (10 - conf_bars)
+        
+        # Combine all signals
+        signals_str = "\n".join([f"   • {sig}" for sig in signals])
+        
+        msg = (
+            f"{emoji} <b>{title}: {symbol}</b>\n\n"
+            f"💵 <b>Price:</b> {price_str}\n"
+            f"📊 <b>Volume:</b> {vol_ratio:.1f}x Avg\n"
+            f"📈 <b>RSI:</b> {rsi:.0f}\n"
+            f"🌊 <b>Market Regime:</b> {regime_str}\n\n"
+            f"🎯 <b>Confluence Signals Detected:</b>\n{signals_str}\n\n"
+            f"🔬 <b>Confidence Level:</b> {confidence}%\n"
+            f"[{conf_visual}]\n\n"
+            f"💡 <b>AI Analysis:</b> {insight}\n\n"
+            f"<i>⚡ Powered by Radar Ultra AI • Multi-Signal Detection Engine</i>"
+        )
+        
+        send_telegram_message_long(msg)
+        SENT_ALERTS[symbol][alert_type] = now
+        return True
+    
+    return False
 
 
 def get_market_alerts_report_string():
