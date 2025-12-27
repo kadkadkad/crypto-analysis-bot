@@ -1133,14 +1133,14 @@
     <div id="modal" class="modal">
         <div class="modal-inner">
             <div class="modal-h">
-                <h3 id="modalT" style="color: var(--accent);">Rapor</h3>
+                <h3 id="modalT" style="color: var(--accent);">Report</h3>
                 <div>
-                    <button class="copy-btn" onclick="copyM()"><i class="fas fa-copy"></i> Kopyala</button>
+                    <button class="copy-btn" onclick="copyM()"><i class="fas fa-copy"></i> Copy</button>
                     <button onclick="closeM()"
                         style="background:transparent; border:none; color:white; font-size:28px; cursor:pointer; margin-left:15px;">&times;</button>
                 </div>
             </div>
-            <div class="modal-b" id="modalB">Yükleniyor...</div>
+            <div class="modal-b" id="modalB">Loading...</div>
         </div>
     </div>
 
@@ -1156,7 +1156,7 @@
                 if (d && d.length > 0) {
                     db = d;
                     draw();
-                    document.getElementById('uTime').innerText = 'SYC GÜNCELLEME: ' + new Date().toLocaleTimeString();
+                    document.getElementById('uTime').innerText = 'SYNC UPDATE: ' + new Date().toLocaleTimeString();
                 }
             } catch (e) { console.error(e); }
         }
@@ -1210,7 +1210,7 @@
 
                     <div class="ai-box">
                         <strong><i class="fas fa-robot"></i> CURRENT ANALYSIS:</strong><br>
-                        ${c.Advice || 'Analiz verisi bekleniyor...'}
+                        ${c.Advice || 'Waiting for analysis data...'}
                     </div>
                 `;
                 grid.appendChild(card);
@@ -1222,7 +1222,7 @@
             if (type.includes('Export') || type.includes('Transcripts')) {
                 const btn = e ? (e.currentTarget || e.target.closest('.btn-item')) : null;
                 const oldHTML = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Hazırlanıyor...';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
                 btn.classList.add('loading');
 
                 try {
@@ -1240,25 +1240,25 @@
             const b = document.getElementById('modalB');
             document.getElementById('modalT').innerText = "📊 " + type.toUpperCase();
             m.style.display = 'flex';
-            b.innerHTML = "<i>Telegram formatında rapor oluşturuluyor... Lütfen bekleyin.</i>";
+            b.innerHTML = "<i>Generating report in Telegram format... Please wait.</i>";
             try {
                 const res = await fetch(`/api/report/${encodeURIComponent(type)}`);
                 const d = await res.json();
                 if (d.content) {
-                    // Telegram'dan gelen HTML taglerini (<b>, <i>) koruyarak göster
+                    // Show keeping HTML tags from Telegram (<b>, <i>)
                     b.innerHTML = d.content.replace(/\n/g, "<br>");
                 } else {
-                    b.innerText = "Veri henüz hazır değil. Analiz döngüsünün tamamlanmasını bekleyin.";
+                    b.innerText = "Data is not ready yet. Please wait for the analysis loop to complete.";
                 }
-            } catch (e) { b.innerText = "Hata: " + e.message; }
+            } catch (e) { b.innerText = "Error: " + e.message; }
         }
 
         function copyM() {
             const t = document.getElementById('modalB').innerText;
             navigator.clipboard.writeText(t);
             const btn = document.querySelector('.copy-btn');
-            btn.innerText = "Kopyalandı! ✅";
-            setTimeout(() => btn.innerText = "Kopyala", 2000);
+            btn.innerText = "Copied! ✅";
+            setTimeout(() => btn.innerText = "Copy", 2000);
         }
 
         function closeM() { document.getElementById('modal').style.display = 'none'; }
@@ -1273,7 +1273,7 @@
                 if (data.last_update && data.last_update > lastAlertTime) {
                     document.getElementById('alertBadge').style.display = 'block';
                     if (lastAlertTime > 0) {
-                        showToast("🔔 YENİ SİNYAL!", "Piyasada yeni bir teknik kesişim veya hacim artışı algılandı. Görüntülemek için tıklayın.");
+                        showToast("🔔 NEW SIGNAL!", "New technical crossover or volume surge detected in the market. Click to view.");
                     }
                 }
             } catch (e) { console.error("Alert check error:", e); }

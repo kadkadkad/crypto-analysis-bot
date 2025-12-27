@@ -239,21 +239,21 @@ def validate_indicators(indicators):
         required_fields = ["Coin", "Price_Display", "RSI", "MACD", "ADX", "Volume Ratio", "NetAccum_raw"]
         for field in required_fields:
             if field not in indicators or indicators[field] is None:
-                print(f"[UYARI] {indicators.get('Coin', 'Unknown')} için '{field}' alanı eksik")
+                print(f"[WARN] {indicators.get('Coin', 'Unknown')} missing '{field}' field")
                 return False
 
         # Değerlerin mantıklı aralıklarda olup olmadığını kontrol et
         if "RSI" in indicators:
             rsi = extract_numeric(indicators["RSI"])
             if not (0 <= rsi <= 100):
-                print(f"[UYARI] {indicators['Coin']} için RSI değeri geçersiz: {rsi}")
+                print(f"[WARN] {indicators['Coin']} için RSI değeri geçersiz: {rsi}")
                 return False
 
         # volume oranı pozitif olmalı
         if "Volume Ratio" in indicators:
             volume_ratio = extract_numeric(indicators["Volume Ratio"])
             if volume_ratio <= 0:
-                print(f"[UYARI] {indicators['Coin']} için hacim oranı geçersiz: {volume_ratio}")
+                print(f"[WARN] {indicators['Coin']} için hacim oranı geçersiz: {volume_ratio}")
                 return False
 
         return True
@@ -398,7 +398,7 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
         return result
     except Exception as e:
         print(f"[ERROR] {symbol} için sync_fetch_kline_data hatası: {e}")
-        return []  # Hata durumunda boş liste dön
+        return []  # Error durumunda boş liste dön
 
 # ---------------- Yeni Eklenen Fonksiyonlar ----------------
 # Replace current economic data function with reliable API calls
@@ -416,10 +416,10 @@ def fetch_macro_economic_data():
                 data = response.json()
                 fear_greed_index = int(data['data'][0]['value'])
             else:
-                print(f"[UYARI] Korku & Açgözlülük endeksi yanıt vermedi: {response.status_code}")
+                print(f"[WARN] Korku & Açgözlülük endeksi yanıt vermedi: {response.status_code}")
                 fear_greed_index = 49  # Orta değer
         except Exception as e:
-            print(f"[UYARI] Korku & Açgözlülük endeksi alınamadı: {e}")
+            print(f"[WARN] Korku & Açgözlülük endeksi alınamadı: {e}")
             fear_greed_index = 49
 
         # DXY ve Piyasa endeksleri - rate limit riski taşıyor
@@ -435,7 +435,7 @@ def fetch_macro_economic_data():
             # Alternatif bir kaynaktan VIX çekmeyi deneyin - CBOE API
             # (burada test amaçlı kullanmıyoruz, rate limit riski var)
         except Exception as e:
-            print(f"[UYARI] Piyasa endeksleri alınamadı: {e}")
+            print(f"[WARN] Piyasa endeksleri alınamadı: {e}")
             market_indices = {
                 "S&P500": {"value": 5890.58, "change": 0.45, "trend": "yükseliş"},
                 "NASDAQ": {"value": 21458.92, "change": 0.72, "trend": "yükseliş"},
@@ -467,7 +467,7 @@ def fetch_macro_economic_data():
             else:
                 raise Exception(f"CoinGecko API yanıt vermedi: {response.status_code}")
         except Exception as e:
-            print(f"[UYARI] Kripto piyasa verileri alınamadı: {e}")
+            print(f"[WARN] Kripto piyasa verileri alınamadı: {e}")
             # Daha güvenilir değerler
             crypto_market = {
                 "total_market_cap": 2.89e12,  # 2.89T
@@ -494,7 +494,7 @@ def fetch_macro_economic_data():
                     btc_eth_data[f"{symbol_prefix}_price"] = last_price
                     btc_eth_data[f"{symbol_prefix}_24h_change"] = price_change
         except Exception as e:
-            print(f"[UYARI] {symbol} ticker verisi alınamadı: {e}")
+            print(f"[WARN] {symbol} ticker verisi alınamadı: {e}")
             # ALL_RESULTS'tan veri çekmeye çalış
             if ALL_RESULTS:
                 btc_data = next((c for c in ALL_RESULTS if c["Coin"] == "BTCUSDT"), None)
@@ -590,7 +590,7 @@ def get_fear_greed_index():
             raise Exception(f"Fear & Greed API yanıt vermedi: {response.status_code}")
     except Exception as e:
         if "429" in str(e):
-            print(f"[UYARI] CoinGecko API rate limit (429).")
+            print(f"[WARN] CoinGecko API rate limit (429).")
         else:
             print(f"[ERROR] Korku & Açgözlülük endeksi alınamadı: {e}")
         # Varsayılan değer
@@ -622,7 +622,7 @@ def get_current_price(symbol):
             data = response.json()
             return float(data["price"])
         else:
-            print(f"[UYARI] {symbol} fiyatı alınamadı: {response.status_code}")
+            print(f"[WARN] {symbol} fiyatı alınamadı: {response.status_code}")
             return 0
     except Exception as e:
         print(f"[ERROR] {symbol} fiyatı alınırken hata: {e}")
@@ -727,7 +727,7 @@ def calculate_macro_risk_level(custom_data=None):
             }
             risk_factors.append(vix_risk)
         except Exception as e:
-            print(f"[UYARI] VIX risk faktörü oluşturulamadı: {e}")
+            print(f"[WARN] VIX risk faktörü oluşturulamadı: {e}")
             # Varsayılan VIX risk
             risk_factors.append({
                 "factor": "VIX Volatilite",
@@ -1786,7 +1786,7 @@ def handle_reply_message(message):
         import traceback
         traceback.print_exc()
 
-        # Hata durumunda ana menüye yönlendir
+        # Error durumunda ana menüye yönlendir
         MENU_STATE.set_user_state(chat_id, "main_menu")
         send_telegram_message(chat_id,
                               f"⚠️ An error occurred during the operation: {str(e)}\nPlease try again from the main menu.",
@@ -1826,7 +1826,7 @@ def handle_main_menu_option(option, chat_id):
         elif option == "SOL Correlation":
             if ALL_RESULTS:
                 sorted_results = sorted(ALL_RESULTS,
-                                        key=lambda x: float(str(x.get("SOL Correlation", 0))) if x.get("SOL Correlation") not in ["None", "Yok", "N/A", None] else -1,
+                                        key=lambda x: float(str(x.get("SOL Correlation", 0))) if x.get("SOL Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("SOL Correlation", sorted_results)
                 send_telegram_message_long(report)
@@ -1868,7 +1868,7 @@ def handle_main_menu_option(option, chat_id):
         elif option == "BTC Correlation":
             if ALL_RESULTS:
                 sorted_results = sorted(ALL_RESULTS,
-                                        key=lambda x: float(str(x.get("BTC Correlation", 0))) if x.get("BTC Correlation") not in ["None", "Yok", "N/A", None] else -1,
+                                        key=lambda x: float(str(x.get("BTC Correlation", 0))) if x.get("BTC Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("BTC Correlation", sorted_results)
                 send_telegram_message_long(report)
@@ -1963,7 +1963,7 @@ def handle_main_menu_option(option, chat_id):
         elif option == "ETH Correlation":
             if ALL_RESULTS:
                 sorted_results = sorted(ALL_RESULTS,
-                                        key=lambda x: float(str(x.get("ETH Correlation", 0))) if x.get("ETH Correlation") not in ["None", "Yok", "N/A", None] else -1,
+                                        key=lambda x: float(str(x.get("ETH Correlation", 0))) if x.get("ETH Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("ETH Correlation", sorted_results)
                 send_telegram_message_long(report)
@@ -2294,7 +2294,7 @@ def handle_main_menu_option(option, chat_id):
         print(f"[ERROR] '{option}' seçeneği işlenirken hata: {e}")
         import traceback
         traceback.print_exc()
-        # Hata durumunda bilgilendirme mesajı
+        # Error durumunda bilgilendirme mesajı
         send_telegram_message_long(f"⚠️ '{option}' raporu oluşturulurken bir hata oluştu: {str(e)}")
 
 
@@ -2631,7 +2631,7 @@ def fetch_24hr_ticker_data(symbols):
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 429:  # Rate limit hatası
-                print(f"[UYARI] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
+                print(f"[WARN] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
                 time.sleep(5)
                 response = requests.get(url, timeout=10)
             if response.status_code == 200:
@@ -3042,7 +3042,7 @@ def generate_cash_flow_migration_report():
                 if taker_buy_base > 0 and avg_price > 0:
                     taker_buy_vol = taker_buy_base * avg_price
                 else:
-                    print(f"[UYARI] {symbol} - Ticker Taker Buy Base veya Avg Price sıfır: {taker_buy_base}, {avg_price}")
+                    print(f"[WARN] {symbol} - Ticker Taker Buy Base veya Avg Price sıfır: {taker_buy_base}, {avg_price}")
 
         if quote_vol <= 0 or taker_buy_vol == 0:
             taker_buy_quote, quote_vol_from_klines = fetch_taker_volumes_from_klines(symbol, "1h", 24)
@@ -3050,7 +3050,7 @@ def generate_cash_flow_migration_report():
                 quote_vol = quote_vol_from_klines
                 taker_buy_vol = taker_buy_quote
             else:
-                print(f"[UYARI] {symbol} - Kline verileri de yetersiz: Quote Vol: {quote_vol_from_klines}, Taker Buy Vol: {taker_buy_quote}")
+                print(f"[WARN] {symbol} - Kline verileri de yetersiz: Quote Vol: {quote_vol_from_klines}, Taker Buy Vol: {taker_buy_quote}")
                 taker_buy_vol = quote_vol * 0.5  # Varsayılan %50 alıcı hacmi tahmini
                 quote_vol = quote_vol or 1
 
@@ -3065,7 +3065,7 @@ def generate_cash_flow_migration_report():
             buy_power = taker_buy_vol / quote_vol if taker_buy_vol < quote_vol else 1.0
             buy_power = round(min(max(buy_power, 0), 10), 2)
         else:
-            print(f"[UYARI] {symbol} - Quote Vol veya Taker Buy Vol geçersiz: {quote_vol}, {taker_buy_vol}")
+            print(f"[WARN] {symbol} - Quote Vol veya Taker Buy Vol geçersiz: {quote_vol}, {taker_buy_vol}")
 
         print(f"[DEBUG] {symbol} - Quote Vol: {quote_vol}, Taker Buy Vol: {taker_buy_vol}, Buy Power: {buy_power}")
 
@@ -3441,7 +3441,7 @@ def calculate_trend_score(coin_data):
         volume_ratio = extract_numeric(coin_data["Volume Ratio"])
         atr = extract_numeric(coin_data["ATR_raw"])
         price_roc = extract_numeric(coin_data["24h Change"])
-        btc_corr = extract_numeric(coin_data["BTC Correlation"]) if coin_data["BTC Correlation"] != "Yok" else 0
+        btc_corr = extract_numeric(coin_data["BTC Correlation"]) if coin_data["BTC Correlation"] != "N/A" else 0
         trend_strength = (adx / 100) * 30
         momentum_boost = (price_roc / 10) * 20 if price_roc > 0 else 0
         whale_impact = (min(abs(net_accum) / 10, 1) * 30) if net_accum > 0 else 0
@@ -3900,7 +3900,7 @@ async def fetch_futures_data_async(session, symbol, exchange='binance'):
                     if response.status == 200:
                         return await response.json()
                     else:
-                        print(f"[UYARI] {exchange} {symbol} veri çekme hatası: {response.status}")
+                        print(f"[WARN] {exchange} {symbol} veri çekme hatası: {response.status}")
                         return None
             except Exception as e:
                 print(f"[ERROR] {exchange} {symbol} veri çekme hatası: {e}")
@@ -4217,7 +4217,7 @@ async def aggregate_futures_data(symbols):
                 if validate_data(data):
                     results.append(data)
             except Exception as e:
-                print(f"[UYARI] {symbol} - {source.__name__} hatası: {e}")
+                print(f"[WARN] {symbol} - {source.__name__} hatası: {e}")
 
         return consolidate_data(results)
 
@@ -4375,7 +4375,7 @@ def generate_futures_timeframe_analysis():
                 # Kline verilerini al
                 kline_data = sync_fetch_kline_data(symbol, timeframe, limit=20)
                 if not kline_data or len(kline_data) < 5:
-                    print(f"[UYARI] {symbol} için {timeframe} kline verisi yetersiz")
+                    print(f"[WARN] {symbol} için {timeframe} kline verisi yetersiz")
                     continue
 
                 # DataFrame'e dönüştür
@@ -4705,7 +4705,7 @@ def fetch_futures_oi_changes_improved(symbol, timeframe, limit=2):
 
         # Rate limit kontrolü
         if response.status_code == 429:
-            print(f"[UYARI] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
+            print(f"[WARN] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
             time.sleep(5)
             response = requests.get(url, timeout=10)
 
@@ -4721,9 +4721,9 @@ def fetch_futures_oi_changes_improved(symbol, timeframe, limit=2):
                     print(f"[DEBUG] {symbol} - {timeframe} OI Değişimi: {oi_change:.2f}%")
                     return oi_change
                 else:
-                    print(f"[UYARI] {symbol} previous OI sıfır")
+                    print(f"[WARN] {symbol} previous OI sıfır")
             else:
-                print(f"[UYARI] {symbol} - {timeframe} için yeterli OI verisi yok: {len(data)} kayıt")
+                print(f"[WARN] {symbol} - {timeframe} için yeterli OI verisi yok: {len(data)} kayıt")
         else:
             print(f"[ERROR] {symbol} OI verisi alınamadı: {response.status_code}")
 
@@ -4830,11 +4830,11 @@ def fetch_enhanced_ls_ratio(symbol):
                         results.append(("binance_global", ls_ratio))
                         debug_info.append(f"Binance Global L/S: {ls_ratio:.2f}")
                     else:
-                        print(f"[UYARI] Binance Global L/S oranı ({ls_ratio:.2f}) geçersiz aralıkta")
+                        print(f"[WARN] Binance Global L/S oranı ({ls_ratio:.2f}) geçersiz aralıkta")
             else:
-                print(f"[UYARI] Binance Global API hatası: {ls_response.status_code}")
+                print(f"[WARN] Binance Global API hatası: {ls_response.status_code}")
         except Exception as e:
-            print(f"[ERROR] Binance Global Hata: {str(e)}")
+            print(f"[ERROR] Binance Global Error: {str(e)}")
 
         # 2. Binance Top Accounts
         try:
@@ -4854,11 +4854,11 @@ def fetch_enhanced_ls_ratio(symbol):
                             results.append(("binance_top", ls_ratio))
                             debug_info.append(f"Binance Top Accounts L/S: {ls_ratio:.2f}")
                         else:
-                            print(f"[UYARI] Binance Top L/S oranı ({ls_ratio:.2f}) geçersiz aralıkta")
+                            print(f"[WARN] Binance Top L/S oranı ({ls_ratio:.2f}) geçersiz aralıkta")
             else:
-                print(f"[UYARI] Binance Top API hatası: {alt_ls_response.status_code}")
+                print(f"[WARN] Binance Top API hatası: {alt_ls_response.status_code}")
         except Exception as e:
-            print(f"[ERROR] Binance Top Hata: {str(e)}")
+            print(f"[ERROR] Binance Top Error: {str(e)}")
 
         # 3. Binance Positions Ratio
         try:
@@ -4878,11 +4878,11 @@ def fetch_enhanced_ls_ratio(symbol):
                             results.append(("binance_positions", ls_ratio))
                             debug_info.append(f"Binance Positions L/S: {ls_ratio:.2f}")
                         else:
-                            print(f"[UYARI] Binance Positions L/S oranı ({ls_ratio:.2f}) geçersiz aralıkta")
+                            print(f"[WARN] Binance Positions L/S oranı ({ls_ratio:.2f}) geçersiz aralıkta")
             else:
-                print(f"[UYARI] Binance Positions API hatası: {pos_ls_response.status_code}")
+                print(f"[WARN] Binance Positions API hatası: {pos_ls_response.status_code}")
         except Exception as e:
-            print(f"[ERROR] Binance Positions Hata: {str(e)}")
+            print(f"[ERROR] Binance Positions Error: {str(e)}")
 
         # Sonuçları analiz et
         if results:
@@ -4906,10 +4906,10 @@ def fetch_enhanced_ls_ratio(symbol):
                 print(f"[DEBUG] Final L/S oranı: {final_ratio:.2f}")
                 return final_ratio
             else:
-                print(f"[UYARI] {symbol} için tüm L/S oranları ortalamadan çok sapma gösteriyor")
+                print(f"[WARN] {symbol} için tüm L/S oranları ortalamadan çok sapma gösteriyor")
                 return latest_ratio
         else:
-            print(f"[UYARI] {symbol} için hiçbir kaynaktan geçerli L/S oranı alınamadı")
+            print(f"[WARN] {symbol} için hiçbir kaynaktan geçerli L/S oranı alınamadı")
             return 1.0
 
     except Exception as e:
@@ -5008,7 +5008,7 @@ def fetch_improved_ls_ratio(symbol):
             print(f"[ERROR] {symbol} OKX L/S oranı alınamadı: {e}")
 
         # Hiçbir veri alınamazsa varsayılan değer
-        print(f"[UYARI] {symbol} için L/S oranı alınamadı, varsayılan değer 1.0 dönülüyor")
+        print(f"[WARN] {symbol} için L/S oranı alınamadı, varsayılan değer 1.0 dönülüyor")
         return 1.0
 
     except Exception as e:
@@ -5305,7 +5305,7 @@ def predict_with_cached_model(symbol, df):
     try:
         # Veri çerçevesini hazırla ve temizle
         if df is None or len(df) < 10:
-            print(f"[UYARI] {symbol} için tahmin yapılamıyor: Yetersiz veri ({len(df) if df is not None else 0} satır)")
+            print(f"[WARN] {symbol} için tahmin yapılamıyor: Yetersiz veri ({len(df) if df is not None else 0} satır)")
             return 0.0, 0.0
 
         # Sütun isimlerinin doğru olduğundan emin ol
@@ -5313,7 +5313,7 @@ def predict_with_cached_model(symbol, df):
         missing_cols = [col for col in required_cols if col not in df.columns]
 
         if missing_cols:
-            print(f"[UYARI] {symbol} için eksik sütunlar: {missing_cols}")
+            print(f"[WARN] {symbol} için eksik sütunlar: {missing_cols}")
             # Eksik sütunları oluştur (varsayılan değerlerle)
             for col in missing_cols:
                 if col == 'price' and 'close' in df.columns:
@@ -5409,14 +5409,14 @@ async def fetch_kline_data_safely(session, symbol, interval, limit=100):
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as response:
                 if response.status == 429:
                     wait_time = min(5 * (attempt + 1), 30)  # Max 30 sn bekleme
-                    print(f"[UYARI] {symbol} için rate limit, {wait_time}s bekleniyor...")
+                    print(f"[WARN] {symbol} için rate limit, {wait_time}s bekleniyor...")
                     await asyncio.sleep(wait_time)
                     continue
 
                 if response.status == 200:
                     data = await response.json()
                     if not data or len(data) < 2:
-                        print(f"[UYARI] {symbol} için yetersiz veri: {len(data)} kayıt")
+                        print(f"[WARN] {symbol} için yetersiz veri: {len(data)} kayıt")
                         return []
 
                     return data
@@ -5478,7 +5478,7 @@ def fetch_taker_volumes_from_klines(symbol, interval="1h", limit=24):
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 429:
-            print(f"[UYARI] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
+            print(f"[WARN] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
             time.sleep(5)
             response = requests.get(url, timeout=10)
         if response.status_code == 200:
@@ -5528,7 +5528,7 @@ def get_futures_data(symbol):
             "long_short_ratio": 1.0
         }
     except Exception as e:
-        print(f"[UYARI] {symbol} için vadeli işlemler verisi alınamadı: {e}")
+        print(f"[WARN] {symbol} için vadeli işlemler verisi alınamadı: {e}")
         return {
             "funding_rate": 0,
             "open_interest": 0,
@@ -6172,13 +6172,13 @@ def check_smt_divergence(df_coin, df_btc):
 def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
     """
     Antigravity Bot - Master Analytical Framework (Efloud Architecture)
-    Metodoloji: HTF Bias -> Tactical Levels -> PO3/AMD -> LTF Confirmation
+    Methodology: HTF Bias -> Tactical Levels -> PO3/AMD -> LTF Confirmation
     """
     try:
         symbol = coin_data.get("Coin", "Unknown")
         current_price = float(coin_data.get("Price", 0))
         
-        # 1. PIYASA BAGLAMI VE BIAS BELIRLEME (2.0)
+        # 1. MARKET CONTEXT AND BIAS DETERMINATION (2.0)
         short_ema_1d = df_1d['close'].iloc[-20:].mean()
         long_ema_1d = df_1d['close'].iloc[-50:].mean()
         
@@ -6186,31 +6186,31 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
         last_highs = df_1d['high'].iloc[-20:].values
         last_lows = df_1d['low'].iloc[-20:].values
         
-        bias = "Trend Dışı (Yan/Dalgalı) ⚖️"
+        bias = "Sideways / Choppy ⚖️"
         bias_type = "Sideways"
-        bias_desc = "Fiyat belirli bir aralıkta (Range) konsolide olmaktadır."
+        bias_desc = "Price is consolidating within a specific range."
         
         if current_price > short_ema_1d > long_ema_1d:
-            bias = "Trend Yönlü (Yükseliş) 📈"
+            bias = "Trending (Bullish) 📈"
             bias_type = "Bullish"
-            bias_desc = "HTF grafiğinde daha yüksek tepeler ve dipler yükseliş trendini teyit ediyor."
+            bias_desc = "Higher Highs and Higher Lows on HTF confirm an uptrend."
         elif current_price < short_ema_1d < long_ema_1d:
-            bias = "Trend Yönlü (Düşüş) 📉"
+            bias = "Trending (Bearish) 📉"
             bias_type = "Bearish"
-            bias_desc = "HTF grafiğinde daha düşük tepeler ve dipler düşüş trendini teyit ediyor."
+            bias_desc = "Lower Highs and Lower Lows on HTF confirm a downtrend."
         
-        # Trend Dönüşü Potansiyeli Check
+        # Reversal Potential Check
         recent_high = df_1d['high'].tail(50).max()
         recent_low = df_1d['low'].tail(50).min()
         if (current_price > recent_high * 0.98) or (current_price < recent_low * 1.02):
-            bias = "Trend Dönüşü Potansiyeli (Reversal) 🔄"
+            bias = "Reversal Potential 🔄"
             bias_type = "Reversal"
-            bias_desc = "Önemli bir HTF seviyesine ulaşıldı, yavaşlama emareleri aranıyor."
+            bias_desc = "Key HTF level reached, looking for signs of slowing momentum."
 
-        # 2. HTF ANALIZI: STRATEJIK SEVIYELER (3.0)
+        # 2. HTF ANALYSIS: STRATEGIC LEVELS (3.0)
         # FVG Detection on 4H
         fvg_detected = False
-        fvg_zone = "Bulunamadı"
+        fvg_zone = "Not Found"
         if len(df_4h) > 15:
             for i in range(len(df_4h)-3, len(df_4h)-15, -1):
                 if df_4h['low'].iloc[i+2] > df_4h['high'].iloc[i]: # Bullish FVG
@@ -6223,100 +6223,100 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
                     break
 
         # S/R Flip Detection
-        sr_flip = "Tespit Edilemedi"
+        sr_flip = "Not Detected"
         prev_major_high = df_1d['high'].iloc[-60:-10].max()
         if current_price > prev_major_high and df_1d['low'].iloc[-10:].min() > prev_major_high:
-            sr_flip = f"S/R Flip Onaylandı ({prev_major_high:.4f})"
+            sr_flip = f"S/R Flip Confirmed ({prev_major_high:.4f})"
 
-        # 3. PO3 / AMD MODELI ANALIZI (5.0)
+        # 3. PO3 / AMD MODEL ANALYSIS (5.0)
         vol_avg = df_15m['volume'].tail(50).mean()
         curr_vol = df_15m['volume'].iloc[-1]
-        phase = "Akümülasyon (Toplama) 📦"
+        phase = "Accumulation 📦"
         if curr_vol > vol_avg * 2.5:
             # Check price direction for Manipulation vs Distribution
             if (bias_type == "Bullish" and df_15m['close'].iloc[-1] < df_15m['open'].iloc[-1]) or \
                (bias_type == "Bearish" and df_15m['close'].iloc[-1] > df_15m['open'].iloc[-1]):
-                phase = "Manipülasyon (Stop Hunt) 🧛"
+                phase = "Manipulation (Stop Hunt) 🧛"
             else:
-                phase = "Dağıtım (Genişleme) 🚀"
+                phase = "Distribution (Expansion) 🚀"
 
-        # 4. LTF ONAY MEKANIZMALARI (4.0)
+        # 4. LTF CONFIRMATION MECHANISMS (4.0)
         # MSB and Confirmation Type
         last_local_high = df_15m['high'].iloc[-25:-1].max()
         last_local_low = df_15m['low'].iloc[-25:-1].min()
         
-        onay_modeli = "Bekleniyor"
-        msb_status = "Piyasa Yapısı Henüz Kırılmadı"
+        onay_modeli = "Waiting"
+        msb_status = "Market Structure Not Broken Yet"
         
         if bias_type == "Bullish" or bias_type == "Reversal":
             if current_price > last_local_high:
-                msb_status = "Analiz Ediliyor"
+                msb_status = "Analyzing"
                 # Check if it cleaned liquidity before MSB (Breaker vs Mitigation)
                 grabbed_liq = df_15m['low'].iloc[-10:].min() < df_15m['low'].iloc[-30:-10].min()
                 if grabbed_liq:
-                    onay_modeli = "Breaker (Kırıcı) ✅"
-                    msb_status = "Yüksek Güvenli MSB (Likidite Alımı + Yapı Kırılımı)"
+                    onay_modeli = "Breaker ✅"
+                    msb_status = "High Confidence MSB (Liquidity Sweep + Structure Break)"
                 else:
-                    onay_modeli = "Mitigation (Hafifletme) ⚖️"
-                    msb_status = "MSB Mevcut Ancak Likidite Alımı Zayıf"
+                    onay_modeli = "Mitigation ⚖️"
+                    msb_status = "MSB Present But Low Liquidity Sweep Confidence"
         
         # SFP Detection
         if (current_price < last_local_high and df_15m['high'].iloc[-1] > last_local_high) or \
            (current_price > last_local_low and df_15m['low'].iloc[-1] < last_local_low):
             onay_modeli = "Swing Failure Pattern (SFP) ⚡"
 
-        # 5. LIKIDITE ANALIZI (6.0)
-        liq_analysis = "Analiz Ediliyor"
+        # 5. LIQUIDITY ANALYSIS (6.0)
+        liq_analysis = "Analyzing"
         if curr_vol > vol_avg * 4:
-            liq_analysis = "Liquidity Sweep (Kapsamlı Temizleme) 🧹 - Büyük trend değişimi sinyali."
+            liq_analysis = "Liquidity Sweep 🧹 - Major trend reversal signal."
         else:
-            liq_analysis = "Liquidity Grab (Anlık Yakalama) ⚡ - Trend yönünde yakıt toplama."
+            liq_analysis = "Liquidity Grab ⚡ - Trend direction fuel accumulation."
 
-        # 6. RISK/ODUL VE RAPORLAMA (7.0)
+        # 6. RISK/REWARD AND REPORTING (7.0)
         tp1 = current_price * (1.05 if bias_type == "Bullish" else 0.95)
         tp2 = current_price * (1.12 if bias_type == "Bullish" else 0.88)
         sl = current_price * (0.96 if bias_type == "Bullish" else 1.04)
         
-        report = f"""Varlık Adı: **{symbol}**
-Genel Piyasa Ön Yargısı (Bias): **{bias}**
-Anahtar HTF Seviyesi: **{fvg_zone if fvg_detected else (sr_flip if sr_flip != "Tespit Edilemedi" else "HTF Range Ortası")}**
+        report = f"""Asset Name: **{symbol}**
+Market Bias: **{bias}**
+Key HTF Level: **{fvg_zone if fvg_detected else (sr_flip if sr_flip != "Not Detected" else "HTF Mid Range")}**
 
-**1.0 Piyasa Bağlamı Gerekçelendirme:**
+**1.0 Market Context Reasoning:**
 * {bias_desc}
-* HTF Stratejik Bölge: {fvg_zone if fvg_detected else "S/R Seviyeleri Takip Ediliyor."}
+* HTF Strategic Zone: {fvg_zone if fvg_detected else "Tracking S/R Levels."}
 
-**2.0 PO3 / AMD Modeli Durumu:**
-* Mevcut Aşama: {phase}
-* Likidite Analizi: {liq_analysis}
+**2.0 PO3 / AMD Model Status:**
+* Current Phase: {phase}
+* Liquidity Analysis: {liq_analysis}
 
-**3.0 Gözlemlenen LTF Onay Modeli:**
-* Onay Türü: **{onay_modeli}**
-* Detay: {msb_status}
+**3.0 Observed LTF Confirmation:**
+* Confirmation Type: **{onay_modeli}**
+* Detail: {msb_status}
 
-**4.0 Analitik Strateji Matrix (R/R Karşılaştırma):**
-| Giriş Stratejisi | Tahmini R/R | Başarı Olasılığı |
+**4.0 Analytical Strategy Matrix (R/R Comparison):**
+| Entry Strategy | Target R/R | Probability |
 | :--- | :--- | :--- |
-| Direkt Emir | 1.08R | Düşük-Orta (Onaysız) |
-| Breaker Onayı | 1.96R | Orta-Yüksek |
-| Mitigation Onayı | 2.16R | Yüksek |
+| Direct Limit Order | 1.08R | Low-Medium (Unconfirmed) |
+| Breaker Confirmation | 1.96R | Medium-High |
+| Mitigation Play | 2.16R | High |
 
-**5.0 Eyleme Geçirilebilir Senaryo:**
-* **Potansiyel Giriş Bölgesi:** {current_price:.4f} civarındaki retest/onay bölgeleri.
-* **Stop-Loss Seviyesi:** {sl:.4f} (Manipülasyon hareketinin ihlali durumunda)
-* **Kar Alma (TP) Hedefleri:**
-  * TP1: {tp1:.4f} (Lokal Likidite Havuzu)
-  * TP2: {tp2:.4f} (HTF Ana Hedef)
-* **Tahmini Risk/Ödül Oranı:** 2.12R
+**5.0 Actionable Scenario:**
+* **Potential Entry Zone:** Retest/confirmation areas around {current_price:.4f}.
+* **Stop-Loss Level:** {sl:.4f} (Violation of Manipulation Low)
+* **Take-Profit (TP) Targets:**
+  * TP1: {tp1:.4f} (Local Liquidity Pool)
+  * TP2: {tp2:.4f} (HTF Main Target)
+* **Estimated Risk/Reward Ratio:** 2.12R
 
-**Genel Değerlendirme:** HTF destek/direnç bölgesinde {onay_modeli} yapısının oluşması senaryonun gerçekleşme olasılığını artırmaktadır. Trend her şeyden büyüktür; ana bias yönünde kalmak stratejik önceliktir.
+**General Assessment:** The formation of {onay_modeli} structure at the HTF support/resistance zone increases the probability of this scenario. Trend is king; stay in the direction of the main bias.
 """
         return report
 
     except Exception as e:
-        return f"Antigravity PA Analiz Hatası ({symbol}): {str(e)}"
+        return f"Antigravity PA Analysis Error ({symbol}): {str(e)}"
 
     except Exception as e:
-        return f"Analitik PA Hatası ({symbol}): {str(e)}"
+        return f"Analitik PA Errorsı ({symbol}): {str(e)}"
 
     except Exception as e:
         return f"PA Analiz hatası ({symbol}): {str(e)}"
@@ -6451,11 +6451,11 @@ def get_correlation(symbol, base_symbol="BTCUSDT", interval="1h", limit=100):
         resp_base = session.get(url_base, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
 
         if resp_coin.status_code == 429 or resp_base.status_code == 429:
-            print(f"[UYARI] API rate limit için {symbol}-{base_symbol} korelasyonu atlanıyor")
+            print(f"[WARN] API rate limit için {symbol}-{base_symbol} korelasyonu atlanıyor")
             return None  # Return None instead of 0 to distinguish from actual 0 correlation
             
         if resp_coin.status_code != 200 or resp_base.status_code != 200:
-            print(f"[UYARI] {symbol} veya {base_symbol} için korelasyon verisi alınamadı: {resp_coin.status_code}, {resp_base.status_code}")
+            print(f"[WARN] {symbol} veya {base_symbol} için korelasyon verisi alınamadı: {resp_coin.status_code}, {resp_base.status_code}")
             return None
 
         df_coin = pd.DataFrame(resp_coin.json(), columns=["timestamp", "open", "high", "low", "close", "volume",
@@ -6469,7 +6469,7 @@ def get_correlation(symbol, base_symbol="BTCUSDT", interval="1h", limit=100):
         df_base["close"] = pd.to_numeric(df_base["close"], errors="coerce")
 
         if len(df_coin) < 10 or len(df_base) < 10:
-            print(f"[UYARI] {symbol} veya {base_symbol} için yeterli veri yok: {len(df_coin)}, {len(df_base)}")
+            print(f"[WARN] {symbol} veya {base_symbol} için yeterli veri yok: {len(df_coin)}, {len(df_base)}")
             return None
             
         # Ensure lengths match for correlation
@@ -6483,13 +6483,13 @@ def get_correlation(symbol, base_symbol="BTCUSDT", interval="1h", limit=100):
         
         # Need at least some data points
         if len(coin_pct) < 5 or len(base_pct) < 5:
-            print(f"[UYARI] {symbol}-{base_symbol} korelasyon için yetersiz değişim verisi")
+            print(f"[WARN] {symbol}-{base_symbol} korelasyon için yetersiz değişim verisi")
             return None
 
         correlation = coin_pct.corr(base_pct)
         
         if pd.isna(correlation):
-            print(f"[UYARI] {symbol}-{base_symbol} korelasyon hesaplanamadı (NaN)")
+            print(f"[WARN] {symbol}-{base_symbol} korelasyon hesaplanamadı (NaN)")
             return None
             
         return round(correlation, 2)
@@ -6536,15 +6536,15 @@ def handle_sol_korelasyonu():
                 sorted_results.append(coin_with_corr)
             except Exception as e:
                 print(f"[ERROR] {coin['Coin']} için SOL korelasyonu hesaplanamadı: {e}")
-                # Yine de coin'i dahil et, ama korelasyon için "Yok" olarak
+                # Yine de coin'i dahil et, ama korelasyon için "N/A" olarak
                 coin_with_corr = coin.copy()
-                coin_with_corr["SOL Correlation"] = "Yok"
+                coin_with_corr["SOL Correlation"] = "N/A"
                 sorted_results.append(coin_with_corr)
 
         # SOL korelasyonuna göre sırala
         sorted_results = sorted(sorted_results,
                                 key=lambda x: extract_numeric(x.get("SOL Correlation", 0)
-                                                    if x.get("SOL Correlation") != "Yok"
+                                                    if x.get("SOL Correlation") != "N/A"
                                                     else 0),
                                 reverse=True)
 
@@ -6577,7 +6577,7 @@ def generate_sol_correlation_report(results):
         
         # Ortalama hesaplama için sayısal değeri al
         try:
-            if correlation_val != "N/A" and correlation_val is not None and correlation_val != "Yok":
+            if correlation_val != "N/A" and correlation_val is not None and correlation_val != "N/A":
                 total_corr += float(correlation_val)
                 count += 1
         except:
@@ -7302,7 +7302,7 @@ def handle_makroekonomik_gostergeler():
 
         # Bellek sorununu önlemek için kontrolsüz veri çağırma önleniyor
         if not ALL_RESULTS or len(ALL_RESULTS) < 5:
-            print("[UYARI] ALL_RESULTS verisi hazır değil, varsayılan değerler kullanılacak")
+            print("[WARN] ALL_RESULTS verisi hazır değil, varsayılan değerler kullanılacak")
 
         macro_data = fetch_macro_economic_data()
         if not macro_data:
@@ -7456,7 +7456,7 @@ def analyze_arbitrage(symbol):
         kucoin_price = float(kucoin_response["data"]["price"]) if kucoin_response.get("data") else binance_price
 
         price_diff = ((kucoin_price - binance_price) / binance_price) * 100
-        arbitrage_opportunity = "Yok"
+        arbitrage_opportunity = "N/A"
         if abs(price_diff) > 0.5:  # %0.5’ten büyük fark = fırsat
             arbitrage_opportunity = "Var" if price_diff > 0 else "Var (Ters Yön)"
 
@@ -7605,7 +7605,7 @@ def get_ema20_crossover(df):
     elif prev_price > prev_ema and curr_price < curr_ema:
         return "Bearish Crossover"
     else:
-        return "Kesişim Yok"
+        return "No Crossover"
 
 
 def detect_traps(df, current_price, support, resistance, volume_ratio, rsi):
@@ -7793,7 +7793,7 @@ def get_technical_indicators(symbol, kline_data=None):
         try:
             response = requests.get(url, timeout=10)
             if response.status_code == 429:
-                print(f"[UYARI] {symbol} için rate limit, 2 saniye bekleniyor...")
+                print(f"[WARN] {symbol} için rate limit, 2 saniye bekleniyor...")
                 time.sleep(2)
                 response = requests.get(url, timeout=10)
             if response.status_code != 200:
@@ -7880,7 +7880,7 @@ def get_technical_indicators(symbol, kline_data=None):
         rsi = rsi_series.iloc[-1] if len(rsi_series) >= 14 and not pd.isna(rsi_series.iloc[-1]) else None
         rsi_prev = rsi_series.iloc[-2] if len(rsi_series) >= 15 and not pd.isna(rsi_series.iloc[-2]) else None
     except Exception as e:
-        print(f"[UYARI] {symbol} için RSI hesaplanamadı: {e}")
+        print(f"[WARN] {symbol} için RSI hesaplanamadı: {e}")
         rsi = None
         rsi_prev = None
     macd_series = MACD(df["close"]).macd()
@@ -7939,7 +7939,7 @@ def get_technical_indicators(symbol, kline_data=None):
     # Futures verileri
     futures_oi, futures_ls = get_futures_stats(symbol)
     if futures_oi is None or futures_ls is None:
-        print(f"[UYARI] {symbol} için futures verisi alınamadı.")
+        print(f"[WARN] {symbol} için futures verisi alınamadı.")
 
     # Korelasyonlar
     btc_corr_15m = get_correlation(symbol, base_symbol="BTCUSDT", interval="15m", limit=100)
@@ -8313,8 +8313,8 @@ def get_strategy_comment(coin_data):
     ls = coin_data.get("Long/Short Ratio", "N/A")
 
     # Korelasyon verileri
-    btc_corr = coin_data.get("BTC Correlation", "Yok")
-    eth_corr = coin_data.get("ETH Correlation", "Yok")
+    btc_corr = coin_data.get("BTC Correlation", "N/A")
+    eth_corr = coin_data.get("ETH Correlation", "N/A")
 
     # Balina verisi
     whale_activity = coin_data.get("Whale Activity", "N/A")
@@ -8365,7 +8365,7 @@ def get_strategy_comment(coin_data):
 def calculate_composite_score(coin):
     """
     Daha güvenilir composite skor hesaplama fonksiyonu.
-    Hata ayıklama için logging eklenmiştir.
+    Debugging için logging eklenmiştir.
 
     Args:
         coin (dict): Coin veri sözlüğü
@@ -8809,7 +8809,7 @@ def generate_metric_report(metric, results):
         def get_corr_val(coin):
             try:
                 val = coin.get(metric, 0)
-                if val == "N/A" or val is None or str(val) == "Yok":
+                if val == "N/A" or val is None or str(val) == "N/A":
                     return -1.0
                 return float(str(val))
             except: return -1.0
@@ -8820,7 +8820,7 @@ def generate_metric_report(metric, results):
             symbol = f"${coin['Coin'].replace('USDT', '')}"
             value = coin.get(metric, "N/A")
             try:
-                if value != "N/A" and value is not None and str(value) != "Yok":
+                if value != "N/A" and value is not None and str(value) != "N/A":
                     total_val += float(str(value))
                     count += 1
             except: pass
@@ -9058,7 +9058,7 @@ def handle_risk_analizi():
                 # BTC korelasyonu
                 try:
                     btc_corr = float(
-                        coin.get("BTC Correlation", 0) if coin.get("BTC Correlation") != "Yok" else 0)
+                        coin.get("BTC Correlation", 0) if coin.get("BTC Correlation") != "N/A" else 0)
                 except Exception as e:
                     print(f"[ERROR] {symbol} BTC korelasyonu hesaplanamadı: {e}")
                     btc_corr = 0
@@ -9301,7 +9301,7 @@ def handle_coin_detail(coin_symbol, chat_id):
             report = generate_coin_full_report(coin_symbol)
             send_telegram_message_long(report)
         else:
-            print(f"[UYARI] Coin detayı bulunamadı: {coin_symbol}")
+            print(f"[WARN] Coin detayı bulunamadı: {coin_symbol}")
             send_telegram_message_long(f"⚠️ {coin_symbol} için detaylı bilgi bulunamadı.")
     except Exception as e:
         print(f"[ERROR] {coin_symbol} detayı gösterilirken hata: {e}")
@@ -9730,7 +9730,7 @@ def analyze_ema_trends(df, windows=[20, 50, 100, 200]):
             ema_slopes[window] = calculate_ema_slope(ema_series)
         except Exception as e:
             print(f"EMA {window} hesaplanırken hata: {e}")
-            # Hata olursa boş değerler kullan
+            # Error olursa boş değerler kullan
             ema_slopes[window] = {
                 "slope": 0,
                 "category": "Hesaplanamadı",
@@ -11551,11 +11551,11 @@ def process_telegram_updates():
                 }
                 response = requests.get(TELEGRAM_API_URL, params=params, timeout=35)
             except requests.exceptions.Timeout:
-                print("[UYARI] Telegram polling zaman aşımı, tekrar deneniyor...")
+                print("[WARN] Telegram polling zaman aşımı, tekrar deneniyor...")
                 time.sleep(1)
                 continue
             except requests.exceptions.ConnectionError:
-                print("[UYARI] Telegram bağlantı hatası, 5sn bekleniyor...")
+                print("[WARN] Telegram bağlantı hatası, 5sn bekleniyor...")
                 time.sleep(5)
                 continue
 
@@ -11706,7 +11706,7 @@ def save_prev_stats():
                         vol_score = round(extract_numeric(coin.get("ATR_raw", 0)) / price * 100, 2)
                     else:
                         print(
-                            f"[UYARI] {coin['Coin']} için fiyat sıfır veya geçersiz: '{price_str}', vol_score 0 olarak ayarlandı")
+                            f"[WARN] {coin['Coin']} için fiyat sıfır veya geçersiz: '{price_str}', vol_score 0 olarak ayarlandı")
                         vol_score = 0
 
                     # Her kaydetme işleminde composite score'u da hesapla ve kaydet
@@ -12243,7 +12243,7 @@ def analyze_market():
 
                     PREV_STATS = {k: v for k, v in PREV_STATS.items() if k in active_coins}
                 else:
-                    print("[UYARI] Yeterli veri toplanamadı, önceki sonuçlar korunuyor")
+                    print("[WARN] Not enough data collected, preserving previous results")
 
             # Verilerimiz olduğunda raporları oluştur
             if ALL_RESULTS:
@@ -12400,10 +12400,10 @@ def analyze_market():
                 # İstatistikleri gelecekte kullanmak üzere kaydet
                 save_prev_stats()
 
-            print(f"[DEBUG] Analiz tamamlandı. Coin sayısı: {len(ALL_RESULTS)}")
+            print(f"[DEBUG] Analysis completed. Coin count: {len(ALL_RESULTS)}")
 
         except Exception as main_error:
-            print(f"[ERROR] Ana analiz döngüsünde hata: {main_error}")
+            print(f"[ERROR] Error in main analysis loop: {main_error}")
             import traceback
             traceback.print_exc()
 
@@ -12418,7 +12418,7 @@ PREV_STATS = {}
 
 if __name__ == "__main__":
     load_prev_stats()  # Tek çağrı
-    print("Başlangıç: Önceki istatistikler yüklendi.")
+    print("Startup: Previous stats loaded.")
 
     # Send Main Menu on Startup - DISABLED
     # print("[INFO] Sending main menu to Telegram...")
