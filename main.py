@@ -12572,12 +12572,19 @@ def analyze_market():
                         except: pass
                     
                     try:
-                        top_10 = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("Composite Score", 0)), reverse=True)[:10]
-                        ag_report_text = "🛸 <b>Master Antigravity Strategy - Top 10 Picks</b>\n\n"
-                        for coin in top_10:
+                        # Increased from Top 10 to Top 30 for comprehensive PA analysis
+                        top_30 = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("Composite Score", 0)), reverse=True)[:30]
+                        ag_report_text = "🛸 <b>Master Antigravity Strategy - Top 30 Comprehensive Analysis</b>\n\n"
+                        ag_report_text += f"<i>📊 Analyzing {len(top_30)} high-potential assets using Efloud Framework</i>\n"
+                        ag_report_text += f"<i>🕐 Generated: {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')} (GMT+3)</i>\n\n"
+                        ag_report_text += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        
+                        for coin in top_30:
                             report_content = coin.get("Antigravity Strategy", "")
                             if report_content:
                                 ag_report_text += report_content + "\n\n" + ("="*20) + "\n\n"
+                        
+                        ag_report_text += "\n<i>⚡ Powered by Radar Ultra AI • Multi-Timeframe Price Action Analysis</i>"
                         web_reports["Antigravity Strategy"] = ag_report_text
                     except Exception as ag_err:
                         print(f"[ERROR] Antigravity report consolidation failed: {ag_err}")
