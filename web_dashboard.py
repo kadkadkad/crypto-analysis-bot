@@ -67,16 +67,25 @@ def index():
 @auth.login_required
 def get_data():
     results = []
+    print(f"[API] /api/data requested at {get_turkey_time().strftime('%H:%M:%S')}")
+    print(f"[API] Checking for {RESULTS_FILE}...")
+    
     if os.path.exists(RESULTS_FILE):
         try:
+            file_size = os.path.getsize(RESULTS_FILE)
+            print(f"[API] ✅ {RESULTS_FILE} found ({file_size} bytes)")
             with open(RESULTS_FILE, "r") as f:
                 results = json.load(f)
+            print(f"[API] ✅ Loaded {len(results)} coins from {RESULTS_FILE}")
             for c in results:
                 sym = c.get('Coin', '')
                 c['DisplaySymbol'] = f"${sym.replace('USDT', '')}"
         except Exception as e:
-            print(f"Error reading JSON: {e}")
+            print(f"[API] ❌ Error reading {RESULTS_FILE}: {e}")
             return jsonify({"error": "Data fetch failed"}), 500
+    else:
+        print(f"[API] ⚠️ {RESULTS_FILE} does NOT exist yet - analyzer may not have run")
+    
     return jsonify(results)
 
 # 📈 API: Rapor çekme (rate limited)
