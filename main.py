@@ -275,11 +275,11 @@ format_indicator = utils.format_indicator
 get_whale_logo = utils.get_whale_logo
 
 def send_telegram_message(chat_id, text, keyboard=None, inline_keyboard=None, parse_mode="HTML"):
-    """Telegram integration disabled temporarily."""
+    """Telegram integration disabled."""
     return None
 
 def send_telegram_message_long(message, chat_id=None, keyboard=None, inline_keyboard=None):
-    """Telegram integration disabled temporarily."""
+    """Telegram integration disabled."""
     return
 
 def handle_callback_query(query):
@@ -6977,7 +6977,9 @@ def get_telegram_updates(offset):
 # Telegram Functions Aliases (implementations in telegram_bot.py)
 send_telegram_message = send_telegram_message
 send_telegram_message_long = send_telegram_message_long
-send_reply_keyboard_message = telegram_bot.send_reply_keyboard_message
+def send_reply_keyboard_message(chat_id, message, keyboard=None):
+    """Telegram integration disabled."""
+    pass
 
 
 def check_telegram_updates():
@@ -12348,8 +12350,9 @@ def analyze_market():
                 global last_update_time
                 last_update_time = datetime.now()
 
-                keyboard = create_reply_keyboard(ALL_RESULTS)
-                send_reply_keyboard_message(TELEGRAM_CHAT_ID, analysis_message, keyboard=keyboard)
+                # Telegram reporting disabled as per user request
+                # keyboard = create_reply_keyboard(ALL_RESULTS)
+                # send_reply_keyboard_message(TELEGRAM_CHAT_ID, analysis_message, keyboard=keyboard)
 
                 record_five_min_report(ALL_RESULTS)
 
