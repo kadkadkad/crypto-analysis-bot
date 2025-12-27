@@ -6171,113 +6171,149 @@ def check_smt_divergence(df_coin, df_btc):
 
 def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
     """
-    Antigravity Bot - Master Analytical Framework (PO3/AMD Matrix: 1D -> 4H -> 15m)
-    - 1D: Higher Timeframe Bias
-    - 4H: Strategic Zones & FVG
-    - 15m: Entry Confirmation & SMT Divergence
+    Antigravity Bot - Master Analytical Framework (Efloud Architecture)
+    Metodoloji: HTF Bias -> Tactical Levels -> PO3/AMD -> LTF Confirmation
     """
     try:
         symbol = coin_data.get("Coin", "Unknown")
         current_price = float(coin_data.get("Price", 0))
         
-        # 1. HTF BIAS DETERMINATION (1-DAY)
+        # 1. PIYASA BAGLAMI VE BIAS BELIRLEME (2.0)
         short_ema_1d = df_1d['close'].iloc[-20:].mean()
         long_ema_1d = df_1d['close'].iloc[-50:].mean()
-        bias = "Sideways / Choppy ⚖️"
-        bias_desc = "Consolidating around HTF levels."
-        if current_price > short_ema_1d > long_ema_1d: 
-            bias = "Bullish HTF Trend 📈"
-            bias_desc = "HTF structure is making Higher Highs."
-        elif current_price < short_ema_1d < long_ema_1d: 
-            bias = "Bearish HTF Trend 📉"
-            bias_desc = "HTF structure is making Lower Lows."
-            
-        # 2. MTF STRATEGIC ZONES (4-HOUR)
-        # SMT Analysis (Context with BTC using 15m/4h)
-        df_btc_15m = ALL_RESULTS[0].get('df_15m', df_15m) if ALL_RESULTS and ALL_RESULTS[0]['Coin'] == 'BTCUSDT' else df_15m
-        smt_signal = check_smt_divergence(df_15m, df_btc_15m)
         
-        # 4H FVG Detection
-        mtf_fvg = "N/A"
+        # Structure Check
+        last_highs = df_1d['high'].iloc[-20:].values
+        last_lows = df_1d['low'].iloc[-20:].values
+        
+        bias = "Trend Dışı (Yan/Dalgalı) ⚖️"
+        bias_type = "Sideways"
+        bias_desc = "Fiyat belirli bir aralıkta (Range) konsolide olmaktadır."
+        
+        if current_price > short_ema_1d > long_ema_1d:
+            bias = "Trend Yönlü (Yükseliş) 📈"
+            bias_type = "Bullish"
+            bias_desc = "HTF grafiğinde daha yüksek tepeler ve dipler yükseliş trendini teyit ediyor."
+        elif current_price < short_ema_1d < long_ema_1d:
+            bias = "Trend Yönlü (Düşüş) 📉"
+            bias_type = "Bearish"
+            bias_desc = "HTF grafiğinde daha düşük tepeler ve dipler düşüş trendini teyit ediyor."
+        
+        # Trend Dönüşü Potansiyeli Check
+        recent_high = df_1d['high'].tail(50).max()
+        recent_low = df_1d['low'].tail(50).min()
+        if (current_price > recent_high * 0.98) or (current_price < recent_low * 1.02):
+            bias = "Trend Dönüşü Potansiyeli (Reversal) 🔄"
+            bias_type = "Reversal"
+            bias_desc = "Önemli bir HTF seviyesine ulaşıldı, yavaşlama emareleri aranıyor."
+
+        # 2. HTF ANALIZI: STRATEJIK SEVIYELER (3.0)
+        # FVG Detection on 4H
         fvg_detected = False
-        if len(df_4h) > 10:
-            for i in range(len(df_4h)-3, len(df_4h)-10, -1):
-                if df_4h['low'].iloc[i+2] > df_4h['high'].iloc[i]:
-                    mtf_fvg = f"{df_4h['high'].iloc[i]:.4f} - {df_4h['low'].iloc[i+2]:.4f}"
+        fvg_zone = "Bulunamadı"
+        if len(df_4h) > 15:
+            for i in range(len(df_4h)-3, len(df_4h)-15, -1):
+                if df_4h['low'].iloc[i+2] > df_4h['high'].iloc[i]: # Bullish FVG
+                    fvg_zone = f"4H Imbalance ({df_4h['high'].iloc[i]:.4f} - {df_4h['low'].iloc[i+2]:.4f})"
                     fvg_detected = True
                     break
-        recent_low = df_1d['low'].tail(30).min()
-        recent_high = df_1d['high'].tail(30).max()
-        fvg_detected = False
-        fvg_zone = "N/A"
-        for i in range(len(df_1d)-3, len(df_1d)-10, -1):
-            if df_1d['low'].iloc[i+2] > df_1d['high'].iloc[i]:
-                fvg_zone = f"{df_1d['high'].iloc[i]:.4f} - {df_1d['low'].iloc[i+2]:.4f}"
-                fvg_detected = True
-                break
+                elif df_4h['high'].iloc[i+2] < df_4h['low'].iloc[i]: # Bearish FVG
+                    fvg_zone = f"4H Bearish Imbalance ({df_4h['low'].iloc[i+2]:.4f} - {df_4h['high'].iloc[i]:.4f})"
+                    fvg_detected = True
+                    break
 
-        # 3. POWER OF THREE (PO3 / AMD) & CONFIRMATION
-        vol_std = df_15m['volume'].tail(50).std()
+        # S/R Flip Detection
+        sr_flip = "Tespit Edilemedi"
+        prev_major_high = df_1d['high'].iloc[-60:-10].max()
+        if current_price > prev_major_high and df_1d['low'].iloc[-10:].min() > prev_major_high:
+            sr_flip = f"S/R Flip Onaylandı ({prev_major_high:.4f})"
+
+        # 3. PO3 / AMD MODELI ANALIZI (5.0)
+        vol_avg = df_15m['volume'].tail(50).mean()
         curr_vol = df_15m['volume'].iloc[-1]
-        phase = "Accumulation 📦"
-        if curr_vol > vol_std * 2: 
-            phase = "Manipulation (Stop Hunt) 🧛" if df_15m['close'].iloc[-1] < df_15m['open'].iloc[-1] else "Distribution (Expansion) 🚀"
+        phase = "Akümülasyon (Toplama) 📦"
+        if curr_vol > vol_avg * 2.5:
+            # Check price direction for Manipulation vs Distribution
+            if (bias_type == "Bullish" and df_15m['close'].iloc[-1] < df_15m['open'].iloc[-1]) or \
+               (bias_type == "Bearish" and df_15m['close'].iloc[-1] > df_15m['open'].iloc[-1]):
+                phase = "Manipülasyon (Stop Hunt) 🧛"
+            else:
+                phase = "Dağıtım (Genişleme) 🚀"
 
-        # LTF Signal Validation with Displacement
-        last_high = df_15m['high'].iloc[-20:-1].max()
-        msb_detected = current_price > last_high
-        has_displacement = check_displacement(df_15m, len(df_15m)-1)
+        # 4. LTF ONAY MEKANIZMALARI (4.0)
+        # MSB and Confirmation Type
+        last_local_high = df_15m['high'].iloc[-25:-1].max()
+        last_local_low = df_15m['low'].iloc[-25:-1].min()
         
-        ltf_status = "Waiting for MSB"
-        if msb_detected:
-            ltf_status = "✅ High Quality MSB (Displacement Detected)" if has_displacement else "⚠️ Weak MSB (No Displacement - Fakeout Risk)"
+        onay_modeli = "Bekleniyor"
+        msb_status = "Piyasa Yapısı Henüz Kırılmadı"
+        
+        if bias_type == "Bullish" or bias_type == "Reversal":
+            if current_price > last_local_high:
+                msb_status = "Analiz Ediliyor"
+                # Check if it cleaned liquidity before MSB (Breaker vs Mitigation)
+                grabbed_liq = df_15m['low'].iloc[-10:].min() < df_15m['low'].iloc[-30:-10].min()
+                if grabbed_liq:
+                    onay_modeli = "Breaker (Kırıcı) ✅"
+                    msb_status = "Yüksek Güvenli MSB (Likidite Alımı + Yapı Kırılımı)"
+                else:
+                    onay_modeli = "Mitigation (Hafifletme) ⚖️"
+                    msb_status = "MSB Mevcut Ancak Likidite Alımı Zayıf"
+        
+        # SFP Detection
+        if (current_price < last_local_high and df_15m['high'].iloc[-1] > last_local_high) or \
+           (current_price > last_local_low and df_15m['low'].iloc[-1] < last_local_low):
+            onay_modeli = "Swing Failure Pattern (SFP) ⚡"
 
-        # 4. ADVANCED LIQUIDITY ANALYSIS
-        liq_type = "Liquidity Grab (Fast) ⚡" if curr_vol > vol_std * 3 else "Liquidity Sweep (Exhaustive) 🧹"
+        # 5. LIKIDITE ANALIZI (6.0)
+        liq_analysis = "Analiz Ediliyor"
+        if curr_vol > vol_avg * 4:
+            liq_analysis = "Liquidity Sweep (Kapsamlı Temizleme) 🧹 - Büyük trend değişimi sinyali."
+        else:
+            liq_analysis = "Liquidity Grab (Anlık Yakalama) ⚡ - Trend yönünde yakıt toplama."
 
-        # 5. PROBABILISTIC ENTRY & R/R MATRIX
-        base_rr = "1.08R"
-        breaker_rr = "1.96R"
-        mitigation_rr = "2.16R"
+        # 6. RISK/ODUL VE RAPORLAMA (7.0)
+        tp1 = current_price * (1.05 if bias_type == "Bullish" else 0.95)
+        tp2 = current_price * (1.12 if bias_type == "Bullish" else 0.88)
+        sl = current_price * (0.96 if bias_type == "Bullish" else 1.04)
+        
+        report = f"""Varlık Adı: **{symbol}**
+Genel Piyasa Ön Yargısı (Bias): **{bias}**
+Anahtar HTF Seviyesi: **{fvg_zone if fvg_detected else (sr_flip if sr_flip != "Tespit Edilemedi" else "HTF Range Ortası")}**
 
-        # REPORT SYNTHESIS
-        report = f"""### **Expert Analytical Report: {symbol}**
+**1.0 Piyasa Bağlamı Gerekçelendirme:**
+* {bias_desc}
+* HTF Stratejik Bölge: {fvg_zone if fvg_detected else "S/R Seviyeleri Takip Ediliyor."}
 
-**1.0 HTF Bias (1D):** {bias}
-*   **Reasoning:** {bias_desc}
-*   **BTC SMT (15m):** {smt_signal}
+**2.0 PO3 / AMD Modeli Durumu:**
+* Mevcut Aşama: {phase}
+* Likidite Analizi: {liq_analysis}
 
-**2.0 Strategic Zone (4H):**
-*   **FVG/OB Info:** {mtf_fvg if fvg_detected else "No immediate FVG on 4H"}
-*   **Range:** {df_4h['low'].tail(20).min():.4f} - {df_4h['high'].tail(20).max():.4f}
-*   **Type:** {'Imbalance (FVG) Region' if fvg_detected else 'S/R Flip / Support Level'}
+**3.0 Gözlemlenen LTF Onay Modeli:**
+* Onay Türü: **{onay_modeli}**
+* Detay: {msb_status}
 
-**3.0 LTF Confirmation Model & PO3 Analysis:**
-*   **Current Phase:** {phase}
-*   **Liquidity Condition:** {liq_type}
-*   **LTF Signal (15m):** {ltf_status}
-
-**4.0 Probability & Strategy Matrix:**
-| Entry Strategy | Target R/R | Probability |
+**4.0 Analitik Strateji Matrix (R/R Karşılaştırma):**
+| Giriş Stratejisi | Tahmini R/R | Başarı Olasılığı |
 | :--- | :--- | :--- |
-| Direct Limit Order | {base_rr} | Low-Medium (Unconfirmed) |
-| Breaker Confirmation | {breaker_rr} | Medium-High |
-| Mitigation Play | {mitigation_rr} | High |
+| Direkt Emir | 1.08R | Düşük-Orta (Onaysız) |
+| Breaker Onayı | 1.96R | Orta-Yüksek |
+| Mitigation Onayı | 2.16R | Yüksek |
 
-**5.0 Actionable Trade Plan:**
-*   **Potential Entry Zone:** Retest around {fvg_zone if fvg_detected else f"{recent_low:.4f}"}.
-*   **Stop-Loss Level:** {recent_low * 0.985:.4f} (Below manipulation low)
-*   **Take-Profit (TP) Targets:**
-    *   TP1: {current_price * 1.07:.4f} (Local Liquidity)
-    *   TP2: {recent_high:.4f} (HTF Target)
-*   **Estimated R/R Ratio:** 2.15R
+**5.0 Eyleme Geçirilebilir Senaryo:**
+* **Potansiyel Giriş Bölgesi:** {current_price:.4f} civarındaki retest/onay bölgeleri.
+* **Stop-Loss Seviyesi:** {sl:.4f} (Manipülasyon hareketinin ihlali durumunda)
+* **Kar Alma (TP) Hedefleri:**
+  * TP1: {tp1:.4f} (Lokal Likidite Havuzu)
+  * TP2: {tp2:.4f} (HTF Ana Hedef)
+* **Tahmini Risk/Ödül Oranı:** 2.12R
 
-**General Assessment:** The strong expansion following the PO3 manipulation at the HTF strategic zone increases the probability of this scenario. The bullish bias remains intact as long as Bitcoin holds above its own HTF support."""
-        
+**Genel Değerlendirme:** HTF destek/direnç bölgesinde {onay_modeli} yapısının oluşması senaryonun gerçekleşme olasılığını artırmaktadır. Trend her şeyden büyüktür; ana bias yönünde kalmak stratejik önceliktir.
+"""
         return report
 
     except Exception as e:
-        return f"Analytical PA Error ({symbol}): {str(e)}"
+        return f"Antigravity PA Analiz Hatası ({symbol}): {str(e)}"
 
     except Exception as e:
         return f"Analitik PA Hatası ({symbol}): {str(e)}"
