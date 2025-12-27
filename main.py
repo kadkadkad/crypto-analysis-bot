@@ -24,7 +24,7 @@ import aiohttp
 import asyncio
 import sqlite3
 import random
-import psutil
+
 import os
 import gc
 import orderbook_analyzer
@@ -239,7 +239,7 @@ def validate_indicators(indicators):
         required_fields = ["Coin", "Price_Display", "RSI", "MACD", "ADX", "Volume Ratio", "NetAccum_raw"]
         for field in required_fields:
             if field not in indicators or indicators[field] is None:
-                print(f"[UYARI] {indicators.get('Coin', 'Bilinmeyen')} için '{field}' alanı eksik")
+                print(f"[UYARI] {indicators.get('Coin', 'Unknown')} için '{field}' alanı eksik")
                 return False
 
         # Değerlerin mantıklı aralıklarda olup olmadığını kontrol et
@@ -258,7 +258,7 @@ def validate_indicators(indicators):
 
         return True
     except Exception as e:
-        print(f"[HATA] {indicators.get('Coin', 'Bilinmeyen')} gösterge doğrulaması başarısız: {e}")
+        print(f"[ERROR] {indicators.get('Coin', 'Unknown')} gösterge doğrulaması başarısız: {e}")
         return False
 
 # Utility aliases (implementations moved to utils.py)
@@ -275,24 +275,12 @@ format_indicator = utils.format_indicator
 get_whale_logo = utils.get_whale_logo
 
 def send_telegram_message(chat_id, text, keyboard=None, inline_keyboard=None, parse_mode="HTML"):
-    """Wrapper that adds a Copy button to important messages"""
-    if not inline_keyboard and text:
-        if len(text) <= 256:
-           # Direct copy for short text
-           inline_keyboard = [[{"text": "📋 Copy", "copy_text": {"text": text}}]]
-        else:
-           # Callback for long text (bypass 256 limit)
-           inline_keyboard = [[{"text": "📋 Copy (Long)", "callback_data": "copy_content"}]]
-            
-    return telegram_bot.send_telegram_message(chat_id, text, keyboard=keyboard, inline_keyboard=inline_keyboard, parse_mode=parse_mode)
+    """Telegram integration disabled temporarily."""
+    return None
 
 def send_telegram_message_long(message, chat_id=None, keyboard=None, inline_keyboard=None):
-    """Wrapper that adds a Copy button to long reports"""
-    if not inline_keyboard and message:
-        # Always use callback for potentially long reports to be safe and consistent
-        inline_keyboard = [[{"text": "📋 Copy Report", "callback_data": "copy_content"}]]
-        
-    return telegram_bot.send_telegram_message_long(message, chat_id=chat_id, keyboard=keyboard, inline_keyboard=inline_keyboard)
+    """Telegram integration disabled temporarily."""
+    return
 
 def handle_callback_query(query):
     """
@@ -409,7 +397,7 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
         loop.close()  # Olay döngüsünü kapat
         return result
     except Exception as e:
-        print(f"[HATA] {symbol} için sync_fetch_kline_data hatası: {e}")
+        print(f"[ERROR] {symbol} için sync_fetch_kline_data hatası: {e}")
         return []  # Hata durumunda boş liste dön
 
 # ---------------- Yeni Eklenen Fonksiyonlar ----------------
@@ -580,7 +568,7 @@ def fetch_macro_economic_data():
             "timestamp": datetime.now().timestamp()
         }
     except Exception as e:
-        print(f"[HATA] Makroekonomik veri alınırken hata: {e}")
+        print(f"[ERROR] Makroekonomik veri alınırken hata: {e}")
         return {}
 
 
@@ -601,7 +589,10 @@ def get_fear_greed_index():
         else:
             raise Exception(f"Fear & Greed API yanıt vermedi: {response.status_code}")
     except Exception as e:
-        print(f"[HATA] Korku & Açgözlülük endeksi alınamadı: {e}")
+        if "429" in str(e):
+            print(f"[UYARI] CoinGecko API rate limit (429).")
+        else:
+            print(f"[ERROR] Korku & Açgözlülük endeksi alınamadı: {e}")
         # Varsayılan değer
         return 65
 
@@ -634,7 +625,7 @@ def get_current_price(symbol):
             print(f"[UYARI] {symbol} fiyatı alınamadı: {response.status_code}")
             return 0
     except Exception as e:
-        print(f"[HATA] {symbol} fiyatı alınırken hata: {e}")
+        print(f"[ERROR] {symbol} fiyatı alınırken hata: {e}")
         return 0
 
 # ----------------- İlave Handler Fonksiyonları -----------------
@@ -793,7 +784,7 @@ def calculate_macro_risk_level(custom_data=None):
             "factors": sorted(risk_factors, key=lambda x: x["risk_score"], reverse=True)
         }
     except Exception as e:
-        print(f"[HATA] Makro risk seviyesi hesaplanırken hata: {e}")
+        print(f"[ERROR] Makro risk seviyesi hesaplanırken hata: {e}")
         import traceback
         traceback.print_exc()
         return {"risk_level": "bilinmiyor", "risk_score": 50, "factors": []}
@@ -907,7 +898,7 @@ def calculate_asset_risk(coin_data, macro_context=None):
         }
 
     except Exception as e:
-        print(f"[HATA] Varlık risk hesaplama hatası ({coin_data.get('Coin', 'Bilinmeyen')}): {e}")
+        print(f"[ERROR] Varlık risk hesaplama hatası ({coin_data.get('Coin', 'Unknown')}): {e}")
         import traceback
         traceback.print_exc()
         return {"risk_score": 50, "risk_level": "orta", "details": {"error": str(e)}}
@@ -1064,7 +1055,7 @@ def calculate_risk_score(coin_data):
         return normalized_risk
 
     except Exception as e:
-        print(f"[HATA] Risk skoru hesaplanamadı: {e}")
+        print(f"[ERROR] Risk skoru hesaplanamadı: {e}")
         return 50  # Varsayılan orta risk
 
 
@@ -1131,6 +1122,108 @@ def create_risk_submenu_keyboard():
     ]
 
 
+def create_strategy_submenu_keyboard():
+    button_pairs = [
+        ("🛸 Master Antigravity", "Antigravity Strategy"),
+        ("🎯 Candidate Signals", "Significant Changes"),
+        ("💹 Smart Money Flow", "Smart Money"),
+        ("↩️ Main Menu", "Main Menu")
+    ]
+    keyboard = []
+    for i in range(1, len(button_pairs), 2):
+        row = [{"text": button_pairs[i - 1][0]}]
+        if i < len(button_pairs):
+            row.append({"text": button_pairs[i][0]})
+        keyboard.append(row)
+    if len(button_pairs) % 2 != 0:
+        keyboard.append([{"text": button_pairs[-1][0]}])
+    return keyboard
+
+def create_overview_submenu_keyboard():
+    button_pairs = [
+        ("📈 Trend Status", "Trend Status"),
+        ("📊 Composite Score", "Composite Score"),
+        ("📊 RSI Report", "RSI Report"),
+        ("📊 MACD Report", "MACD"),
+        ("⚖️ EMA Crossings", "EMA Crossings"),
+        ("📈 ADX Report", "ADX"),
+        ("💰 MFI Report", "MFI"),
+        ("🕯️ Candle Patterns", "Candle Patterns"),
+        ("📐 S/R Levels", "Support/Resistance"),
+        ("📏 Bollinger Bands", "Bollinger Bands"),
+        ("↩️ Main Menu", "Main Menu")
+    ]
+    keyboard = []
+    for i in range(1, len(button_pairs), 2):
+        row = [{"text": button_pairs[i - 1][0]}]
+        if i < len(button_pairs):
+            row.append({"text": button_pairs[i][0]})
+        keyboard.append(row)
+    if len(button_pairs) % 2 != 0:
+        keyboard.append([{"text": button_pairs[-1][0]}])
+    return keyboard
+
+def create_whale_submenu_keyboard():
+    button_pairs = [
+        ("🐳 Whale Strategies", "Whale Strategies"),
+        ("🐋 Whale Movement", "Whale Movement"),
+        ("🕵️ Manipulation Detector", "Manipulation Detector"),
+        ("🎯 MM Analysis", "MM Analysis"),
+        ("💰 Net Accum 1H", "Net Accum"),
+        ("💰 Net Accum 4H", "Net Accum 4H"),
+        ("💰 Net Accum 1D", "Net Accum 1D"),
+        ("🐳 Whale Ranking", "Whale Ranking"),
+        ("↩️ Main Menu", "Main Menu")
+    ]
+    keyboard = []
+    for i in range(1, len(button_pairs), 2):
+        row = [{"text": button_pairs[i - 1][0]}]
+        if i < len(button_pairs):
+            row.append({"text": button_pairs[i][0]})
+        keyboard.append(row)
+    if len(button_pairs) % 2 != 0:
+        keyboard.append([{"text": button_pairs[-1][0]}])
+    return keyboard
+
+def create_futures_submenu_keyboard():
+    button_pairs = [
+        ("💹 Futures Analysis", "Futures Analysis"),
+        ("⚖️ Long/Short Ratio", "Long/Short Ratio"),
+        ("💰 Funding Rate", "Funding Rate"),
+        ("📉 Open Interest", "Open Interest"),
+        ("🔥 Liquidation Map", "liquidation_analysis"),
+        ("🌊 Volatility Ranking", "Volatility Ranking"),
+        ("🔒 Trust Index", "Trust Index"),
+        ("🛡️ Risk Analysis", "Risk Analysis"),
+        ("↩️ Main Menu", "Main Menu")
+    ]
+    keyboard = []
+    for i in range(1, len(button_pairs), 2):
+        row = [{"text": button_pairs[i - 1][0]}]
+        if i < len(button_pairs):
+            row.append({"text": button_pairs[i][0]})
+        keyboard.append(row)
+    if len(button_pairs) % 2 != 0:
+        keyboard.append([{"text": button_pairs[-1][0]}])
+    return keyboard
+
+def create_social_submenu_keyboard():
+    button_pairs = [
+        ("📺 YouTube Alpha", "YouTube Alpha"),
+        ("📜 YouTube Transcripts", "YouTube Transcripts"),
+        ("📤 NotebookLM Export", "NotebookLM Export"),
+        ("↩️ Main Menu", "Main Menu")
+    ]
+    keyboard = []
+    for i in range(1, len(button_pairs), 2):
+        row = [{"text": button_pairs[i - 1][0]}]
+        if i < len(button_pairs):
+            row.append({"text": button_pairs[i][0]})
+        keyboard.append(row)
+    if len(button_pairs) % 2 != 0:
+        keyboard.append([{"text": button_pairs[-1][0]}])
+    return keyboard
+
 def create_complete_command_mapping():
     """
     Emoji içeren ve içermeyen tüm komutlar için kapsamlı bir eşleştirme sözlüğü oluşturur.
@@ -1140,6 +1233,23 @@ def create_complete_command_mapping():
         dict: Tüm olası komut versiyonları için eşleştirme sözlüğü
     """
     return {
+        # Submenus
+        "🛸 Master Strategy": "Master Strategy Menu",
+        "Master Strategy Menu": "Master Strategy Menu",
+        "📊 Market Overview": "Market Overview Menu",
+        "Market Overview Menu": "Market Overview Menu",
+        "Whale & Smart Money": "Whale Menu",
+        "🐋 Whale & Smart Money": "Whale Menu",
+        "Whale Menu": "Whale Menu",
+        "💹 Futures & Risk": "Futures Menu",
+        "Futures Menu": "Futures Menu",
+        "📺 YouTube & Social": "Social Menu",
+        "Social Menu": "Social Menu",
+        "🛸 Master Antigravity": "Antigravity Strategy",
+        "🎯 Candidate Signals": "Significant Changes",
+        "💹 Smart Money Flow": "Smart Money",
+        "🔙 Refresh Analysis": "Current Analysis",
+
         # Main commands
         "📊 Current Analysis": "Current Analysis",
         "Current Analysis": "Current Analysis",
@@ -1172,6 +1282,7 @@ def create_complete_command_mapping():
         "↩Main Menu": "Main Menu",
         "main_menu": "Main Menu",
         "↩️ Ana Menü": "Main Menu",
+        "Ana Menü": "Main Menu",
 
         # Manipulation and Smart Money
         "🕵️ Manipulation Detector": "Manipulation Detector",
@@ -1188,7 +1299,7 @@ def create_complete_command_mapping():
         # command_mapping sözlüğüne ekleme yapalım
         "📊 Price Info": "Price Info",
         "Price Info": "Price Info",
-        "📊 Fiyat Bilgileri": "Price Info",
+        "📊 Price Information": "Price Info",
 
         "⚖️ Long/Short Ratio": "Long/Short Ratio",
         "Long/Short Ratio": "Long/Short Ratio",
@@ -1196,24 +1307,23 @@ def create_complete_command_mapping():
 
         "💰 Funding Rate": "Funding Rate",
         "Funding Rate": "Funding Rate",
-        "💰 Funding Rate Analizi": "Funding Rate",
+        "💰 Funding Rate Analysis": "Funding Rate",
 
-        # Whale analysis
         "🐳 Whale Strategies": "Whale Strategies",
         "Whale Strategies": "Whale Strategies",
         "🐋 Whale Movement": "Whale Movement",
         "🐋 Whale Movement Analysis": "Whale Movement", 
         "Whale Movement": "Whale Movement",
-        "🐋 Balina Hareketleri": "Whale Movement",
+        "🐋 Whale Movements": "Whale Movement",
 
         # volume ve trend
         "📈 Trend Status": "Trend Status",
         "Trend Status": "Trend Status",
-        "Trend Durumu": "Trend Status",
+        "Trend Status": "Trend Status",
         "💰 Net Buy/Sell Status": "Net Buy/Sell Status",
         "Net Buy/Sell Status": "Net Buy/Sell Status",
-        "💰 Net Alım/Satım Durumu": "Net Buy/Sell Status",
-        "Net Alım/Satım Durumu": "Net Buy/Sell Status",
+        "💰 Net Buy/Sell Status": "Net Buy/Sell Status",
+        "Net Buy/Sell Status": "Net Buy/Sell Status",
 
         # Metrik raporları
         "💰 Net Accum": "Net Accum",
@@ -1259,55 +1369,57 @@ def create_complete_command_mapping():
         # Diğer rapor komutları
         "📋 Summary": "Summary",
         "Summary": "Summary",
-        "📋 Özet": "Summary",
+        "📋 Summary": "Summary",
         "⚖️ EMA Crossings": "EMA Crossings",
         "EMA Crossings": "EMA Crossings",
-        "⚖️ EMA Kesişimi": "EMA Crossings",
+        "⚖️ EMA Crossings": "EMA Crossings",
         "⏱️ Hourly Analysis": "Hourly Analysis",
         "Hourly Analysis": "Hourly Analysis",
-        "⏱️ Saatlik Analiz Gör": "Hourly Analysis",
+        "⏱️ View Hourly Analysis": "Hourly Analysis",
         "💵 Cash Flow Report": "Cash Flow Report",
         "Cash Flow Report": "Cash Flow Report",
-        "💵 Nakit Girişi Raporu": "Cash Flow Report",
+        "💵 Cash Flow Report": "Cash Flow Report",
         "💵 Flow Migrations": "Flow Migrations",
         "Flow Migrations": "Flow Migrations",
-        "💵 Nakit Girişi Göçleri": "Flow Migrations",
+        "💵 Flow Migrations": "Flow Migrations",
         "📊 Smart Score": "Smart Score",
         "Smart Score": "Smart Score",
-        "📊 Smart Skor Raporu": "Smart Score",
+        "📊 Smart Score Report": "Smart Score",
         
         "🧠 Smart Whale & Trend": "Smart Whale & Trend",
         "Smart Whale & Trend": "Smart Whale & Trend",
-        "🧠 Akıllı Balina & Trend": "Smart Whale & Trend",
+        "🧠 Smart Whale & Trend": "Smart Whale & Trend",
         
         # New Additions
         "📊 Monthly Change": "Monthly Change",
         "Monthly Change": "Monthly Change",
-        "📊 Aylık Değişim": "Monthly Change",
+        "📊 Monthly Change": "Monthly Change",
         "📊 Significant Changes": "Significant Changes",
         "Significant Changes": "Significant Changes",
-        "📊 Fark Yaratan Coin'ler": "Significant Changes",
+        "📊 Coins making difference": "Significant Changes",
         
         # Rankings
         "🐳 Whale Ranking": "Whale Ranking",
         "Whale Ranking": "Whale Ranking",
-        "🐳 Balina Sıralaması": "Whale Ranking",
+        "🐳 Whale Ranking": "Whale Ranking",
         "🌊 Volatility Ranking": "Volatility Ranking",
         "Volatility Ranking": "Volatility Ranking",
         "🌊 Volatility Ranking": "Volatility Ranking",
         "📏 Bollinger Squeeze": "Bollinger Squeeze",
         "Bollinger Squeeze": "Bollinger Squeeze",
-        "📏 Bollinger Sıkışması": "Bollinger Squeeze",
+        "📏 Bollinger Squeeze": "Bollinger Squeeze",
         "🔒 Trust Index": "Trust Index",
         "Trust Index": "Trust Index",
-        "🔒 Güven Endeksi Raporu": "Trust Index",
+        "🔒 Trust Index Report": "Trust Index",
         
         "BTC Tüm Veriler": "BTC Tüm Veriler",
         
         "💹 Futures Analysis": "Futures Analysis",
         "Futures Analysis": "Futures Analysis",
-        "Vadeli İşlemler Analizi": "Futures Analysis",
-        "💹 Vadeli İşlemler Analizi": "Futures Analysis",
+        "Futures Analysis": "Futures Analysis",
+        "💹 Futures Analysis": "Futures Analysis",
+        "🛸 Antigravity Strategy": "Antigravity Strategy",
+        "Antigravity Strategy": "Antigravity Strategy",
 
         # Metric Reports (Missing emojis and direct mappings)
         "📊 RSI Report": "RSI Report",
@@ -1458,7 +1570,7 @@ def analyze_market_maker_activity(taker_buy_volume, taker_sell_volume, time_buck
             "recent_maker_ratio": period_analysis[-1]["maker_ratio"] if period_analysis else 0
         }
     except Exception as e:
-        print(f"[HATA] Market maker aktivite analizinde hata: {e}")
+        print(f"[ERROR] Market maker aktivite analizinde hata: {e}")
         return {"valid": False}
 
 
@@ -1525,15 +1637,30 @@ def handle_reply_message(message):
                     send_telegram_message_long("⚠️ No analysis data available yet.")
                     MENU_STATE.set_user_state(chat_id, "main_menu")
 
-            elif normalized_text == "Risk Analysis":
-                MENU_STATE.set_user_state(chat_id, "risk_menu")
-                risk_keyboard = create_risk_submenu_keyboard()
-                send_reply_keyboard_message(
-                    chat_id,
-                    "🛡️ <b>Risk Analysis Menu</b>\n\n"
-                    "Select one of the options below for detailed risk analysis.",
-                    keyboard=risk_keyboard
-                )
+            elif normalized_text == "Master Strategy Menu":
+                MENU_STATE.set_user_state(chat_id, "strategy_menu")
+                keyboard = create_strategy_submenu_keyboard()
+                send_reply_keyboard_message(chat_id, "🛸 <b>Master Strategy & Price Action</b>\nSelect an option below:", keyboard=keyboard)
+
+            elif normalized_text == "Market Overview Menu":
+                MENU_STATE.set_user_state(chat_id, "overview_menu")
+                keyboard = create_overview_submenu_keyboard()
+                send_reply_keyboard_message(chat_id, "📊 <b>Market Overview & Indicators</b>\nSelect an option below:", keyboard=keyboard)
+
+            elif normalized_text == "Whale Menu":
+                MENU_STATE.set_user_state(chat_id, "whale_menu")
+                keyboard = create_whale_submenu_keyboard()
+                send_reply_keyboard_message(chat_id, "🐋 <b>Whale Movements & Smart Money</b>\nSelect an option below:", keyboard=keyboard)
+
+            elif normalized_text == "Futures Menu":
+                MENU_STATE.set_user_state(chat_id, "futures_menu")
+                keyboard = create_futures_submenu_keyboard()
+                send_reply_keyboard_message(chat_id, "💹 <b>Futures & Risk Analytics</b>\nSelect an option below:", keyboard=keyboard)
+
+            elif normalized_text == "Social Menu":
+                MENU_STATE.set_user_state(chat_id, "social_menu")
+                keyboard = create_social_submenu_keyboard()
+                send_reply_keyboard_message(chat_id, "📺 <b>YouTube & Social Alpha</b>\nSelect an option below:", keyboard=keyboard)
 
             elif normalized_text == "Smart Money":
                 MENU_STATE.set_user_state(chat_id, "smart_money_menu")
@@ -1549,25 +1676,12 @@ def handle_reply_message(message):
 
             # Other operations in main menu (Summary, EMA Crossings, etc.)
             elif normalized_text in [
-                "Manipulation Detector", "Whale Strategies", "Whale Movement", "MM Analysis",
-                "Volume Ratio", "Trend Status", "Net Accum", "Net Buy/Sell Status",
-                "BTC Correlation", "ETH Correlation", "SOL Correlation", "Composite Score", "Difference Index",
-                "Outlier Score", "Summary", "EMA Crossings", "Hourly Analysis",
-                "Cash Flow Report", "Flow Migrations", "Smart Score", "Price Info", "Long/Short Ratio",
-                "Funding Rate", "Smart Whale & Trend", "Whale Ranking", "Volatility Ranking",
-                "Bollinger Squeeze", "Trust Index", "BTC Tüm Veriler",
-                "Significant Changes", "Futures Analysis", "Monthly Change",
-                "RSI Report", "RSI 4H", "RSI 1D", "EMA Report", "4H Change", "Weekly Change", "24h Volume",
-                "ATR", "ADX", "ADX 4H", "ADX 1D", "MACD", "MACD 4H", "MACD 1D", 
-                "Open Interest", "MFI", "StochRSI", "Taker Rate", "Support/Resistance", "Z-Score", 
-                "Bollinger Bands", "Momentum", "NotebookLM Export", "YouTube Alpha", "YouTube Transcripts", "order_book_analysis", "liquidation_analysis",
-                "Net Accum 4H", "Net Accum 1D", "Composite 4H", "Composite 1D",
-                "BTC Corr 4H", "BTC Corr 1D", "ETH Corr 4H", "ETH Corr 1D", "SOL Corr 4H", "SOL Corr 1D",
-                "24h Vol 4H", "24h Vol 1D", "Volume Ratio 4H", "Volume Ratio 1D",
-                "MFI 4H", "MFI 1D", "Momentum 4H", "Momentum 1D"
+                "Antigravity Strategy", "Significant Changes", "Smart Money",
+                "Trend Status", "Composite Score", "RSI Report", "MACD", "EMA Crossings", "ADX", "MFI", "Candle Patterns", "Support/Resistance", "Bollinger Bands",
+                "Whale Strategies", "Whale Movement", "Manipulation Detector", "MM Analysis", "Net Accum", "Net Accum 4H", "Net Accum 1D", "Whale Ranking",
+                "Futures Analysis", "Long/Short Ratio", "Funding Rate", "Open Interest", "liquidation_analysis", "Volatility Ranking", "Trust Index", "Risk Analysis",
+                "YouTube Alpha", "YouTube Transcripts", "NotebookLM Export", "Summary", "Current Analysis"
             ]:
-                # Call handle_main_menu_option with English normalized text
-                print(f"[DEBUG] Calling handle_main_menu_option with: '{normalized_text}'")
                 handle_main_menu_option(normalized_text, chat_id)
 
             # Ana menüden coin detayı gösterme
@@ -1605,6 +1719,11 @@ def handle_reply_message(message):
                     keyboard=risk_keyboard
                 )
 
+        # Submenu handlers
+        elif current_menu in ["strategy_menu", "overview_menu", "whale_menu", "futures_menu", "social_menu"]:
+             handle_main_menu_option(normalized_text, chat_id)
+             # Stay in the same submenu for convenience unless user clicks back
+             
         # ---------- TÜM COİNLER MENÜSÜ İŞLEME ----------
         elif current_menu == "all_coins_menu":
             if text in [coin["Coin"] for coin in ALL_RESULTS]:
@@ -1658,12 +1777,12 @@ def handle_reply_message(message):
 
         # ---------- BİLİNMEYEN MENÜ DURUMU ----------
         else:
-            print(f"[DEBUG] Bilinmeyen menü durumu: {current_menu}, ana menüye dönülüyor")
+            print(f"[DEBUG] Unknown menü durumu: {current_menu}, ana menüye dönülüyor")
             MENU_STATE.set_user_state(chat_id, "main_menu")
             handle_main_menu_return(chat_id)
 
     except Exception as e:
-        print(f"[HATA] Mesaj işlenirken beklenmeyen hata: {e}")
+        print(f"[ERROR] Mesaj işlenirken beklenmeyen hata: {e}")
         import traceback
         traceback.print_exc()
 
@@ -1683,7 +1802,9 @@ def handle_main_menu_option(option, chat_id):
         chat_id (str): İşlemin gerçekleştiği chat ID
     """
     try:
-        if option == "Manipulation Detector":
+        if option == "Antigravity Strategy":
+            handle_antigravity_report(chat_id)
+        elif option == "Manipulation Detector":
             handle_enhanced_manipulation_report()
         elif option == "Whale Strategies":
             handle_whale_strategies()
@@ -2170,7 +2291,7 @@ def handle_main_menu_option(option, chat_id):
                                   keyboard=keyboard)
 
     except Exception as e:
-        print(f"[HATA] '{option}' seçeneği işlenirken hata: {e}")
+        print(f"[ERROR] '{option}' seçeneği işlenirken hata: {e}")
         import traceback
         traceback.print_exc()
         # Hata durumunda bilgilendirme mesajı
@@ -2497,7 +2618,7 @@ def generate_portfolio_risk_report(positions, macro_risk=None):
 
     except Exception as e:
         error_msg = f"⚠️ Portföy Risk Raporu oluşturulurken hata: {str(e)}"
-        print(f"[HATA] Portföy Risk Raporu hatası: {e}")
+        print(f"[ERROR] Portföy Risk Raporu hatası: {e}")
         import traceback
         print(traceback.format_exc())
         return error_msg
@@ -2518,9 +2639,9 @@ def fetch_24hr_ticker_data(symbols):
                 print(f"[DEBUG] {symbol} - Raw Ticker Data: {ticker}")
                 data.append(ticker)
             else:
-                print(f"[HATA] {symbol} için veri alınamadı: {response.status_code}")
+                print(f"[ERROR] {symbol} için veri alınamadı: {response.status_code}")
         except Exception as e:
-            print(f"[HATA] {symbol} için veri çekilemedi: {e}")
+            print(f"[ERROR] {symbol} için veri çekilemedi: {e}")
     return data
 
 
@@ -2598,7 +2719,7 @@ def fetch_okx_futures_data(symbol):
         }
 
     except Exception as e:
-        print(f"[HATA] OKX verileri alınırken hata: {e}")
+        print(f"[ERROR] OKX verileri alınırken hata: {e}")
         return {
             "open_interest": 0,
             "funding_rate": 0,
@@ -2679,7 +2800,7 @@ def fetch_bybit_futures_data(symbol):
         }
 
     except Exception as e:
-        print(f"[HATA] Bybit verileri alınırken hata: {e}")
+        print(f"[ERROR] Bybit verileri alınırken hata: {e}")
         return {
             "open_interest": 0,
             "funding_rate": 0,
@@ -2768,7 +2889,7 @@ def analyze_market_maker_activity(taker_buy_volume, taker_sell_volume, time_buck
             "recent_maker_ratio": period_analysis[-1]["maker_ratio"] if period_analysis else 0
         }
     except Exception as e:
-        print(f"[HATA] Market maker aktivite analizinde hata: {e}")
+        print(f"[ERROR] Market maker aktivite analizinde hata: {e}")
         return {"valid": False}
 
 def calculate_cash_flow_trend(kline_data):
@@ -2959,7 +3080,7 @@ def generate_cash_flow_migration_report():
                 if first_close > 0:
                     minor_trend_score = round(((last_close - first_close) / first_close) * 100, 2)
             except Exception as e:
-                print(f"[HATA] {symbol} için minor trend hesaplanamadı: {e}")
+                print(f"[ERROR] {symbol} için minor trend hesaplanamadı: {e}")
                 minor_trend_score = 0.0
 
         intervals = ["15m", "1h", "4h", "12h", "1d"]
@@ -3067,10 +3188,10 @@ def fetch_order_book(symbol, limit=100):
             asks = [(float(price), float(qty)) for price, qty in data["asks"]]
             return bids, asks
         else:
-            print(f"[HATA] {symbol} için emir defteri alınamadı: {response.status_code}")
+            print(f"[ERROR] {symbol} için emir defteri alınamadı: {response.status_code}")
             return [], []
     except Exception as e:
-        print(f"[HATA] Emir defteri çekilirken hata: {e}")
+        print(f"[ERROR] Emir defteri çekilirken hata: {e}")
         return [], []
 
 
@@ -3155,7 +3276,7 @@ def analyze_order_book(bids, asks, current_price, symbol="Unknown"):
             }
         }
     except Exception as e:
-        print(f"[HATA] Emir defteri analizinde hata: {e}")
+        print(f"[ERROR] Emir defteri analizinde hata: {e}")
         import traceback
         traceback.print_exc()
         return {
@@ -3307,7 +3428,7 @@ def calculate_anomaly_score(metric, historical_data, window=20):
         return final_score
 
     except Exception as e:
-        print(f"[HATA] Anormallik hesaplanamadı: {e}")
+        print(f"[ERROR] Anormallik hesaplanamadı: {e}")
         return 0
 
 # ---------------- Yeni "Akıllı Balina & Trend" Raporu Fonksiyonları ----------------
@@ -3333,7 +3454,7 @@ def calculate_trend_score(coin_data):
         total_score = min(100, total_score)
         return round(total_score, 1)
     except Exception as e:
-        print(f"[HATA] Trend skoru hesaplanamadı: {e}")
+        print(f"[ERROR] Trend skoru hesaplanamadı: {e}")
         return 50.0
 
 def detect_advanced_whale_strategy(coin_data):
@@ -3704,7 +3825,7 @@ def fetch_futures_data(symbol):
 
         return result
     except Exception as e:
-        print(f"[HATA] {symbol} futures verisi alınamadı: {e}")
+        print(f"[ERROR] {symbol} futures verisi alınamadı: {e}")
         return {"funding_rate": 0, "open_interest": 0, "long_short_ratio": 1.0}
 
 
@@ -3734,7 +3855,7 @@ def fetch_binance_futures_data(symbol):
 
         return result
     except Exception as e:
-        print(f"[HATA] {symbol} futures verisi alınamadı: {e}")
+        print(f"[ERROR] {symbol} futures verisi alınamadı: {e}")
         return {"funding_rate": 0, "open_interest": 0, "long_short_ratio": 1.0}
 
 
@@ -3782,7 +3903,7 @@ async def fetch_futures_data_async(session, symbol, exchange='binance'):
                         print(f"[UYARI] {exchange} {symbol} veri çekme hatası: {response.status}")
                         return None
             except Exception as e:
-                print(f"[HATA] {exchange} {symbol} veri çekme hatası: {e}")
+                print(f"[ERROR] {exchange} {symbol} veri çekme hatası: {e}")
                 return None
 
         # Tüm verileri eş zamanlı çek
@@ -3806,7 +3927,7 @@ async def fetch_futures_data_async(session, symbol, exchange='binance'):
         return result
 
     except Exception as e:
-        print(f"[HATA] {symbol} - {exchange} futures veri hatası: {e}")
+        print(f"[ERROR] {symbol} - {exchange} futures veri hatası: {e}")
         return {
             'symbol': symbol,
             'exchange': exchange,
@@ -3828,7 +3949,7 @@ def _extract_open_interest(data, exchange):
         elif exchange == 'bybit':
             return float(data['result']['list'][0]['openInterest']) if data.get('result', {}).get('list') else 0
     except Exception as e:
-        print(f"[HATA] {exchange} açık pozisyon verisi çıkarılamadı: {e}")
+        print(f"[ERROR] {exchange} açık pozisyon verisi çıkarılamadı: {e}")
         return 0
 
 
@@ -3844,7 +3965,7 @@ def _extract_funding_rate(data, exchange):
         elif exchange == 'bybit':
             return float(data['result']['list'][0].get('fundingRate', 0)) * 100
     except Exception as e:
-        print(f"[HATA] {exchange} funding rate verisi çıkarılamadı: {e}")
+        print(f"[ERROR] {exchange} funding rate verisi çıkarılamadı: {e}")
         return 0
 
 
@@ -3862,7 +3983,7 @@ def _extract_long_short_ratio(data, exchange):
             return float(data['result']['list'][0].get('longRatio', 0.5)) / float(
                 data['result']['list'][0].get('shortRatio', 0.5)) if data.get('result', {}).get('list') else 1.0
     except Exception as e:
-        print(f"[HATA] {exchange} long/short oranı çıkarılamadı: {e}")
+        print(f"[ERROR] {exchange} long/short oranı çıkarılamadı: {e}")
         return 1.0
 
 async def fetch_coingecko_data(symbol):
@@ -4132,7 +4253,7 @@ def process_kline_data(kline_data):
         return df
 
     except Exception as e:
-        print(f"[HATA] Kline veri işleme hatası: {e}")
+        print(f"[ERROR] Kline veri işleme hatası: {e}")
         return None
 
 
@@ -4223,7 +4344,7 @@ def generate_futures_timeframe_analysis():
     if not ALL_RESULTS:
         return "⚠️ Henüz analiz verisi bulunmuyor."
 
-    report = f"⏱️ <b>Çoklu Zaman Dilimi Vadeli İşlemler Analizi – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"⏱️ <b>Multi-Timeframe Futures Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "Bu rapor, farklı zaman dilimlerinde vadeli işlem verilerini ve hacim desteğini analiz eder.\n\n"
 
     timeframes = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
@@ -4241,7 +4362,7 @@ def generate_futures_timeframe_analysis():
 
         report += f"<b>Piyasa Durumu:</b> BTC %{btc_change:.2f}, ETH %{eth_change:.2f}\n\n"
     except Exception as e:
-        print(f"[HATA] BTC/ETH fiyat değişimi alınamadı: {e}")
+        print(f"[ERROR] BTC/ETH fiyat değişimi alınamadı: {e}")
 
     for timeframe, minutes in timeframes.items():
         print(f"[INFO] {timeframe} zaman dilimi analiz ediliyor...")
@@ -4281,7 +4402,7 @@ def generate_futures_timeframe_analysis():
                 try:
                     oi_change = fetch_futures_oi_changes(symbol, timeframe)
                 except Exception as e:
-                    print(f"[HATA] {symbol} OI değişimi alınamadı: {e}")
+                    print(f"[ERROR] {symbol} OI değişimi alınamadı: {e}")
                     oi_change = 0
 
                 try:
@@ -4295,7 +4416,7 @@ def generate_futures_timeframe_analysis():
                     funding_rate = futures_data.get("funding_rate", 0)
                     ls_ratio = futures_data.get("long_short_ratio", 1.0)
                 except Exception as e:
-                    print(f"[HATA] {symbol} vadeli veri alınamadı: {e}")
+                    print(f"[ERROR] {symbol} vadeli veri alınamadı: {e}")
                     funding_rate = 0
                     ls_ratio = 1.0
 
@@ -4305,7 +4426,7 @@ def generate_futures_timeframe_analysis():
                     if buyer_ratio == "N/A":
                         buyer_ratio = 50
                 except Exception as e:
-                    print(f"[HATA] {symbol} alıcı oranı hesaplanamadı: {e}")
+                    print(f"[ERROR] {symbol} alıcı oranı hesaplanamadı: {e}")
                     buyer_ratio = 50
 
                 # Skor hesaplama
@@ -4362,7 +4483,7 @@ def generate_futures_timeframe_analysis():
                 })
 
             except Exception as e:
-                print(f"[HATA] {coin['Coin']} için {timeframe} analizi sırasında hata: {e}")
+                print(f"[ERROR] {coin['Coin']} için {timeframe} analizi sırasında hata: {e}")
                 continue
 
         # Skora göre sırala (en yüksek puandan en düşüğe)
@@ -4495,7 +4616,7 @@ def fetch_volume_change_for_timeframe(symbol, timeframe):
         volume_change = ((avg_recent - avg_previous) / avg_previous) * 100
         return volume_change
     except Exception as e:
-        print(f"[HATA] {symbol} için {timeframe} hacim değişimi hesaplanırken hata: {e}")
+        print(f"[ERROR] {symbol} için {timeframe} hacim değişimi hesaplanırken hata: {e}")
         return 0
 
 
@@ -4560,7 +4681,7 @@ def fetch_volume_change_for_timeframe_improved(symbol, timeframe):
 
         return volume_change
     except Exception as e:
-        print(f"[HATA] {symbol} için {timeframe} hacim değişimi hesaplanırken hata: {e}")
+        print(f"[ERROR] {symbol} için {timeframe} hacim değişimi hesaplanırken hata: {e}")
         return 0
 
 
@@ -4604,7 +4725,7 @@ def fetch_futures_oi_changes_improved(symbol, timeframe, limit=2):
             else:
                 print(f"[UYARI] {symbol} - {timeframe} için yeterli OI verisi yok: {len(data)} kayıt")
         else:
-            print(f"[HATA] {symbol} OI verisi alınamadı: {response.status_code}")
+            print(f"[ERROR] {symbol} OI verisi alınamadı: {response.status_code}")
 
         # Plan B: Alternatif API endpoint dene
         alt_url = f"https://fapi.binance.com/futures/data/openInterest?symbol={symbol}"
@@ -4672,13 +4793,13 @@ def fetch_futures_oi_changes_improved(symbol, timeframe, limit=2):
             elif abs(bybit_change) > 0:
                 return bybit_change
         except Exception as e:
-            print(f"[HATA] {symbol} alternatif borsa OI değişimi alınamadı: {e}")
+            print(f"[ERROR] {symbol} alternatif borsa OI değişimi alınamadı: {e}")
 
         # Son çare: OI değişimi 0 kabul et
         return 0.0
 
     except Exception as e:
-        print(f"[HATA] {symbol} OI değişimi alınamadı: {e}")
+        print(f"[ERROR] {symbol} OI değişimi alınamadı: {e}")
         return 0.0
 
 
@@ -4713,7 +4834,7 @@ def fetch_enhanced_ls_ratio(symbol):
             else:
                 print(f"[UYARI] Binance Global API hatası: {ls_response.status_code}")
         except Exception as e:
-            print(f"[HATA] Binance Global Hata: {str(e)}")
+            print(f"[ERROR] Binance Global Hata: {str(e)}")
 
         # 2. Binance Top Accounts
         try:
@@ -4737,7 +4858,7 @@ def fetch_enhanced_ls_ratio(symbol):
             else:
                 print(f"[UYARI] Binance Top API hatası: {alt_ls_response.status_code}")
         except Exception as e:
-            print(f"[HATA] Binance Top Hata: {str(e)}")
+            print(f"[ERROR] Binance Top Hata: {str(e)}")
 
         # 3. Binance Positions Ratio
         try:
@@ -4761,7 +4882,7 @@ def fetch_enhanced_ls_ratio(symbol):
             else:
                 print(f"[UYARI] Binance Positions API hatası: {pos_ls_response.status_code}")
         except Exception as e:
-            print(f"[HATA] Binance Positions Hata: {str(e)}")
+            print(f"[ERROR] Binance Positions Hata: {str(e)}")
 
         # Sonuçları analiz et
         if results:
@@ -4792,7 +4913,7 @@ def fetch_enhanced_ls_ratio(symbol):
             return 1.0
 
     except Exception as e:
-        print(f"[HATA] {symbol} L/S oranı hesaplanırken genel hata: {e}")
+        print(f"[ERROR] {symbol} L/S oranı hesaplanırken genel hata: {e}")
         return 1.0
 
 
@@ -4867,7 +4988,7 @@ def fetch_improved_ls_ratio(symbol):
                             print(f"[DEBUG] {symbol} Bybit L/S Ratio: {ls_ratio:.2f}")
                             return ls_ratio
         except Exception as e:
-            print(f"[HATA] {symbol} Bybit L/S oranı alınamadı: {e}")
+            print(f"[ERROR] {symbol} Bybit L/S oranı alınamadı: {e}")
 
         # 5. OKX L/S Ratio
         try:
@@ -4884,14 +5005,14 @@ def fetch_improved_ls_ratio(symbol):
                         print(f"[DEBUG] {symbol} OKX L/S Ratio: {long_short_ratio:.2f}")
                         return long_short_ratio
         except Exception as e:
-            print(f"[HATA] {symbol} OKX L/S oranı alınamadı: {e}")
+            print(f"[ERROR] {symbol} OKX L/S oranı alınamadı: {e}")
 
         # Hiçbir veri alınamazsa varsayılan değer
         print(f"[UYARI] {symbol} için L/S oranı alınamadı, varsayılan değer 1.0 dönülüyor")
         return 1.0
 
     except Exception as e:
-        print(f"[HATA] {symbol} L/S oranı alınırken genel hata: {e}")
+        print(f"[ERROR] {symbol} L/S oranı alınırken genel hata: {e}")
         return 1.0
 
 
@@ -5015,7 +5136,7 @@ def generate_futures_timeframe_analysis():
                 })
 
             except Exception as e:
-                print(f"[HATA] {coin['Coin']} için {timeframe} analizi sırasında hata: {e}")
+                print(f"[ERROR] {coin['Coin']} için {timeframe} analizi sırasında hata: {e}")
                 continue
 
         # Skora göre sırala (en yüksek puandan en düşüğe)
@@ -5211,7 +5332,7 @@ def predict_with_cached_model(symbol, df):
         try:
             prophet_pred = train_prophet_model(df)
         except Exception as prophet_error:
-            print(f"[HATA] {symbol} için Prophet tahmini başarısız: {prophet_error}")
+            print(f"[ERROR] {symbol} için Prophet tahmini başarısız: {prophet_error}")
             prophet_pred = df['price'].iloc[-1] * (1 + rf_pred_change)  # Fallback olarak RF tahminini kullan
 
         # Modelleri önbelleğe kaydet
@@ -5224,7 +5345,7 @@ def predict_with_cached_model(symbol, df):
 
         return rf_pred_change, prophet_pred
     except Exception as e:
-        print(f"[HATA] {symbol} için model tahmininde genel hata: {e}")
+        print(f"[ERROR] {symbol} için model tahmininde genel hata: {e}")
         return 0.0, df['price'].iloc[-1] if len(df) > 0 else 0.0
 
 def save_model(symbol, model_rf=None, model_prophet=None, model_lstm=None):
@@ -5301,18 +5422,18 @@ async def fetch_kline_data_safely(session, symbol, interval, limit=100):
                     return data
 
                 if 400 <= response.status < 500:
-                    print(f"[HATA] {symbol} için istemci hatası: {response.status}")
+                    print(f"[ERROR] {symbol} için istemci hatası: {response.status}")
                     return []
 
-                print(f"[HATA] {symbol} için sunucu hatası: {response.status}")
+                print(f"[ERROR] {symbol} için sunucu hatası: {response.status}")
                 await asyncio.sleep(2 * (attempt + 1))
 
         except asyncio.TimeoutError:
-            print(f"[HATA] {symbol} zaman aşımı (Deneme {attempt + 1})")
+            print(f"[ERROR] {symbol} zaman aşımı (Deneme {attempt + 1})")
             await asyncio.sleep(2)
 
         except Exception as e:
-            print(f"[HATA] {symbol} veri çekme hatası: {e}")
+            print(f"[ERROR] {symbol} veri çekme hatası: {e}")
             await asyncio.sleep(2)
 
     return []
@@ -5349,7 +5470,7 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
 
         return result
     except Exception as e:
-        print(f"[HATA] {symbol} için sync_fetch_kline_data hatası: {e}")
+        print(f"[ERROR] {symbol} için sync_fetch_kline_data hatası: {e}")
         return []
 
 def fetch_taker_volumes_from_klines(symbol, interval="1h", limit=24):
@@ -5369,10 +5490,10 @@ def fetch_taker_volumes_from_klines(symbol, interval="1h", limit=24):
             quote_vol = df["quote_volume"].astype(float).sum()
             print(f"[DEBUG] {symbol} - Klines Taker Buy Quote: {taker_buy_quote}, Quote Volume: {quote_vol}")
             return taker_buy_quote, quote_vol
-        print(f"[HATA] {symbol} kline verisi alınamadı: {response.status_code}")
+        print(f"[ERROR] {symbol} kline verisi alınamadı: {response.status_code}")
         return 0, 0
     except Exception as e:
-        print(f"[HATA] {symbol} kline verisi alınamadı: {e}")
+        print(f"[ERROR] {symbol} kline verisi alınamadı: {e}")
         return 0, 0
 
 # ---------------- Balina Strateji ve Hareket Analizi ----------------
@@ -5451,7 +5572,7 @@ def detect_whale_strategies_enhanced(coin_data, historical_data=None):
             macd = extract_numeric(coin_data.get("MACD", "0"))
             adx = extract_numeric(coin_data.get("ADX", "0"))
         except Exception as e:
-            print(f"[HATA] {symbol} için temel metrikler çıkarılırken hata: {e}")
+            print(f"[ERROR] {symbol} için temel metrikler çıkarılırken hata: {e}")
             # Varsayılan değerler
             rsi_val, net_accum, volume_ratio = 50, 0, 1
             price_roc, current_price = 0, 1
@@ -5473,7 +5594,7 @@ def detect_whale_strategies_enhanced(coin_data, historical_data=None):
             if taker_ratio_1h == "N/A":
                 taker_ratio_1h = 50
         except Exception as e:
-            print(f"[HATA] {symbol} kline veya taker ratio hesaplanırken hata: {e}")
+            print(f"[ERROR] {symbol} kline veya taker ratio hesaplanırken hata: {e}")
             klines_15m, klines_1h, klines_4h = [], [], []
             taker_ratio_15m, taker_ratio_1h = 50, 50
 
@@ -5482,7 +5603,7 @@ def detect_whale_strategies_enhanced(coin_data, historical_data=None):
             bids, asks = fetch_order_book(symbol, limit=100)
             order_book = analyze_order_book(bids, asks, current_price, symbol)
         except Exception as e:
-            print(f"[HATA] {symbol} emir defteri analizi hatası: {e}")
+            print(f"[ERROR] {symbol} emir defteri analizi hatası: {e}")
             order_book = {"imbalance": 0, "bid_volume": 0, "ask_volume": 0, "big_bid_wall": False,
                           "big_ask_wall": False}
 
@@ -5815,11 +5936,11 @@ def detect_whale_strategies_enhanced(coin_data, historical_data=None):
             "metrics": metrics
         }
     except Exception as e:
-        print(f"[HATA] {coin_data.get('Coin', 'Bilinmeyen')} için manipülasyon tespitinde hata: {e}")
+        print(f"[ERROR] {coin_data.get('Coin', 'Unknown')} için manipülasyon tespitinde hata: {e}")
         import traceback
         traceback.print_exc()
         return {
-            "symbol": coin_data.get("Coin", "Bilinmeyen"),
+            "symbol": coin_data.get("Coin", "Unknown"),
             "detected_strategies": [],
             "raw_scores": {},
             "metrics": {},
@@ -5869,7 +5990,7 @@ def analyze_whale_movement(coin_data):
     """
     try:
         # Temel değerleri çıkar
-        symbol = coin_data.get("Coin", "Bilinmeyen")
+        symbol = coin_data.get("Coin", "Unknown")
         net_accum = extract_numeric(coin_data.get("NetAccum_raw", 0))
         whale_buy = parse_money(coin_data["Whale_Buy_M"])
         whale_sell = parse_money(coin_data["Whale_Sell_M"])
@@ -5958,7 +6079,7 @@ def analyze_whale_movement(coin_data):
 
         return movement_summary
     except Exception as e:
-        print(f"[HATA] Balina hareket analizi hatasında: {e}")
+        print(f"[ERROR] Balina hareket analizi hatasında: {e}")
         return "Whale movement analysis failed."
 
 def detect_significant_changes(results):
@@ -6048,32 +6169,43 @@ def check_smt_divergence(df_coin, df_btc):
     except:
         return "Neutral"
 
-def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
+def analyze_antigravity_pa_strategy(coin_data, df_1d, df_4h, df_15m):
     """
-    Antigravity Bot - Master Analytical Framework (Efloud & PO3/AMD Methodology) - ENGLISH
+    Antigravity Bot - Master Analytical Framework (PO3/AMD Matrix: 1D -> 4H -> 15m)
+    - 1D: Higher Timeframe Bias
+    - 4H: Strategic Zones & FVG
+    - 15m: Entry Confirmation & SMT Divergence
     """
     try:
         symbol = coin_data.get("Coin", "Unknown")
         current_price = float(coin_data.get("Price", 0))
         
-        # 1. MARKET CONTEXT AND BIAS DETERMINATION
-        short_ema = df_1d['close'].iloc[-20:].mean()
-        long_ema = df_1d['close'].iloc[-50:].mean()
+        # 1. HTF BIAS DETERMINATION (1-DAY)
+        short_ema_1d = df_1d['close'].iloc[-20:].mean()
+        long_ema_1d = df_1d['close'].iloc[-50:].mean()
         bias = "Sideways / Choppy ⚖️"
-        bias_desc = "Consolidating around key levels."
-        if current_price > short_ema > long_ema: 
-            bias = "Bullish Trend 📈"
+        bias_desc = "Consolidating around HTF levels."
+        if current_price > short_ema_1d > long_ema_1d: 
+            bias = "Bullish HTF Trend 📈"
             bias_desc = "HTF structure is making Higher Highs."
-        elif current_price < short_ema < long_ema: 
-            bias = "Bearish Trend 📉"
+        elif current_price < short_ema_1d < long_ema_1d: 
+            bias = "Bearish HTF Trend 📉"
             bias_desc = "HTF structure is making Lower Lows."
             
-        # SMT Analysis (Context with BTC)
-        # We need BTC 15m klines from somewhere - fetching from overall results for BTC if exists
+        # 2. MTF STRATEGIC ZONES (4-HOUR)
+        # SMT Analysis (Context with BTC using 15m/4h)
         df_btc_15m = ALL_RESULTS[0].get('df_15m', df_15m) if ALL_RESULTS and ALL_RESULTS[0]['Coin'] == 'BTCUSDT' else df_15m
         smt_signal = check_smt_divergence(df_15m, df_btc_15m)
-
-        # 2. HTF STRATEGIC LEVELS DETECTION
+        
+        # 4H FVG Detection
+        mtf_fvg = "N/A"
+        fvg_detected = False
+        if len(df_4h) > 10:
+            for i in range(len(df_4h)-3, len(df_4h)-10, -1):
+                if df_4h['low'].iloc[i+2] > df_4h['high'].iloc[i]:
+                    mtf_fvg = f"{df_4h['high'].iloc[i]:.4f} - {df_4h['low'].iloc[i+2]:.4f}"
+                    fvg_detected = True
+                    break
         recent_low = df_1d['low'].tail(30).min()
         recent_high = df_1d['high'].tail(30).max()
         fvg_detected = False
@@ -6111,12 +6243,13 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
         # REPORT SYNTHESIS
         report = f"""### **Expert Analytical Report: {symbol}**
 
-**1.0 General Market Bias:** {bias}
+**1.0 HTF Bias (1D):** {bias}
 *   **Reasoning:** {bias_desc}
-*   **SMT Context:** {smt_signal}
+*   **BTC SMT (15m):** {smt_signal}
 
-**2.0 Key HTF (High Time Frame) Levels:**
-*   **Level:** {fvg_zone if fvg_detected else f"{recent_low:.4f} (Old Low)"}
+**2.0 Strategic Zone (4H):**
+*   **FVG/OB Info:** {mtf_fvg if fvg_detected else "No immediate FVG on 4H"}
+*   **Range:** {df_4h['low'].tail(20).min():.4f} - {df_4h['high'].tail(20).max():.4f}
 *   **Type:** {'Imbalance (FVG) Region' if fvg_detected else 'S/R Flip / Support Level'}
 
 **3.0 LTF Confirmation Model & PO3 Analysis:**
@@ -6220,7 +6353,7 @@ def generate_enhanced_manipulation_report():
         matching_opportunities = [s for s in all_strategies if s["strategy"]["type"] in opportunity_strategies]
 
         if matching_opportunities:
-            report += f"<b>💰 Fırsat Tespiti ({len(matching_opportunities)} coin):</b>\n"
+            report += f"<b>💰 Opportunity Detection ({len(matching_opportunities)} coins):</b>\n"
 
             sorted_opportunities = sorted(matching_opportunities, key=lambda x: x["strategy"]["score"], reverse=True)
 
@@ -6262,7 +6395,7 @@ def handle_enhanced_manipulation_report():
         report = generate_enhanced_manipulation_report()
         send_telegram_message_long(report)
     except Exception as e:
-        print(f"[HATA] Manipülasyon raporu oluşturulurken hata: {e}")
+        print(f"[ERROR] Manipülasyon raporu oluşturulurken hata: {e}")
         import traceback
         traceback.print_exc()
         send_telegram_message_long("⚠️ Manipülasyon raporu oluşturulurken bir hata oluştu. Lütfen daha sonra tekrar deneyin.")
@@ -6326,7 +6459,7 @@ def get_correlation(symbol, base_symbol="BTCUSDT", interval="1h", limit=100):
         return round(correlation, 2)
         
     except Exception as e:
-        print(f"[HATA] {symbol}-{base_symbol} korelasyon hesaplanırken hata: {e}")
+        print(f"[ERROR] {symbol}-{base_symbol} korelasyon hesaplanırken hata: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -6366,7 +6499,7 @@ def handle_sol_korelasyonu():
                 coin_with_corr["SOL Correlation"] = str(sol_corr_1h)
                 sorted_results.append(coin_with_corr)
             except Exception as e:
-                print(f"[HATA] {coin['Coin']} için SOL korelasyonu hesaplanamadı: {e}")
+                print(f"[ERROR] {coin['Coin']} için SOL korelasyonu hesaplanamadı: {e}")
                 # Yine de coin'i dahil et, ama korelasyon için "Yok" olarak
                 coin_with_corr = coin.copy()
                 coin_with_corr["SOL Correlation"] = "Yok"
@@ -6527,7 +6660,7 @@ def get_extended_rsi(df, window=21):
     except Exception as e:
         print(f"[ERROR] Extended RSI error: {e}")
         return None
-        print(f"[HATA] Genişletilmiş RSI hesaplanırken hata: {e}")
+        print(f"[ERROR] Genişletilmiş RSI hesaplanırken hata: {e}")
         return None
 
 def calculate_corrected_momentum(rsi, macd, adx):
@@ -6556,7 +6689,7 @@ def calculate_taker_volumes(kline_data):
         return taker_buy_quote, quote_volume
 
     except Exception as e:
-        print(f"[HATA] Taker hacim hesaplama hatası: {e}")
+        print(f"[ERROR] Taker hacim hesaplama hatası: {e}")
         return 0, 0
 
 def calculate_price_roc(df, periods=5):
@@ -6579,7 +6712,7 @@ def calculate_price_roc(df, periods=5):
         roc = ((current - past) / past) * 100
         return round(roc, 2)
     except Exception as e:
-        print(f"[HATA] 24h Change hesaplanırken hata: {e}")
+        print(f"[ERROR] 24h Change hesaplanırken hata: {e}")
         return 0.0
 
 def calculate_volume_ratio(df):
@@ -6589,7 +6722,7 @@ def calculate_volume_ratio(df):
         ratio = last_volume / avg_volume if avg_volume != 0 else 0
         return round(ratio, 2)
     except Exception as e:
-        print(f"[HATA] volume oranı hesaplanırken hata: {e}")
+        print(f"[ERROR] volume oranı hesaplanırken hata: {e}")
         return 0
 
 def get_volume_ratio_comment(volume_ratio):
@@ -6826,7 +6959,7 @@ def calculate_fibonacci_levels(df):
         }
         return levels
     except Exception as e:
-        print(f"[HATA] Fibonacci seviyeleri hesaplanırken hata: {e}")
+        print(f"[ERROR] Fibonacci seviyeleri hesaplanırken hata: {e}")
         return {"0%": 0, "23.6%": 0, "38.2%": 0, "50%": 0, "61.8%": 0, "100%": 0}
 
 # ---------------- Telegram Fonksiyonları ----------------
@@ -6837,7 +6970,7 @@ def get_telegram_updates(offset):
         response = requests.get(url, params=params, timeout=120)
         return response.json()
     except Exception as e:
-        print(f"[HATA] Telegram güncellemeleri alınamadı: {e}")
+        print(f"[ERROR] Telegram güncellemeleri alınamadı: {e}")
         return {"ok": False, "result": []}
 
 
@@ -6940,7 +7073,7 @@ def check_telegram_updates():
                         
             time.sleep(1)
         except Exception as e:
-            print(f"[HATA] Telegram güncellemelerinde hata: {e}")
+            print(f"[ERROR] Telegram güncellemelerinde hata: {e}")
             import traceback
             traceback.print_exc()
             time.sleep(5)
@@ -7138,7 +7271,7 @@ def handle_makroekonomik_gostergeler():
             send_telegram_message_long("⚠️ Makroekonomik veriler alınamadı. Lütfen daha sonra tekrar deneyin.")
             return
 
-        report = f"🌐 <b>Makroekonomik Göstergeler Raporu – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"🌐 <b>Macroeconomic Indicators Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         # Ekonomik Olaylar
         report += "<b>📅 Yaklaşan Ekonomik Olaylar:</b>\n"
@@ -7201,7 +7334,7 @@ def handle_makroekonomik_gostergeler():
 
         send_telegram_message_long(report)
     except Exception as e:
-        print(f"[HATA] Makroekonomik göstergeler raporlaması sırasında hata: {e}")
+        print(f"[ERROR] Makroekonomik göstergeler raporlaması sırasında hata: {e}")
         import traceback
         traceback.print_exc()
         send_telegram_message_long(
@@ -7305,7 +7438,7 @@ def get_filtered_coins():
     try:
         response = requests.get(url, timeout=10)
         if response.status_code != 200:
-            print(f"[HATA] Binance API hatası: {response.status_code}")
+            print(f"[ERROR] Binance API hatası: {response.status_code}")
             return []
         
         tickers = response.json()
@@ -7320,7 +7453,7 @@ def get_filtered_coins():
         sorted_filtered = sorted(filtered, key=lambda x: ticker_volumes[x], reverse=True)
         return sorted_filtered[:50]
     except Exception as e:
-        print(f"[HATA] Coin filtresi alınırken hata: {e}")
+        print(f"[ERROR] Coin filtresi alınırken hata: {e}")
         return []
 
 
@@ -7337,7 +7470,7 @@ def get_ticker_info(symbol):
             quote_volume = extract_numeric(data.get("quoteVolume", 0))
             return price_change_percent, quote_volume
     except Exception as e:
-        print(f"[HATA] Ticker bilgisi alınırken hata: {e}")
+        print(f"[ERROR] Ticker bilgisi alınırken hata: {e}")
     return 0, 0
 
 
@@ -7360,7 +7493,7 @@ def get_futures_stats(symbol):
 
         return open_interest, long_short_ratio
     except Exception as e:
-        print(f"[HATA] Futures verisi alınırken hata: {e}")
+        print(f"[ERROR] Futures verisi alınırken hata: {e}")
         return 0, 1.0
 
 
@@ -7379,13 +7512,13 @@ def get_candle_close(symbol, interval, limit=2):
                 # print(f"[DEBUG] {symbol} için {interval} kapanış alındı: {data[-2][4]}")
                 return float(data[-2][4])
             else:
-                print(f"[HATA] {symbol} için {interval} kapanış verisi yetersiz: {len(data)} satır")
+                print(f"[ERROR] {symbol} için {interval} kapanış verisi yetersiz: {len(data)} satır")
         else:
-            print(f"[HATA] {symbol} için {interval} kapanış alınamadı: {response.status_code}")
+            print(f"[ERROR] {symbol} için {interval} kapanış alınamadı: {response.status_code}")
             # Try backup/public API if internal config URL is weird?
             # But assume BINANCE_API_URL is correct for now.
     except Exception as e:
-        print(f"[HATA] {symbol} için {interval} kapanış alınırken hata: {e}")
+        print(f"[ERROR] {symbol} için {interval} kapanış alınırken hata: {e}")
     return None
 
 def get_arrow(current, previous):
@@ -7626,17 +7759,17 @@ def get_technical_indicators(symbol, kline_data=None):
                 time.sleep(2)
                 response = requests.get(url, timeout=10)
             if response.status_code != 200:
-                print(f"[HATA] {symbol} için veri alınamadı: {response.status_code}")
+                print(f"[ERROR] {symbol} için veri alınamadı: {response.status_code}")
                 return None
             data = response.json()
         except Exception as e:
-            print(f"[HATA] {symbol} için kline verisi alınamadı: {e}")
+            print(f"[ERROR] {symbol} için kline verisi alınamadı: {e}")
             return None
     else:
         data = kline_data
 
     if len(data) < 100:
-        print(f"[HATA] {symbol} için yeterli veri yok: {len(data)} satır")
+        print(f"[ERROR] {symbol} için yeterli veri yok: {len(data)} satır")
         return None
 
     df = pd.DataFrame(data, columns=[
@@ -7650,7 +7783,7 @@ def get_technical_indicators(symbol, kline_data=None):
     df.dropna(inplace=True)
 
     if len(df) < 50:
-        print(f"[HATA] {symbol} için temiz veri yetersiz: {len(df)} satır")
+        print(f"[ERROR] {symbol} için temiz veri yetersiz: {len(df)} satır")
         return None
 
     current_price = float(df["close"].iloc[-1])
@@ -7961,7 +8094,13 @@ def get_technical_indicators(symbol, kline_data=None):
         "BB Upper Distance": f"{round(bb_upper_distance_pct, 2)}%" if bb_upper_distance_pct is not None else "N/A",
         "Trap Status": "Analyzing",
         "Advice": coin_recommendation,
-        "df": df.to_dict()
+        "df": df.to_dict(),
+        # RAW KEYS FOR INTERNAL USE
+        "btc_corr_1h": btc_corr_1h,
+        "btc_corr_4h": btc_corr_4h,
+        "eth_corr_1h": eth_corr_1h,
+        "eth_corr_4h": eth_corr_4h,
+        "sol_corr_1h": sol_corr_1h
     }
     return result
 
@@ -8039,7 +8178,7 @@ def calculate_trust_index(coin_data, curr_price, weekly_close, daily_close, four
         return trust_index, trust_change
 
     except Exception as e:
-        print(f"[HATA] {coin_data['Coin']} için güven endeksi hesaplanamadı: {e}")
+        print(f"[ERROR] {coin_data['Coin']} için güven endeksi hesaplanamadı: {e}")
         import traceback
         print(traceback.format_exc())
         return 50, 0
@@ -8116,7 +8255,7 @@ def get_strategy_comment(coin_data):
     Returns:
         str: Formatlanmış yorum
     """
-    symbol = coin_data.get("Coin", "Bilinmeyen")
+    symbol = coin_data.get("Coin", "Unknown")
     price = coin_data.get("Price_Display", "N/A")
     weekly, weekly_diff = coin_data.get("Weekly Change", ("N/A", "N/A"))
     fourh, fourh_diff = coin_data.get("4H Change", ("N/A", "N/A"))
@@ -8209,7 +8348,7 @@ def calculate_composite_score(coin):
                 return float(value)
             return default
         except (ValueError, TypeError, IndexError):
-            print(f"[HATA] Değer çıkarılamadı: {value}")
+            print(f"[ERROR] Değer çıkarılamadı: {value}")
             return default
 
     # Weights
@@ -8507,7 +8646,24 @@ def generate_metric_report(metric, results):
         "Bollinger Bands": "Bollinger Bands",
         "Momentum": "Momentum",
         "Support_Resistance": "Support/Resistance Levels",
-        "Support/Resistance": "Support/Resistance"
+        "Support/Resistance": "Support/Resistance",
+        "RSI 4H": "RSI (4h)", "RSI_4h": "RSI (4h)",
+        "RSI 1D": "RSI (1d)", "RSI_1d": "RSI (1d)",
+        "ADX 4H": "ADX (4h)", "ADX_4h": "ADX (4h)",
+        "ADX 1D": "ADX (1d)", "ADX_1d": "ADX (1d)",
+        "MACD 4H": "MACD (4h)", "MACD_4h": "MACD (4h)",
+        "MACD 1D": "MACD (1d)", "MACD_1d": "MACD (1d)",
+        "MFI 4H": "MFI (4h)", "MFI_4h": "MFI (4h)",
+        "MFI 1D": "MFI (1d)", "MFI_1d": "MFI (1d)",
+        "Z-Score 4H": "Z-Score (4h)", "Z-Score_4h": "Z-Score (4h)",
+        "Z-Score 1D": "Z-Score (1d)", "Z-Score_1d": "Z-Score (1d)",
+        "Net Accum 4H": "Net Accum (4h)", "Net Accum_4h": "Net Accum (4h)",
+        "Net Accum 1D": "Net Accum (1d)", "Net Accum_1d": "Net Accum (1d)",
+        "Composite 4H": "Composite Score (4h)", "Composite Score_4h": "Composite Score (4h)",
+        "Composite 1D": "Composite Score (1d)", "Composite Score_1d": "Composite Score (1d)",
+        "BTC Correlation_4h": "BTC Correlation (4h)", "BTC Correlation_1d": "BTC Correlation (1d)",
+        "ETH Correlation_4h": "ETH Correlation (4h)", "ETH Correlation_1d": "ETH Correlation (1d)",
+        "SOL Correlation_4h": "SOL Correlation (4h)", "SOL Correlation_1d": "SOL Correlation (1d)"
     }
     
     display_metric = metric_map.get(metric, metric)
@@ -8655,8 +8811,16 @@ def generate_metric_report(metric, results):
                     "Taker Rate": "Taker Rate",
                     "Z-Score": "Z-Score", "Z-Score_4h": "z_score_4h", "Z-Score_1d": "z_score_1d",
                     "Open Interest": "OI_raw",
-                    "Net Accum": "NetAccum_raw", "Net Accum_4h": "net_accum_4h", "Net Accum_1d": "net_accum_1d",
-                    "Composite Score_4h": "comp_score_4h", "Composite Score_1d": "comp_score_1d",
+                    "Net Accum": "NetAccum_raw", 
+                    "Net Accum_4h": "net_accum_4h", "Net Accum 4H": "net_accum_4h",
+                    "Net Accum_1d": "net_accum_1d", "Net Accum 1D": "net_accum_1d",
+                    "Composite Score_4h": "comp_score_4h", "Composite 4H": "comp_score_4h",
+                    "Composite Score_1d": "comp_score_1d", "Composite 1D": "comp_score_1d",
+                    "RSI 4H": "RSI_4h", "RSI 1D": "RSI_1d",
+                    "ADX 4H": "ADX_4h", "ADX 1D": "ADX_1d",
+                    "MACD 4H": "MACD_4h", "MACD 1D": "MACD_1d",
+                    "MFI 4H": "MFI_4h", "MFI 1D": "MFI_1d",
+                    "Z-Score 4H": "z_score_4h", "Z-Score 1D": "z_score_1d",
                     "Scale Buy": "RSI",
                     "Support/Resistance": "Price", "Hourly Analysis": "Price"
                 }
@@ -8687,33 +8851,33 @@ def generate_metric_report(metric, results):
                 except:
                     return "N/A"
             
-            if metric == "RSI": value = fv('RSI', '{:.1f}')
-            elif metric == "RSI_4h": value = fv('RSI_4h', '{:.1f}')
-            elif metric == "RSI_1d": value = fv('RSI_1d', '{:.1f}')
+            if metric in ["RSI", "RSI Report"]: value = fv('RSI', '{:.1f}')
+            elif metric in ["RSI_4h", "RSI 4H"]: value = fv('RSI_4h', '{:.1f}')
+            elif metric in ["RSI_1d", "RSI 1D"]: value = fv('RSI_1d', '{:.1f}')
             elif metric == "ADX": value = fv('ADX', '{:.1f}')
-            elif metric == "ADX_4h": value = fv('ADX_4h', '{:.1f}')
-            elif metric == "ADX_1d": value = fv('ADX_1d', '{:.1f}')
+            elif metric in ["ADX_4h", "ADX 4H"]: value = fv('ADX_4h', '{:.1f}')
+            elif metric in ["ADX_1d", "ADX 1D"]: value = fv('ADX_1d', '{:.1f}')
             elif metric == "MACD": value = fv('MACD', '{:.4f}')
-            elif metric == "MACD_4h": value = fv('MACD_4h', '{:.4f}')
-            elif metric == "MACD_1d": value = fv('MACD_1d', '{:.4f}')
+            elif metric in ["MACD_4h", "MACD 4H"]: value = fv('MACD_4h', '{:.4f}')
+            elif metric in ["MACD_1d", "MACD 1D"]: value = fv('MACD_1d', '{:.4f}')
             elif metric == "MFI": value = fv('MFI', '{:.1f}')
-            elif metric == "MFI_4h": value = fv('MFI_4h', '{:.1f}')
-            elif metric == "MFI_1d": value = fv('MFI_1d', '{:.1f}')
+            elif metric in ["MFI_4h", "MFI 4H"]: value = fv('MFI_4h', '{:.1f}')
+            elif metric in ["MFI_1d", "MFI 1D"]: value = fv('MFI_1d', '{:.1f}')
             elif metric == "Momentum": value = fv('Momentum')
-            elif metric == "Momentum_4h": value = fv('mom_4h')
-            elif metric == "Momentum_1d": value = fv('mom_1d')
+            elif metric in ["Momentum_4h", "Momentum 4H"]: value = fv('mom_4h')
+            elif metric in ["Momentum_1d", "Momentum 1D"]: value = fv('mom_1d')
             elif metric == "Z-Score": value = fv('Z-Score')
-            elif metric == "Z-Score_4h": value = fv('z_score_4h')
-            elif metric == "Z-Score_1d": value = fv('z_score_1d')
+            elif metric in ["Z-Score_4h", "Z-Score 4H"]: value = fv('z_score_4h')
+            elif metric in ["Z-Score_1d", "Z-Score 1D"]: value = fv('z_score_1d')
             elif metric == "Volume Ratio": value = fv('Volume Ratio') + "x" if fv('Volume Ratio') != "N/A" else "N/A"
-            elif metric == "Volume Ratio_4h": value = fv('vol_ratio_4h') + "x" if fv('vol_ratio_4h') != "N/A" else "N/A"
-            elif metric == "Volume Ratio_1d": value = fv('vol_ratio_1d') + "x" if fv('vol_ratio_1d') != "N/A" else "N/A"
+            elif metric in ["Volume Ratio_4h", "Volume Ratio 4H"]: value = fv('vol_ratio_4h') + "x" if fv('vol_ratio_4h') != "N/A" else "N/A"
+            elif metric in ["Volume Ratio_1d", "Volume Ratio 1D"]: value = fv('vol_ratio_1d') + "x" if fv('vol_ratio_1d') != "N/A" else "N/A"
             elif metric == "Net Accum": value = f"${format_money(coin.get('NetAccum_raw', 0))}" if coin.get('NetAccum_raw') != "N/A" else "N/A"
-            elif metric == "Net Accum_4h": value = f"${format_money(coin.get('net_accum_4h', 0))}" if coin.get('net_accum_4h') != "N/A" else "N/A"
-            elif metric == "Net Accum_1d": value = f"${format_money(coin.get('net_accum_1d', 0))}" if coin.get('net_accum_1d') != "N/A" else "N/A"
+            elif metric in ["Net Accum_4h", "Net Accum 4H"]: value = f"${format_money(coin.get('net_accum_4h', 0))}" if coin.get('net_accum_4h') != "N/A" else "N/A"
+            elif metric in ["Net Accum_1d", "Net Accum 1D"]: value = f"${format_money(coin.get('net_accum_1d', 0))}" if coin.get('net_accum_1d') != "N/A" else "N/A"
             elif metric == "Composite Score": value = fv('Composite Score')
-            elif metric == "Composite Score_4h": value = fv('comp_score_4h')
-            elif metric == "Composite Score_1d": value = fv('comp_score_1d')
+            elif metric in ["Composite Score_4h", "Composite 4H"]: value = fv('comp_score_4h')
+            elif metric in ["Composite Score_1d", "Composite 1D"]: value = fv('comp_score_1d')
             elif metric == "24h Volume": value = f"${format_money(coin.get('24h Volume', 0))}"
             elif metric == "24h Vol_4h": value = f"${format_money(coin.get('quote_vol_4h', 0))}" if coin.get('quote_vol_4h') != "N/A" else "N/A"
             elif metric == "24h Vol_1d": value = f"${format_money(coin.get('quote_vol_1d', 0))}" if coin.get('quote_vol_1d') != "N/A" else "N/A"
@@ -8825,7 +8989,7 @@ def handle_risk_analizi():
                     volume_ratio = extract_numeric(coin.get("Volume Ratio", 1))
                     net_accum = extract_numeric(coin.get("NetAccum_raw", 0))
                 except Exception as e:
-                    print(f"[HATA] {symbol} temel değerler çıkarılamadı: {e}")
+                    print(f"[ERROR] {symbol} temel değerler çıkarılamadı: {e}")
                     continue
 
                 # Vadeli işlem verilerini çek
@@ -8850,7 +9014,7 @@ def handle_risk_analizi():
                 try:
                     atr = extract_numeric(coin.get("ATR_raw", 0))
                 except Exception as e:
-                    print(f"[HATA] {symbol} ATR hesaplanamadı: {e}")
+                    print(f"[ERROR] {symbol} ATR hesaplanamadı: {e}")
                     atr = 0
 
                 # BTC korelasyonu
@@ -8858,7 +9022,7 @@ def handle_risk_analizi():
                     btc_corr = float(
                         coin.get("BTC Correlation", 0) if coin.get("BTC Correlation") != "Yok" else 0)
                 except Exception as e:
-                    print(f"[HATA] {symbol} BTC korelasyonu hesaplanamadı: {e}")
+                    print(f"[ERROR] {symbol} BTC korelasyonu hesaplanamadı: {e}")
                     btc_corr = 0
 
                 # Risk bileşenleri hesapla
@@ -8938,18 +9102,18 @@ def handle_risk_analizi():
                     })
 
                 except Exception as e:
-                    print(f"[HATA] {symbol} risk hesaplamasında hata: {e}")
+                    print(f"[ERROR] {symbol} risk hesaplamasında hata: {e}")
                     continue
 
             except Exception as e:
-                print(f"[HATA] {symbol} ana risk analizinde hata: {e}")
+                print(f"[ERROR] {symbol} ana risk analizinde hata: {e}")
                 continue
 
         # Riske göre sırala
         sorted_risk = sorted(risk_data, key=lambda x: x["risk_score"], reverse=True)
 
         # Rapor oluştur
-        report = f"⚠️ <b>Gelişmiş Risk Analizi Raporu – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"⚠️ <b>Advanced Risk Analysis Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         # Makro risk bölümü
         report += f"<b>🌐 Makroekonomik Risk:</b> {macro_risk['risk_score']:.1f}/100 ({macro_risk['risk_level'].upper()})\n"
@@ -8964,7 +9128,7 @@ def handle_risk_analizi():
         medium_risk_count = len([x for x in risk_data if 50 <= x["risk_score"] < 70])
         low_risk_count = len([x for x in risk_data if x["risk_score"] < 50])
 
-        report += f"<b>📊 Risk Dağılımı:</b>\n"
+        report += f"📊 <b>Risk Distribution:</b>\n"
         report += f"• Ortalama Risk: {avg_risk:.1f}/100\n"
         report += f"• Çok high Risk: {high_risk_count} coin\n"
         report += f"• high Risk: {medium_risk_count} coin\n"
@@ -9016,7 +9180,7 @@ def handle_risk_analizi():
         send_telegram_message_long(report)
 
     except Exception as e:
-        print(f"[HATA] Risk analizi sırasında genel hata: {e}")
+        print(f"[ERROR] Risk analizi sırasında genel hata: {e}")
         import traceback
         traceback.print_exc()
         send_telegram_message_long("⚠️ Risk analizi sırasında bir hata oluştu. Lütfen daha sonra tekrar deneyin.")
@@ -9102,7 +9266,7 @@ def handle_coin_detail(coin_symbol, chat_id):
             print(f"[UYARI] Coin detayı bulunamadı: {coin_symbol}")
             send_telegram_message_long(f"⚠️ {coin_symbol} için detaylı bilgi bulunamadı.")
     except Exception as e:
-        print(f"[HATA] {coin_symbol} detayı gösterilirken hata: {e}")
+        print(f"[ERROR] {coin_symbol} detayı gösterilirken hata: {e}")
         import traceback
         traceback.print_exc()
         send_telegram_message_long(f"⚠️ {coin_symbol} detayı gösterilirken bir hata oluştu: {str(e)}")
@@ -9292,14 +9456,14 @@ def calculate_var(positions, risk_scores, confidence_level=0.95):
 
         return total_var
     except Exception as e:
-        print(f"[HATA] VaR hesaplaması sırasında hata: {e}")
+        print(f"[ERROR] VaR hesaplaması sırasında hata: {e}")
         return 0
 
 
 
 def handle_one_cikanlar():
     if ALL_RESULTS:
-        report = f"⭐ <b>Öne Çıkanlar Raporu – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"⭐ <b>Highlights Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
         top_net_accum = sorted(ALL_RESULTS, key=lambda x: x["NetAccum_raw"], reverse=True)[:5]
         top_composite = sorted(ALL_RESULTS,
                                key=lambda x: float(x["CompositeScore"] if x["CompositeScore"] else "0"),
@@ -10382,18 +10546,18 @@ def get_summary_report_string():
     # Featured coins (Top Gainers/Losers, Manipulation)
     try:
         # Top Gainers and Losers
-        gainers = sorted(ALL_RESULTS, key=lambda x: float(x["Price ROC"]), reverse=True)[:3]
-        losers = sorted(ALL_RESULTS, key=lambda x: float(x["Price ROC"]))[:3]
+        gainers = sorted(ALL_RESULTS, key=lambda x: float(extract_numeric(x.get("Price ROC", 0))), reverse=True)[:3]
+        losers = sorted(ALL_RESULTS, key=lambda x: float(extract_numeric(x.get("Price ROC", 0))))[:3]
 
         report += "\n<b>🚀 TOP GAINERS:</b>\n"
         for coin in gainers:
             symbol = "$" + coin['Coin'].replace("USDT", "")
-            report += f"• {symbol}: {coin['Price']} ({coin['Price ROC']})\n"
+            report += f"• {symbol}: {coin['Price']} ({coin.get('Price ROC', 'N/A')})\n"
 
         report += "\n<b>📉 TOP LOSERS:</b>\n"
         for coin in losers:
             symbol = "$" + coin['Coin'].replace("USDT", "")
-            report += f"• {symbol}: {coin['Price']} ({coin['Price ROC']})\n"
+            report += f"• {symbol}: {coin['Price']} ({coin.get('Price ROC', 'N/A')})\n"
 
         # Performance of analysis
         report += "\n<b>🕵️ Smart Money & Manipulation Summary:</b>\n"
@@ -10424,7 +10588,7 @@ def get_summary_report_string():
     report += "\n<b>Top Net Accumulation:</b>\n"
     for coin in top_accum:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin['Net Accum']} (ROC: {coin['Price ROC']})\n"
+        report += f"• {symbol}: {coin['Net Accum']} (ROC: {coin.get('24h Change', 'N/A')})\n"
 
     # RSI based opportunities
     oversold = [coin for coin in ALL_RESULTS if extract_numeric(coin["RSI"]) < 30]
@@ -10599,6 +10763,32 @@ def get_whale_strategies_report_string():
 
     report += "<b>⚠️ Note:</b> These findings are algorithmic results and do not guarantee certainty.\n"
     return report
+
+def handle_antigravity_report(chat_id=None):
+    """
+    Generates and sends the master Antigravity Strategy report for top coins.
+    """
+    global ALL_RESULTS
+    try:
+        if not ALL_RESULTS:
+            send_telegram_message(chat_id or TELEGRAM_CHAT_ID, "⚠️ Analysis in progress. Please wait a moment...")
+            return
+
+        # Sort by Composite Score to get high probability setups
+        top_coins = sorted(ALL_RESULTS, key=lambda x: x.get("Composite Score", 0), reverse=True)[:10]
+        
+        main_report = "🛸 <b>Antigravity - Master Price Action Strategies</b>\n"
+        main_report += "<i>Methodology: PO3 / AMD / Displacement / SMT Divergence</i>\n\n"
+        
+        for coin in top_coins:
+            strategy_content = coin.get("Antigravity Strategy", "No strategy data available.")
+            send_telegram_message_long(strategy_content, chat_id=chat_id)
+            
+        print(f"[INFO] Antigravity report sent to {chat_id}")
+
+    except Exception as e:
+        print(f"[ERROR] Error in Antigravity report: {e}")
+        send_telegram_message(chat_id or TELEGRAM_CHAT_ID, "⚠️ Error generating Antigravity report.")
 
 def handle_whale_strategies():
     report = get_whale_strategies_report_string()
@@ -10940,87 +11130,16 @@ def create_reply_keyboard(results):
     Returns:
         list: Telegram klavye yapısı
     """
+    # Categorized Main Menu to solve "buttons not visible" issue
     button_pairs = [
-        ("📊 Current Analysis", "Current Analysis"),
+        ("🛸 Master Strategy", "Master Strategy Menu"),
+        ("📊 Market Overview", "Market Overview Menu"),
+        ("🐋 Whale & Smart Money", "Whale Menu"),
+        ("💹 Futures & Risk", "Futures Menu"),
+        ("📺 YouTube & Social", "Social Menu"),
         ("🔍 All Coins", "All Coins"),
-        ("📈 Trend Status", "Trend Status"),
-        ("💰 Net Accum", "Net Accum"),
-        ("💰 Net Accum 4H", "Net Accum 4H"),
-        ("💰 Net Accum 1D", "Net Accum 1D"),
-        ("🛡️ Risk Analysis", "Risk Analysis"),
-        ("📊 Composite Score", "Composite Score"),
-        ("📊 Composite 4H", "Composite 4H"),
-        ("📊 Composite 1D", "Composite 1D"),
-        ("🔄 BTC Correlation", "BTC Correlation"),
-        ("🔄 BTC Corr 4H", "BTC Corr 4H"),
-        ("🔄 BTC Corr 1D", "BTC Corr 1D"),
-        ("🔄 ETH Correlation", "ETH Correlation"),
-        ("🔄 ETH Corr 4H", "ETH Corr 4H"),
-        ("🔄 ETH Corr 1D", "ETH Corr 1D"),
-        ("🔄 SOL Correlation", "SOL Correlation"),
-        ("🔄 SOL Corr 4H", "SOL Corr 4H"),
-        ("🔄 SOL Corr 1D", "SOL Corr 1D"),
         ("📋 Summary", "Summary"),
-        ("📊 RSI Report", "RSI Report"),
-        ("📊 RSI 4H", "RSI 4H"),
-        ("📊 RSI 1D", "RSI 1D"),
-        ("⚖️ EMA Report", "EMA Report"),
-        ("⏱️ 4H Change", "4H Change"),
-        ("📅 Weekly Change", "Weekly Change"),
-        ("📊 Monthly Change", "Monthly Change"),
-        ("📊 24h Volume", "24h Volume"),
-        ("📊 24h Vol 4H", "24h Vol 4H"),
-        ("📊 24h Vol 1D", "24h Vol 1D"),
-        ("📊 Volume Ratio", "Volume Ratio"),
-        ("📊 Volume Ratio 4H", "Volume Ratio 4H"),
-        ("📊 Volume Ratio 1D", "Volume Ratio 1D"),
-        ("📊 ATR Report", "ATR"),
-        ("📈 ADX Report", "ADX"),
-        ("📈 ADX 4H", "ADX 4H"),
-        ("📈 ADX 1D", "ADX 1D"),
-        ("📊 MACD Report", "MACD"),
-        ("📊 MACD 4H", "MACD 4H"),
-        ("📊 MACD 1D", "MACD 1D"),
-        ("📉 Open Interest", "Open Interest"),
-        ("💰 MFI Report", "MFI"),
-        ("💰 MFI 4H", "MFI 4H"),
-        ("💰 MFI 1D", "MFI 1D"),
-        ("📊 StochRSI Report", "StochRSI"),
-        ("📊 Taker Rate", "Taker Rate"),
-        ("📐 S/R Levels", "Support/Resistance"),
-        ("📏 Z-Score", "Z-Score"),
-        ("⚖️ EMA Crossings", "EMA Crossings"),
-
-        ("📊 Momentum 4H", "Momentum 4H"),
-        ("📊 Momentum 1D", "Momentum 1D"),
-        ("🐳 Whale Strategies", "Whale Strategies"),
-        ("🐋 Whale Movement", "Whale Movement"),
-        ("🕵️ Manipulation Detector", "Manipulation Detector"),
-        ("🎯 MM Analysis", "MM Analysis"),
-        ("💹 Smart Money", "Smart Money"),
-        ("🕯️ Candle Patterns", "Candle Patterns"),
-        ("📊 Price Info", "Price Info"),
-        ("⚖️ Long/Short Ratio", "Long/Short Ratio"),
-        ("💰 Funding Rate", "Funding Rate"),
-        ("📊 Significant Changes", "Significant Changes"),
-        ("💰 Net Buy/Sell Status", "Net Buy/Sell Status"),
-        ("⏱️ Hourly Analysis", "Hourly Analysis"),
-        ("💵 Cash Flow Report", "Cash Flow Report"),
-        ("💵 Flow Migrations", "Flow Migrations"),
-        ("📊 Smart Score", "Smart Score"),
-        ("🧠 Smart Whale & Trend", "Smart Whale & Trend"),
-        ("🐳 Whale Ranking", "Whale Ranking"),
-        ("🌊 Volatility Ranking", "Volatility Ranking"),
-        ("📏 Bollinger Squeeze", "Bollinger Squeeze"),
-        ("🔒 Trust Index", "Trust Index"),
-        ("📏 Bollinger Bands", "Bollinger Bands"),
-        ("🚀 Momentum Report", "Momentum"),
-        ("📤 NotebookLM Export", "NotebookLM Export"),
-        ("📺 YouTube Alpha", "YouTube Alpha"),
-        ("📜 YouTube Transcripts", "YouTube Transcripts"),
-        ("📚 Order Book Analysis", "order_book_analysis"),
-        ("🔥 Liquidation Map", "liquidation_analysis"),
-        ("💹 Futures Analysis", "Futures Analysis")
+        ("🔙 Refresh Analysis", "Current Analysis")
     ]
 
     # Boş klavye oluştur
@@ -11054,7 +11173,7 @@ def create_reply_keyboard(results):
                     coin_row.append({"text": top_coins[i + 1]["Coin"]})
                 keyboard.append(coin_row)
         except Exception as e:
-            print(f"[HATA] Top coinler eklenirken hata: {e}")
+            print(f"[ERROR] Top coinler eklenirken hata: {e}")
 
 
     return keyboard
@@ -11089,7 +11208,7 @@ def create_all_coins_keyboard():
         list: Telegram klavye yapısı
     """
     if not ALL_RESULTS:
-        return [[{"text": "↩️ Ana Menü"}]]
+        return [[{"text": "↩️ Main Menu"}]]
 
     keyboard = []
 
@@ -11109,10 +11228,10 @@ def create_all_coins_keyboard():
 
     # Sayfalama düğmeleri (gerekiyorsa)
     if len(ALL_RESULTS) > 30:
-        keyboard.append([{"text": "◀️ Önceki Sayfa"}, {"text": "Sonraki Sayfa ▶️"}])
+        keyboard.append([{"text": "◀️ Previous Page"}, {"text": "Next Page ▶️"}])
 
     # Ana menüye dönüş butonu ekle - tutarlı dönüş butonu
-    keyboard.append([{"text": "↩️ Ana Menü"}])
+    keyboard.append([{"text": "↩️ Main Menu"}])
 
     return keyboard
 
@@ -11129,7 +11248,7 @@ def handle_price_info():
         symbol = coin["Coin"].replace("USDT", "")
         formatted_symbol = f"${symbol}"
         report += f"<b>{formatted_symbol}</b>: {coin['Price']}\n"
-        report += f"   • 24h Change: {coin['Price ROC']}\n"
+        report += f"   • 24h Change: {coin.get('24h Change', 'N/A')}\n"
         report += f"   • 24h Volume: {coin['24h Volume']}\n\n"
 
     send_telegram_message_long(report)
@@ -11521,11 +11640,11 @@ def process_telegram_updates():
                         handle_reply_message(message)
 
             else:
-                print(f"[HATA] Telegram güncellemeleri başarısız: {response.text}")
+                print(f"[ERROR] Telegram güncellemeleri başarısız: {response.text}")
                 time.sleep(10)
 
         except Exception as e:
-            print(f"[HATA] Telegram döngüsünde kritik hata: {e}")
+            print(f"[ERROR] Telegram döngüsünde kritik hata: {e}")
             import traceback
             traceback.print_exc()
             time.sleep(30)
@@ -11566,14 +11685,14 @@ def save_prev_stats():
                     # print(f"[DEBUG] {coin['Coin']} için composite score kaydedildi: {composite_score}")
 
                 except Exception as e:
-                    print(f"[HATA] {coin['Coin']} için istatistik kaydetme hatası: {e}")
+                    print(f"[ERROR] {coin['Coin']} için istatistik kaydetme hatası: {e}")
 
         # İstatistikleri dosyaya kaydet
         try:
             with open("prev_stats.json", "w") as f:
                 json.dump(PREV_STATS, f)
         except Exception as e:
-            print(f"[HATA] İstatistikleri dosyaya kaydetme hatası: {e}")
+            print(f"[ERROR] İstatistikleri dosyaya kaydetme hatası: {e}")
 
 def load_prev_stats():
     global PREV_STATS
@@ -11604,11 +11723,11 @@ def analyze_market():
             # Filtrelenmiş coinleri al - gerçek piyasa hacmine göre
             coins = get_filtered_coins()
             if not coins:
-                print("[HATA] Coin listesi alınamadı, 30 saniye bekleyip tekrar denenecek")
+                print("[ERROR] Could not retrieve coin list, retrying in 30 seconds")
                 time.sleep(30)
                 continue
 
-            print(f"[BILGI] {len(coins)} adet coin analiz edilecek")
+            print(f"[INFO] {len(coins)} coins will be analyzed")
             results = []
 
             # Her coin için işlem yap
@@ -11899,8 +12018,9 @@ def analyze_market():
                         
                         # PREDICTIVE INTELLIGENCE (Antigravity PA Strategy)
                         df_1d = data.get("df_1d") if data.get("df_1d") is not None else df_all
+                        df_4h_data = data.get("df_4h") if data.get("df_4h") is not None else df_all
                         df_15m = data.get("df_15m") if data.get("df_15m") is not None else df_all
-                        antigravity_pa_report = analyze_antigravity_pa_strategy(data, df_1d, df_15m)
+                        antigravity_pa_report = analyze_antigravity_pa_strategy(data, df_1d, df_4h_data, df_15m)
 
                         # Calculate missing EMA trends
                         ema_trend_val = get_ema_cross_trend(df_all)
@@ -11932,19 +12052,30 @@ def analyze_market():
                         if ob_imb > 15 and whale_buy > whale_sell: smart_money_flow = "Strong Entry"
                         elif ob_imb < -15 and whale_sell > whale_buy: smart_money_flow = "Heavy Exit"
 
+                        # Calculate Price ROC (5 periods)
+                        price_roc_val = calculate_price_roc(df_all, periods=5)
+
                         res = {
                             "Coin": data["symbol"],
+                            "DisplaySymbol": "$" + data["symbol"].replace("USDT", ""),
                             "Price": data["price"],
                             "Price_Display": format_money(data["price"]),
                             "Antigravity Strategy": antigravity_pa_report,
                             "Whale Bias": whale_bias,
                             "Smart Money": smart_money_flow,
                             "OB Imbalance": f"{ob_imb:.2f}%",
+                            "Price ROC": price_roc_val,
                             "RSI": extract_numeric(data.get('rsi', 50)),
                             "Composite Score": comp_score,
                             # Keep old keys for UI compatibility
                             "RSI_4h": rsi_4h,
                             "RSI_1d": rsi_1d,
+                            "MACD_4h": macd_4h,
+                            "MACD_1d": macd_1d,
+                            "ADX_4h": adx_4h,
+                            "ADX_1d": adx_1d,
+                            "MFI_4h": mfi_4h,
+                            "MFI_1d": mfi_1d,
                             "MACD": extract_numeric(data.get('macd', 0)),
                             "MFI": data.get('mfi', 50),
                             "Momentum": data.get('momentum', 0),
@@ -11991,7 +12122,17 @@ def analyze_market():
                             "comp_score_4h": comp_score_4h,
                             "comp_score_12h": extract_numeric(data.get("comp_score_12h", 0)),
                             "comp_score_1d": comp_score_1d,
+                            "comp_score_1d": comp_score_1d,
                             "mom_4h": mom_4h,
+                            "BTC Correlation": btc_corr_1h,
+                            "BTC Correlation_4h": btc_corr_4h_val,
+                            "BTC Correlation_1d": btc_corr_1d_val,
+                            "ETH Correlation": eth_corr_1h,
+                            "ETH Correlation_4h": eth_corr_4h_val,
+                            "ETH Correlation_1d": eth_corr_1d_val,
+                            "SOL Correlation": sol_corr_1h,
+                            "SOL Correlation_4h": sol_corr_4h_val,
+                            "SOL Correlation_1d": sol_corr_1d_val,
                             "mom_12h": extract_numeric(data.get("mom_12h", 0)),
                             "mom_1d": mom_1d,
                             "z_score_4h": z_score_4h,
@@ -12058,7 +12199,7 @@ def analyze_market():
                             os.fsync(f.fileno())
                         print(f"[WEB-SYNC] Final results saved safely.")
                     except Exception as e:
-                        print(f"[HATA] Web verileri kaydedilemedi: {e}")
+                        print(f"[ERROR] Web verileri kaydedilemedi: {e}")
                     
                     active_coins = {coin["Coin"] for coin in ALL_RESULTS}
 
@@ -12185,12 +12326,24 @@ def analyze_market():
                     for ind in indicators:
                         try: web_reports[ind] = generate_metric_report(ind, ALL_RESULTS)
                         except: pass
-                        
+                    
+                    try:
+                        top_10 = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("Composite Score", 0)), reverse=True)[:10]
+                        ag_report_text = "🛸 <b>Master Antigravity Strategy - Top 10 Picks</b>\n\n"
+                        for coin in top_10:
+                            report_content = coin.get("Antigravity Strategy", "")
+                            if report_content:
+                                ag_report_text += report_content + "\n\n" + ("="*20) + "\n\n"
+                        web_reports["Antigravity Strategy"] = ag_report_text
+                    except Exception as ag_err:
+                        print(f"[ERROR] Antigravity report consolidation failed: {ag_err}")
+
                     with open("web_reports.json", "w") as f:
                         json.dump(web_reports, f, default=str)
+                        os.fsync(f.fileno()) # Ensure write to disk for Render
                     print("[INFO] Web reports sync successful.")
                 except Exception as sync_e:
-                    print(f"[UYARI] Web rapor senkronizasyon hatası: {sync_e}")
+                    print(f"[WARN] Web report sync error: {sync_e}")
                 
                 global last_update_time
                 last_update_time = datetime.now()
@@ -12211,7 +12364,7 @@ def analyze_market():
             print(f"[DEBUG] Analiz tamamlandı. Coin sayısı: {len(ALL_RESULTS)}")
 
         except Exception as main_error:
-            print(f"[HATA] Ana analiz döngüsünde hata: {main_error}")
+            print(f"[ERROR] Ana analiz döngüsünde hata: {main_error}")
             import traceback
             traceback.print_exc()
 
@@ -12228,23 +12381,14 @@ if __name__ == "__main__":
     load_prev_stats()  # Tek çağrı
     print("Başlangıç: Önceki istatistikler yüklendi.")
 
-    # Send Main Menu on Startup
-    print("[INFO] Sending main menu to Telegram...")
-    try:
-        handle_main_menu_return(TELEGRAM_CHAT_ID)
-    except Exception as e:
-        print(f"[ERROR] Failed to send main menu: {e}")
+    # Send Main Menu on Startup - DISABLED
+    # print("[INFO] Sending main menu to Telegram...")
+    # try:
+    #     handle_main_menu_return(TELEGRAM_CHAT_ID)
+    # except Exception as e:
+    #     print(f"[ERROR] Failed to send main menu: {e}")
 
-    analysis_thread = threading.Thread(target=analyze_market)
-    analysis_thread.daemon = True
-    analysis_thread.start()
-    print("Analiz iş parçacığı başlatıldı.")
-
-    try:
-        process_telegram_updates()  # Telegram güncellemeleri
-    except Exception as e:
-        print(f"[CRITICAL ERROR] Telegram updates loop crashed: {e}")
-        import traceback
-        traceback.print_exc()
+    print("[INFO] Starting Market Analysis Engine...")
+    analyze_market() # Run on main thread now since Telegram polling is disabled
 
 

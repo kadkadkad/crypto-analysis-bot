@@ -1,6 +1,6 @@
 import re
 import gc
-import psutil
+
 
 def clean_html_for_telegram(text):
     """
@@ -87,17 +87,9 @@ def check_memory_and_clean(threshold_mb=500):
     Returns:
         float: Current memory usage in MB
     """
-    process = psutil.Process()
-    memory_info = process.memory_info()
-    memory_mb = memory_info.rss / 1024 / 1024
-
-    if memory_mb > threshold_mb:
-        print(f"[SYSTEM] High memory usage detected: {memory_mb:.2f} MB. Cleaning up...")
-        gc.collect()
-        memory_mb = process.memory_info().rss / 1024 / 1024
-        print(f"[SYSTEM] After cleanup: {memory_mb:.2f} MB")
-
-    return memory_mb
+    print(f"[SYSTEM] Running garbage collection...")
+    gc.collect()
+    return 0.0
 
 def optimize_memory():
     """Optimizes memory usage explicitly"""

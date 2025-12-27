@@ -123,7 +123,8 @@ def get_report(report_type):
                 "Candle Patterns": "Candlestick Patterns",
                 "Money Flow": "Money Flow",
                 "Market Regime": "Market Regime",
-                "Signal Performance": "Signal Performance"
+                "Signal Performance": "Signal Performance",
+                "Antigravity PA": "Antigravity Strategy"
             }
             
             key = mapping.get(report_type, report_type)
