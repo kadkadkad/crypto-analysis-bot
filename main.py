@@ -5993,28 +5993,28 @@ def detect_significant_changes(results):
 
 def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
     """
-    Antigravity Bot - Üstad Analitik Çerçevesi (Efloud & PO3/AMD Metodolojisi) - TÜRKÇE
+    Antigravity Bot - Master Analytical Framework (Efloud & PO3/AMD Methodology) - ENGLISH
     """
     try:
         symbol = coin_data.get("Coin", "Unknown")
         current_price = float(coin_data.get("Price", 0))
         
-        # 1. PİYASA BAĞLAMI VE ÖN YARGI (BIAS) BELİRLEME
+        # 1. MARKET CONTEXT AND BIAS DETERMINATION
         short_ema = df_1d['close'].iloc[-20:].mean()
         long_ema = df_1d['close'].iloc[-50:].mean()
-        bias = "Yatay / Kararsız ⚖️"
-        bias_desc = "Fiyat kilit seviye etrafında konsolide oluyor."
+        bias = "Sideways / Choppy ⚖️"
+        bias_desc = "Price is consolidating around key levels."
         if current_price > short_ema > long_ema: 
-            bias = "Yükseliş Trendi (Boğa) 📈"
-            bias_desc = "HTF grafiğinde yüksek tepeler ve yüksek dipler trendi teyit ediyor."
+            bias = "Bullish Trend Direction 📈"
+            bias_desc = "Higher highs and higher lows on HTF confirm the trend."
         elif current_price < short_ema < long_ema: 
-            bias = "Düşüş Trendi (Ayı) 📉"
-            bias_desc = "HTF seviyeleri altında zayıf kapanışlar devam ediyor."
+            bias = "Bearish Trend Direction 📉"
+            bias_desc = "Weak closes below HTF levels continue."
         elif abs(current_price - short_ema) / short_ema < 0.02: 
-            bias = "Trend Dönüşü Potansiyeli (Reversal) 🔄"
-            bias_desc = "Önemli bir HTF seviyesinde yavaşlama emareleri var."
+            bias = "Trend Reversal Potential 🔄"
+            bias_desc = "Signs of deceleration at a critical HTF zone."
 
-        # 2. HTF STRATEJİK SEVİYELERİN TESPİTİ
+        # 2. HTF STRATEGIC LEVELS DETECTION
         recent_low = df_1d['low'].tail(30).min()
         recent_high = df_1d['high'].tail(30).max()
         fvg_detected = False
@@ -6025,54 +6025,57 @@ def analyze_antigravity_pa_strategy(coin_data, df_1d, df_15m):
                 fvg_detected = True
                 break
 
-        # 3. POWER OF THREE (PO3 / AMD) VE ONAY MEKANİZMALARI
+        # 3. POWER OF THREE (PO3 / AMD) & CONFIRMATION
         vol_std = df_15m['volume'].tail(50).std()
         curr_vol = df_15m['volume'].iloc[-1]
-        phase = "Akümülasyon (Toplama) 📦"
+        phase = "Accumulation 📦"
         if curr_vol > vol_std * 2: 
-            phase = "Manipülasyon (Stop Hunt) 🧛" if df_15m['close'].iloc[-1] < df_15m['open'].iloc[-1] else "Dağıtım (Genişleme) 🚀"
+            phase = "Manipulation (Stop Hunt) 🧛" if df_15m['close'].iloc[-1] < df_15m['open'].iloc[-1] else "Distribution (Expansion) 🚀"
 
-        # 4. GELİŞMİŞ LİKİDİTE ANALİZİ
-        liq_type = "Liquidity Grab (Hızlı Yakalama) ⚡" if curr_vol > vol_std * 3 else "Liquidity Sweep (Kapsamlı Temizleme) 🧹"
+        # 4. ADVANCED LIQUIDITY ANALYSIS
+        liq_type = "Liquidity Grab (Fast) ⚡" if curr_vol > vol_std * 3 else "Liquidity Sweep (Exhaustive) 🧹"
 
-        # 5. OLASILIKSAL GİRİŞ VE R/R TABLOSU
+        # 5. PROBABILISTIC ENTRY & R/R MATRIX
         base_rr = "1.08R"
         breaker_rr = "1.96R"
         mitigation_rr = "2.16R"
 
-        # RAPOR SENTEZİ (Kullanıcı Şablonuna Göre)
-        report = f"""### **Analitik Rapor: {symbol}**
+        # REPORT SYNTHESIS
+        report = f"""### **Expert Analytical Report: {symbol}**
 
-**1.0 Genel Piyasa Ön Yargısı (Bias):** {bias}
-*   **Gerekçe:** {bias_desc}
+**1.0 General Market Bias:** {bias}
+*   **Reasoning:** {bias_desc}
 
-**2.0 Anahtar HTF (Yüksek Zaman Dilimi) Seviyesi:**
-*   **Seviye:** {fvg_zone if fvg_detected else f"{recent_low:.4f} (Eski Dip)"}
-*   **Tür:** {'Dengesizlik (Imbalance/FVG) Bölgesi' if fvg_detected else 'S/R Flip / Destek Seviyesi'}
+**2.0 Key HTF (High Time Frame) Levels:**
+*   **Level:** {fvg_zone if fvg_detected else f"{recent_low:.4f} (Old Low)"}
+*   **Type:** {'Imbalance (FVG) Region' if fvg_detected else 'S/R Flip / Support Level'}
 
-**3.0 Gözlemlenen LTF Onay Modeli & PO3 Analizi:**
-*   **Mevcut Aşama:** {phase}
-*   **Likidite Durumu:** {liq_type}
-*   **LTF Sinyali (15 Dakika):** {'MSB/Yapı Kırılımı Bekleniyor' if phase == "Akümülasyon (Toplama) 📦" else '✅ Yapısal Kırılım/Onay Belirlendi'}
+**3.0 LTF Confirmation Model & PO3 Analysis:**
+*   **Current Phase:** {phase}
+*   **Liquidity Condition:** {liq_type}
+*   **LTF Signal (15m):** {'Waiting for MSB/Market Structure Shift' if phase == "Accumulation 📦" else '✅ Structure Shift/Confirmation Detected'}
 
-**4.0 Olasılık ve Strateji Matrisi:**
-| Giriş Stratejisi | Tahmini R/R | Başarı Olasılığı |
+**4.0 Probability & Strategy Matrix:**
+| Entry Strategy | Target R/R | Probability |
 | :--- | :--- | :--- |
-| Direkt Limit Emir | {base_rr} | Düşük-Orta (Onaysız) |
-| Breaker Onayı | {breaker_rr} | Orta-Yüksek |
-| Mitigation Onayı | {mitigation_rr} | Yüksek |
+| Direct Limit Order | {base_rr} | Low-Medium (Unconfirmed) |
+| Breaker Confirmation | {breaker_rr} | Medium-High |
+| Mitigation Play | {mitigation_rr} | High |
 
-**5.0 Eyleme Geçirilebilir Ticaret Planı:**
-*   **Potansiyel Giriş Bölgesi:** {fvg_zone if fvg_detected else f"{recent_low:.4f}"} civarı retest.
-*   **Stop-Loss Seviyesi:** {recent_low * 0.985:.4f} (Manipülasyon dibi altı)
-*   **Kar Alma (TP) Hedefleri:**
-    *   TP1: {current_price * 1.07:.4f} (Lokal Likidite)
-    *   TP2: {recent_high:.4f} (HTF Hedef)
-*   **Tahmini R/R Oranı:** 2.15R
+**5.0 Actionable Trade Plan:**
+*   **Potential Entry Zone:** Retest around {fvg_zone if fvg_detected else f"{recent_low:.4f}"}.
+*   **Stop-Loss Level:** {recent_low * 0.985:.4f} (Below manipulation low)
+*   **Take-Profit (TP) Targets:**
+    *   TP1: {current_price * 1.07:.4f} (Local Liquidity)
+    *   TP2: {recent_high:.4f} (HTF Target)
+*   **Estimated R/R Ratio:** 2.15R
 
-**Genel Değerlendirme:** HTF stratejik bölgesinde PO3 manipülasyonunun ardından gelen hacimli genişleme, senaryonun gerçekleşme olasılığını artırmaktadır. Trend yönlü bias, Bitcoin'in HTF desteği üzerinde kalması şartıyla korunmaktadır."""
+**General Assessment:** The strong expansion following the PO3 manipulation at the HTF strategic zone increases the probability of this scenario. The bullish bias remains intact as long as Bitcoin holds above its own HTF support."""
         
         return report
+
+    except Exception as e:
+        return f"Analytical PA Error ({symbol}): {str(e)}"
 
     except Exception as e:
         return f"Analitik PA Hatası ({symbol}): {str(e)}"
