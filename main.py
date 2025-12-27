@@ -11,6 +11,7 @@ import re
 import pickle
 import statistics
 from datetime import datetime, timedelta
+import pytz
 from concurrent.futures import ThreadPoolExecutor
 # External libraries (ta, sklearn, prophet) kept if needed by main logic not yet moved
 from ta.trend import EMAIndicator, MACD, ADXIndicator 
@@ -89,8 +90,16 @@ try:
 except Exception as e:
     print(f"[WARN] Failed to load prev_results.json: {e}")
 
-last_hourly_report_time = datetime.now() - timedelta(hours=1)
-last_update_time = datetime.now()  # Track when data was last refreshed
+
+# Timezone configuration for Turkey (GMT+3)
+TURKEY_TZ = pytz.timezone('Europe/Istanbul')
+
+def get_turkey_time():
+    """Get current time in Turkey timezone (GMT+3)"""
+    return datetime.now(TURKEY_TZ)
+
+last_hourly_report_time = get_turkey_time() - timedelta(hours=1)
+last_update_time = get_turkey_time()  # Track when data was last refreshed
 
 def force_refresh_if_stale(max_age_seconds=60):
     """
@@ -99,7 +108,7 @@ def force_refresh_if_stale(max_age_seconds=60):
     """
     global last_update_time, ALL_RESULTS
     
-    time_since_update = (datetime.now() - last_update_time).total_seconds()
+    time_since_update = (get_turkey_time() - last_update_time).total_seconds()
     
     if time_since_update > max_age_seconds:
         print(f"[INFO] Data is {time_since_update:.0f}s old. Forcing refresh...")
@@ -174,7 +183,7 @@ def force_refresh_if_stale(max_age_seconds=60):
                 if results:
                     with global_lock:
                         ALL_RESULTS = results[:50]
-                    last_update_time = datetime.now()
+                    last_update_time = get_turkey_time()
                     print(f"[INFO] Data refreshed successfully. {len(results)} coins updated.")
                     return True
         except Exception as e:
@@ -565,7 +574,7 @@ def fetch_macro_economic_data():
             "btc_eth_data": btc_eth_data,
             "dollar_strength": dollar_strength,
             "treasury_yields": treasury_yields,
-            "timestamp": datetime.now().timestamp()
+            "timestamp": get_turkey_time().timestamp()
         }
     except Exception as e:
         print(f"[ERROR] Makroekonomik veri alınırken hata: {e}")
@@ -643,7 +652,7 @@ def handle_market_risk_index():
             send_telegram_message_long("⚠️ Risk data could not be fetched. Please try again later.")
             return
 
-        report = f"🌐 <b>Market Risk Index Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"🌐 <b>Market Risk Index Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         report += f"<b>📊 Risk Level:</b> {macro_risk['risk_level'].upper()}\n"
         report += f"• Global Risk Score: {macro_risk['risk_score']}/100\n\n"
@@ -894,7 +903,7 @@ def calculate_asset_risk(coin_data, macro_context=None):
             "risk_score": round(normalized_risk, 2),
             "risk_level": risk_level,
             "details": {"components": components, "weights": weights},
-            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            "timestamp": get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')
         }
 
     except Exception as e:
@@ -948,7 +957,7 @@ def generate_comprehensive_risk_report(results=None, macro_risk=None):
         "low": [r for r in sorted_risks if r['risk_level'] == "low"]
     }
 
-    report = f"🛡️ <b>Comprehensive Risk Analysis Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🛡️ <b>Comprehensive Risk Analysis Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
     # Macro Risk Summary
     report += f"🌐 <b>Macro Risk Assessment:</b>\n"
@@ -2457,7 +2466,7 @@ def generate_portfolio_risk_report(positions, macro_risk=None):
             risk_emoji = "🟢"
 
         # Generate report
-        report = f"📊 <b>Advanced Portfolio Risk Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"📊 <b>Advanced Portfolio Risk Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         # Macro risk section
         report += "<b>🌐 Macroeconomic Risk Assessment:</b>\n"
@@ -2966,7 +2975,7 @@ def generate_dynamic_cash_flow_report():
     for coin in top_cash_ins:
         coin["cash_percent"] = round((coin["volume"] / total_top_volume) * 100, 1)
 
-    report = f"🔶 <b>Cash Flow Influx Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🔶 <b>Cash Flow Influx Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     if 'warning' in locals():
         report += warning
     report += "<b>Market Cash Flow (Timeframes):</b>\n"
@@ -3111,7 +3120,7 @@ def generate_cash_flow_migration_report():
 def generate_smart_score_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet, Smart Score Report could not be generated."
-    report = f"📊 <b>Smart Score Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"📊 <b>Smart Score Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report presents the smart scores and trend summaries of coins.\n"
     report += "In the trend summary, characters on the left represent short-term (15min), and characters on the right represent long-term (1day).\n\n"
     sorted_results = sorted(ALL_RESULTS, key=lambda x: calculate_composite_score(x), reverse=True)
@@ -3140,7 +3149,7 @@ def generate_volume_analysis_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"📈 <b>Volume Analysis Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"📈 <b>Volume Analysis Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report shows volume ratios and changes for coins.\n\n"
 
     valid_results = []
@@ -3485,7 +3494,7 @@ def detect_advanced_whale_strategy(coin_data):
 def generate_advanced_whale_trend_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
-    report = f"🧠 <b>Smart Whale & Trend Report – {datetime.now().strftime('%H:%M:%S')}</b>\n"
+    report = f"🧠 <b>Smart Whale & Trend Report – {get_turkey_time().strftime('%H:%M:%S')}</b>\n"
     report += "This report analyzes whale strategies and short-term trend potential for the top 50 coins.\n\n"
     
     # Analyze and sort by trend score
@@ -3521,7 +3530,7 @@ def generate_whale_ranking_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"🐳 <b>Whale Ranking Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🐳 <b>Whale Ranking Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report ranks whale activities and net accumulation for the top 50 coins.\n\n"
 
     valid_data = []
@@ -3572,7 +3581,7 @@ def generate_volatility_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"🌩️ <b>Volatility Ranking Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🌩️ <b>Volatility Ranking Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report ranks volatility scores (ATR/Price %) and their changes for the top 50 coins.\n\n"
 
     volatility_data = []
@@ -3637,7 +3646,7 @@ def generate_bollinger_squeeze_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"📏 <b>Bollinger Band Squeeze Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"📏 <b>Bollinger Band Squeeze Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report analyzes coins with narrow Bollinger Bands and potential breakout signals.\n\n"
 
     squeeze_data = []
@@ -3732,7 +3741,7 @@ def generate_trust_index_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"🔒 <b>Trust Index Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🔒 <b>Trust Index Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report evaluates coin reliability between 0-100.\n"
     report += "0-25 Highly Suspicious, 25-50 Suspicious, 50-75 Reliable, 75-100 Highly Reliable\n\n"
 
@@ -4344,7 +4353,7 @@ def generate_futures_timeframe_analysis():
     if not ALL_RESULTS:
         return "⚠️ Henüz analiz verisi bulunmuyor."
 
-    report = f"⏱️ <b>Multi-Timeframe Futures Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"⏱️ <b>Multi-Timeframe Futures Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "Bu rapor, farklı zaman dilimlerinde vadeli işlem verilerini ve hacim desteğini analiz eder.\n\n"
 
     timeframes = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
@@ -5023,7 +5032,7 @@ def generate_futures_timeframe_analysis():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"⏱️ <b>Multi-Timeframe Futures Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"⏱️ <b>Multi-Timeframe Futures Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report analyzes futures data and volume support across different timeframes.\n\n"
 
     timeframes = {"5m": 5, "15m": 15, "1h": 60, "4h": 240}
@@ -5247,7 +5256,7 @@ def generate_coin_full_report(symbol):
     if not coin_data:
         return f"⚠️ Data for {symbol} not found."
 
-    report = f"📊 <b>{symbol} Full Analysis Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"📊 <b>{symbol} Full Analysis Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
     # Technical Indicators
     report += "<b>Technical Indicators:</b>\n"
@@ -5340,7 +5349,7 @@ def predict_with_cached_model(symbol, df):
             with global_lock:
                 MODEL_CACHE[symbol] = {
                     "rf_model": rf_model,
-                    "timestamp": datetime.now().timestamp()
+                    "timestamp": get_turkey_time().timestamp()
                 }
 
         return rf_pred_change, prophet_pred
@@ -5446,7 +5455,7 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
         # Önbellek kontrolü
         with global_lock:
             cached = KLINE_CACHE.get(cache_key)
-            if cached and (datetime.now() - cached["timestamp"]).total_seconds() < 300:
+            if cached and (get_turkey_time() - cached["timestamp"]).total_seconds() < 300:
                 return cached["data"]
 
         # Yeni veri çekme
@@ -5465,7 +5474,7 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
             with global_lock:
                 KLINE_CACHE[cache_key] = {
                     "data": result,
-                    "timestamp": datetime.now()
+                    "timestamp": get_turkey_time()
                 }
 
         return result
@@ -6331,7 +6340,7 @@ def generate_enhanced_manipulation_report():
     if not ALL_RESULTS:
         return "⚠️ Henüz analiz verisi bulunmuyor."
 
-    report = f"🔍 <b>Enhanced Manipulation Detection Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🔍 <b>Enhanced Manipulation Detection Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report shows various manipulation strategies and whale movements detected in the market.\n\n"
 
     all_strategies = []
@@ -6561,7 +6570,7 @@ def generate_sol_correlation_report(results):
     """
     Generates a formatted report for SOL correlation.
     """
-    report = f"🔄 <b>SOL Correlation Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🔄 <b>SOL Correlation Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report shows the correlation of coins with SOL.\n\n"
 
     total_corr = 0
@@ -6911,7 +6920,7 @@ def get_order_block_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
     
-    report = f"📦 <b>Market-Wide Order Block Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"📦 <b>Market-Wide Order Block Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "<i>Analyzing institutional supply/demand zones</i>\n\n"
     
     bullish_obs = []
@@ -6950,7 +6959,7 @@ def get_liq_heatmap_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
     
-    report = f"🔥 <b>Global Liquidation Heatmap Summary – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"🔥 <b>Global Liquidation Heatmap Summary – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "<i>Concentrated liquidation clusters in the market</i>\n\n"
     
     hot_zones = []
@@ -7266,7 +7275,7 @@ def generate_hourly_report(chat_id=None):
         send_telegram_message(chat_id or TELEGRAM_CHAT_ID, report)
 
 def generate_hourly_report_string():
-    report = f"📊 <b>Hourly Analysis and AI Prediction – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"📊 <b>Hourly Analysis and AI Prediction – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "Validity: 1 hour\n\n"
     valid_reports = [r for r in FIVE_MIN_REPORTS.values() if len(r) >= 12]
     total_net_accum = sum(sum(r["net_accum"] for r in reports) for reports in valid_reports)
@@ -7309,7 +7318,7 @@ def handle_makroekonomik_gostergeler():
             send_telegram_message_long("⚠️ Makroekonomik veriler alınamadı. Lütfen daha sonra tekrar deneyin.")
             return
 
-        report = f"🌐 <b>Macroeconomic Indicators Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"🌐 <b>Macroeconomic Indicators Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         # Ekonomik Olaylar
         report += "<b>📅 Yaklaşan Ekonomik Olaylar:</b>\n"
@@ -7390,7 +7399,7 @@ def generate_quick_summary(chat_id=None):
         top_loser = min(ALL_RESULTS, key=lambda x: float(x["24h Change"]))
         avg_price_change = sum(extract_numeric(r["24h Change"]) for r in ALL_RESULTS) / len(ALL_RESULTS)
 
-    summary = f"⚡ *Hızlı Piyasa Özeti* ({datetime.now().strftime('%H:%M')})\n"
+    summary = f"⚡ *Hızlı Piyasa Özeti* ({get_turkey_time().strftime('%H:%M')})\n"
     summary += f"📈 *En Çok Yükselen*: {top_gainer['Coin']} ({top_gainer['24h Change']})\n"
     summary += f"📉 *En Çok Düşen*: {top_loser['Coin']} ({top_loser['24h Change']})\n"
     summary += f"📊 *Ort. Fiyat Değişimi*: {avg_price_change:.2f}%\n"
@@ -7776,7 +7785,7 @@ def record_five_min_report(current_results):
             if symbol not in FIVE_MIN_REPORTS:
                 FIVE_MIN_REPORTS[symbol] = []
             FIVE_MIN_REPORTS[symbol].append({
-                "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                "timestamp": get_turkey_time().strftime('%Y-%m-%d %H:%M:%S'),
                 "price": curr_price,
                 "rsi": curr_rsi,
                 "volume_ratio": curr_volume_ratio,
@@ -7784,7 +7793,7 @@ def record_five_min_report(current_results):
             })
             if len(FIVE_MIN_REPORTS[symbol]) > 12:
                 FIVE_MIN_REPORTS[symbol].pop(0)
-        if (datetime.now() - last_hourly_report_time).total_seconds() >= 3600:
+        if (get_turkey_time() - last_hourly_report_time).total_seconds() >= 3600:
             PREV_HOURLY_REPORTS.update({symbol: reports[-1] for symbol, reports in FIVE_MIN_REPORTS.items()})
 
 def get_technical_indicators(symbol, kline_data=None):
@@ -8208,7 +8217,7 @@ def calculate_trust_index(coin_data, curr_price, weekly_close, daily_close, four
             trust_change = calculate_percentage_change(trust_index, prev_trust) if prev_trust != 0 else 0
             PREV_STATS[coin_data["Coin"]] = {
                 "trust_index": trust_index,
-                "timestamp": datetime.now().timestamp()
+                "timestamp": get_turkey_time().timestamp()
             }
             print(f"[DEBUG] {coin_data['Coin']} - PREV_STATS güncellendi: {PREV_STATS[coin_data['Coin']]}")
 
@@ -8480,7 +8489,7 @@ def generate_detailed_analysis_message(results):
     """
     sorted_results = sorted(results, key=lambda x: extract_numeric(x.get("Composite Score", 0)), reverse=True)
     coin_details = {}
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')
     aggregated_msg = f"📊 <b>Market Analysis Report – {timestamp}</b>\n\n"
 
     # Market summary
@@ -8609,7 +8618,7 @@ def generate_notebooklm_export(results):
     filename = f"Market_Analysis_Export_{int(time.time())}.md"
     try:
         report = "# Market Analysis Consolidated Report\n"
-        report += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        report += f"Generated on: {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}\n"
         report += f"Total Coins Analyzed: {len(results)}\n\n"
         
         for coin in results:
@@ -8984,7 +8993,7 @@ def handle_trend_status():
     Generates and sends trend status report in English.
     """
     if ALL_RESULTS:
-        report = f"📈 <b>Trend Status Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+        report = f"📈 <b>Trend Status Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
         report += "<i>Showing top 50 coins by ADX strength</i>\n\n"
         sorted_results = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("ADX", "0")), reverse=True)
         for coin in sorted_results[:50]:
@@ -9151,7 +9160,7 @@ def handle_risk_analizi():
         sorted_risk = sorted(risk_data, key=lambda x: x["risk_score"], reverse=True)
 
         # Rapor oluştur
-        report = f"⚠️ <b>Advanced Risk Analysis Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"⚠️ <b>Advanced Risk Analysis Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         # Makro risk bölümü
         report += f"<b>🌐 Makroekonomik Risk:</b> {macro_risk['risk_score']:.1f}/100 ({macro_risk['risk_level'].upper()})\n"
@@ -9315,7 +9324,7 @@ def handle_risk_score_details():
     Provides detailed information about the risk score calculation methodology.
     """
     try:
-        report = f"📊 <b>Risk Score Methodology – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"📊 <b>Risk Score Methodology – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         report += "<b>What is Risk Score?</b>\n"
         report += "Risk score is a composite metric that measures the risk of a crypto asset or portfolio on a scale of 0-100.\n"
@@ -9409,7 +9418,7 @@ def handle_sectoral_risk_analysis():
         sorted_sectors = sorted(sector_risks.items(), key=lambda x: x[1]["avg_risk"], reverse=True)
 
         # Generate report
-        report = f"🏦 <b>Sectoral Risk Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"🏦 <b>Sectoral Risk Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         report += "<b>Crypto Sector Risk Ranking:</b>\n"
         for i, (sector_name, risk_data) in enumerate(sorted_sectors, 1):
@@ -9501,7 +9510,7 @@ def calculate_var(positions, risk_scores, confidence_level=0.95):
 
 def handle_one_cikanlar():
     if ALL_RESULTS:
-        report = f"⭐ <b>Highlights Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"⭐ <b>Highlights Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
         top_net_accum = sorted(ALL_RESULTS, key=lambda x: x["NetAccum_raw"], reverse=True)[:5]
         top_composite = sorted(ALL_RESULTS,
                                key=lambda x: float(x["CompositeScore"] if x["CompositeScore"] else "0"),
@@ -9522,7 +9531,7 @@ def handle_net_buy_sell_status():
     Generates and sends net buy/sell status report in English.
     """
     if ALL_RESULTS:
-        report = f"💰 <b>Net Buy/Sell Status Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"💰 <b>Net Buy/Sell Status Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
         # Sorting based on net accumulation
         sorted_results = sorted(ALL_RESULTS, key=lambda x: x["NetAccum_raw"], reverse=True)
@@ -9823,7 +9832,7 @@ def get_ema_crossings_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"⚖️ <b>EMA Crossover & Squeeze Report – {datetime.now().strftime('%Y-%m-%d')}</b>\n\n"
+    report = f"⚖️ <b>EMA Crossover & Squeeze Report – {get_turkey_time().strftime('%Y-%m-%d')}</b>\n\n"
     report += "This report analyzes EMA crossovers and squeeze status.\n\n"
 
     # Analyze coins for trend and squeeze
@@ -10262,7 +10271,7 @@ def handle_youtube_transcripts_export(chat_id):
         full_text = "\n".join(all_content)
         
         # Save to file
-        filename = f"youtube_transcripts_{datetime.now().strftime('%Y%m%d_%H%M')}.txt"
+        filename = f"youtube_transcripts_{get_turkey_time().strftime('%Y%m%d_%H%M')}.txt"
         file_path = os.path.join(os.getcwd(), filename)
         
         with open(file_path, "w", encoding="utf-8") as f:
@@ -10294,7 +10303,7 @@ def get_summary_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"📊 <b>Market Summary – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"📊 <b>Market Summary – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
 
     # Basic market metrics
     total_net_accum = sum(coin["NetAccum_raw"] for coin in ALL_RESULTS)
@@ -10655,7 +10664,7 @@ def get_whale_strategies_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"🐳 <b>WHALE STRATEGIES REPORT – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"🐳 <b>WHALE STRATEGIES REPORT – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "<i>Analyzing top 50 coins for whale behavioral patterns</i>\n\n"
 
     # Categories for strategy types
@@ -10854,7 +10863,7 @@ def handle_whale_movement_analysis():
 
 def get_whale_movement_report_string():
     if ALL_RESULTS:
-        report = f"🐋 <b>Whale Movement Analysis Report – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+        report = f"🐋 <b>Whale Movement Analysis Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
         sorted_results = sorted(ALL_RESULTS, key=lambda x: abs(x["NetAccum_raw"]), reverse=True)
 
         # Featured highlights
@@ -10887,7 +10896,7 @@ def handle_market_maker_analysis():
         send_telegram_message_long("⚠️ No analysis data available yet.")
         return
 
-    report = f"🎯 <b>Market Maker Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"🎯 <b>Market Maker Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report analyzes potential traps and strategies of market makers.\n\n"
 
     # Select coins for analysis based on Volume Ratio
@@ -10962,7 +10971,7 @@ def get_significant_changes_report_string():
         return "⚠️ No analysis data available yet."
 
     significant_changes = detect_significant_changes(ALL_RESULTS)
-    report = f"🚀 <b>Significant Market Changes & Alerts – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"🚀 <b>Significant Market Changes & Alerts – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "<i>Monitoring technical breakouts and structural shifts</i>\n\n"
 
     events = []
@@ -11084,7 +11093,7 @@ def get_market_alerts_report_string():
     if not SENT_ALERTS:
         return "✨ No high-priority alerts triggered in the last 4 hours.\nEverything is stable."
 
-    report = f"🔔 <b>Live Market Alerts & Triggers – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"🔔 <b>Live Market Alerts & Triggers – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "<i>Historical log of significant technical events (4h window)</i>\n\n"
 
     # Flatten and sort SENT_ALERTS by timestamp
@@ -11280,7 +11289,7 @@ def handle_price_info():
         send_telegram_message_long("⚠️ No analysis data available yet.")
         return
 
-    report = f"📊 <b>Price Information – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report = f"📊 <b>Price Information – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
     report += "<i>Showing top 50 coins by analysis order</i>\n\n"
     for coin in ALL_RESULTS[:50]:
         symbol = coin["Coin"].replace("USDT", "")
@@ -11298,7 +11307,7 @@ def handle_long_short_ratio_analysis():
         send_telegram_message_long("⚠️ No analysis data available yet.")
         return
 
-    report = f"⚖️ <b>Long/Short Ratio Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"⚖️ <b>Long/Short Ratio Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     
     total_ratio = 0
     count = 0
@@ -11334,7 +11343,7 @@ def handle_funding_rate_analysis():
         send_telegram_message_long("⚠️ No analysis data available yet.")
         return
 
-    report = f"💰 <b>Funding Rate Analysis – {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
+    report = f"💰 <b>Funding Rate Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     
     total_funding = 0
     count = 0
@@ -11717,7 +11726,7 @@ def save_prev_stats():
                         "vol_score": vol_score,
                         "price": price,
                         "composite": composite_score,  # Composite score'u kaydet
-                        "timestamp": datetime.now().timestamp()
+                        "timestamp": get_turkey_time().timestamp()
                     }
 
                     # print(f"[DEBUG] {coin['Coin']} için composite score kaydedildi: {composite_score}")
@@ -12055,9 +12064,27 @@ def analyze_market():
                         df_all = pd.DataFrame(data["df"])
                         
                         # PREDICTIVE INTELLIGENCE (Antigravity PA Strategy)
-                        df_1d = data.get("df_1d") if data.get("df_1d") is not None else df_all
-                        df_4h_data = data.get("df_4h") if data.get("df_4h") is not None else df_all
-                        df_15m = data.get("df_15m") if data.get("df_15m") is not None else df_all
+                        # CRITICAL FIX: Convert list data to DataFrames
+                        df_1d_raw = data.get("df_1d")
+                        df_4h_raw = data.get("df_4h")
+                        df_15m_raw = data.get("df_15m")
+                        
+                        # Convert to DataFrame if data exists and is a list
+                        if df_1d_raw is not None and isinstance(df_1d_raw, list) and len(df_1d_raw) > 0:
+                            df_1d = pd.DataFrame(df_1d_raw)
+                        else:
+                            df_1d = df_all
+                            
+                        if df_4h_raw is not None and isinstance(df_4h_raw, list) and len(df_4h_raw) > 0:
+                            df_4h_data = pd.DataFrame(df_4h_raw)
+                        else:
+                            df_4h_data = df_all
+                            
+                        if df_15m_raw is not None and isinstance(df_15m_raw, list) and len(df_15m_raw) > 0:
+                            df_15m = pd.DataFrame(df_15m_raw)
+                        else:
+                            df_15m = df_all
+                        
                         antigravity_pa_report = analyze_antigravity_pa_strategy(data, df_1d, df_4h_data, df_15m)
 
                         # Calculate missing EMA trends
@@ -12384,7 +12411,7 @@ def analyze_market():
                     print(f"[WARN] Web report sync error: {sync_e}")
                 
                 global last_update_time
-                last_update_time = datetime.now()
+                last_update_time = get_turkey_time()
 
                 # Telegram reporting disabled as per user request
                 # keyboard = create_reply_keyboard(ALL_RESULTS)
@@ -12393,7 +12420,7 @@ def analyze_market():
                 record_five_min_report(ALL_RESULTS)
 
                 # Gerektiğinde saatlik rapor oluştur
-                if (datetime.now() - last_hourly_report_time).total_seconds() >= 3600:
+                if (get_turkey_time() - last_hourly_report_time).total_seconds() >= 3600:
                     generate_hourly_report()
                     last_hourly_report_time = datetime.now()
 

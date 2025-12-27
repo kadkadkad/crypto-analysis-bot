@@ -2,7 +2,16 @@ import pandas as pd
 import numpy as np
 import requests
 from datetime import datetime
+import pytz
 import binance_client
+
+# Turkey timezone (GMT+3)
+TURKEY_TZ = pytz.timezone('Europe/Istanbul')
+
+def get_turkey_time():
+    """Get current time in Turkey timezone (GMT+3)"""
+    return datetime.now(TURKEY_TZ)
+
 
 def detect_stophunt_pattern(klines, threshold=3.0):
     """
@@ -222,7 +231,7 @@ async def analyze_market_risks_async(symbols):
     return {
         "market_sentiment": market_sentiment,
         "risk_scores": risk_scores,
-        "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        "timestamp": get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')
     }
 
 def analyze_market_risks(symbols):

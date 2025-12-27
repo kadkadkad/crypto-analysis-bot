@@ -2,11 +2,20 @@ import os
 import json
 import time
 from datetime import datetime
+import pytz
 from flask import Flask, render_template, jsonify, send_file, request
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
+
+# Turkey timezone (GMT+3)
+TURKEY_TZ = pytz.timezone('Europe/Istanbul')
+
+def get_turkey_time():
+    """Get current time in Turkey timezone (GMT+3)"""
+    return datetime.now(TURKEY_TZ)
+
 
 app = Flask(__name__)
 
@@ -166,7 +175,7 @@ def export_data(export_type):
             
             filename = f"Market_Analysis_Export_{int(time.time())}.md"
             content = "# Market Analysis Consolidated Report\n"
-            content += f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            content += f"Generated on: {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}\n"
             content += f"Total Coins Analyzed: {len(results)}\n\n"
             
             for coin in results:
@@ -218,7 +227,7 @@ def export_data(export_type):
 @app.route('/health')
 @limiter.exempt
 def health():
-    return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()}), 200
+    return jsonify({"status": "healthy", "timestamp": get_turkey_time().isoformat()}), 200
 
 # ⚠️ Error handlers
 @app.errorhandler(429)
