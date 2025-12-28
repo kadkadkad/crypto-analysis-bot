@@ -6101,12 +6101,12 @@ def detect_significant_changes(results):
             prev_rank = PREV_RANKS.get(coin["Coin"])
         if prev_rank is not None:
             rank_change = prev_rank - current_rank
-            if abs(rank_change) >= 10:
+            if abs(rank_change) >= 5:
                 net_accum = coin["NetAccum_raw"]
                 volume_ratio = extract_numeric(coin["Volume Ratio"])
                 momentum = extract_numeric(coin["Momentum"])
                 rsi = extract_numeric(coin["RSI"])
-                if (abs(net_accum) > 5 or volume_ratio > 1.5 or abs(momentum) > 30):
+                if (abs(net_accum) > 3 or volume_ratio > 1.2 or abs(momentum) > 20):
                     significant_changes.append({
                         "Coin": coin["Coin"],
                         "RankChange": rank_change,
@@ -6175,6 +6175,100 @@ def check_smt_divergence(df_coin, df_btc):
         
         if btc_making_higher_high and coin_making_lower_high:
             return "⚠️ Bearish SMT (Weaker than BTC)"
+            
+        return "Neutral"
+    except:
+        return "Neutral"
+
+def detect_rsi_divergence(df, lookback=30):
+    """
+    Detects Bullish and Bearish RSI Divergences.
+    Bullish: Price makes Lower Low (LL), RSI makes Higher Low (HL).
+    Bearish: Price makes Higher High (HH), RSI makes Lower High (LH).
+    """
+    try:
+        if len(df) < lookback: return "Neutral"
+        
+        # We need rsi column in the df
+        if 'rsi' not in df.columns:
+            # Fallback to calculating it if missing
+            return "Neutral"
+
+        # Find recent lows/highs
+        # This is a simplified version looking at the current candle vs a window
+        recent_price = df['close'].iloc[-1]
+        prev_price_min = df['close'].iloc[-lookback:-1].min()
+        prev_price_max = df['close'].iloc[-lookback:-1].max()
+        
+        recent_rsi = df['rsi'].iloc[-1]
+        prev_rsi_min = df['rsi'].iloc[-lookback:-1].min()
+        prev_rsi_max = df['rsi'].iloc[-lookback:-1].max()
+        
+        # Bullish Divergence
+        # Price at new low (or very close), but RSI not at new low
+        if recent_price <= prev_price_min * 1.01 and recent_rsi > prev_rsi_min + 2:
+            return "🟢 Bullish Divergence"
+            
+        # Bearish Divergence
+        # Price at new high (or very close), but RSI not at new high
+        if recent_price >= prev_price_max * 0.99 and recent_rsi < prev_rsi_max - 2:
+            return "🔴 Bearish Divergence"
+            
+        return "Neutral"
+    except:
+        return "Neutral"
+
+def detect_volume_climax(df, lookback=20):
+    """
+    Detects Volume Climax scenarios at price extremes.
+    High volume + long wick at the top/bottom of a move.
+    """
+    try:
+        if len(df) < lookback: return "Neutral"
+        
+        curr = df.iloc[-1]
+        avg_vol = df['volume'].iloc[-lookback:-1].mean()
+        
+        high_vol = curr['volume'] > avg_vol * 2.5
+        
+        body = abs(curr['close'] - curr['open'])
+        range_val = curr['high'] - curr['low']
+        
+        # Long wick detection (wick > 60% of candle range)
+        upper_wick = curr['high'] - max(curr['close'], curr['open'])
+        lower_wick = min(curr['close'], curr['open']) - curr['low']
+        
+        if high_vol:
+            if upper_wick > range_val * 0.6:
+                return "🚨 Bearish Volume Climax (Exhaustion)"
+            if lower_wick > range_val * 0.6:
+                return "🔥 Bullish Volume Climax (Absorption)"
+                
+        return "Neutral"
+    except:
+        return "Neutral"
+
+def detect_sfp(df, lookback=15):
+    """
+    Swing Failure Pattern (SFP) Detection.
+    Price sweeps a previous high/low, then closes inside.
+    """
+    try:
+        if len(df) < lookback + 1: return "Neutral"
+        
+        curr = df.iloc[-1]
+        prev_window = df.iloc[-(lookback+1):-1]
+        
+        prev_high = prev_window['high'].max()
+        prev_low = prev_window['low'].min()
+        
+        # Bullish SFP: Price dipped below prev_low, but closed above it
+        if curr['low'] < prev_low and curr['close'] > prev_low:
+            return "🛡️ Bullish SFP (Liquidity Sweep)"
+            
+        # Bearish SFP: Price poked above prev_high, but closed below it
+        if curr['high'] > prev_high and curr['close'] < prev_high:
+            return "⚠️ Bearish SFP (Stop Hunt)"
             
         return "Neutral"
     except:
@@ -11115,111 +11209,204 @@ def handle_market_alerts(results):
         net_accum_12h = extract_numeric(coin.get("Net Accum 12h", 0))
         oi_change = extract_numeric(coin.get("OI Change %", 0))
         funding_rate = extract_numeric(coin.get("Funding Rate", 0))
-        btc_corr = extract_numeric(coin.get("BTC Correlation", 0))
+        
+        # Elite Detections from Results
+        rsi_div = coin.get("RSI_Div", "Neutral")
+        vol_climax = coin.get("Vol_Climax", "Neutral")
+        sfp_pattern = coin.get("SFP_Pattern", "Neutral")
+        pa_structure = coin.get("pa_structure", "Neutral")
+        liq_heatmap = coin.get("Liq Heatmap", "")
+        bull_ob = coin.get("bullish_ob", False)
+        bear_ob = coin.get("bearish_ob", False)
+        comp_score = extract_numeric(coin.get("Composite Score", 0))
+        
+        # Get previous stats for specific comparisons
+        prev_data = PREV_STATS.get(symbol, {})
+        prev_score = extract_numeric(prev_data.get("composite", 0))
         
         # Advanced Detection Signals
         signals = []
         confidence = 0
+        final_alert_type = None
+        final_title = "CONFLUENCE ALERT"
+        final_emoji = "🎯"
+        final_insight = ""
         
-        # === 1. SMART MONEY CONFLUENCE ===
-        # Whale Accumulation + Rising OI + Negative Funding (Longs paying shorts)
+        # === 1. STRUCTURAL SHIFTS (BoS / CHoCH) ===
+        if "Bullish CHoCH" in pa_structure or "Bullish BoS" in pa_structure:
+            signals.append(f"🏗️ {pa_structure.upper()}")
+            confidence += 35
+            if not final_alert_type: final_alert_type = "struct_bull"
+            final_insight += "Market structure shifted to bullish. High-timeframe reversal in progress. "
+        elif "Bearish CHoCH" in pa_structure or "Bearish BoS" in pa_structure:
+            signals.append(f"📉 {pa_structure.upper()}")
+            confidence += 35
+            if not final_alert_type: final_alert_type = "struct_bear"
+            final_insight += "Market structure shifted to bearish. Distribution phase confirmed. "
+
+        # === 2. ORDER BLOCK INTERACTION ===
+        if bull_ob and price <= extract_numeric(coin.get("Support", 0)) * 1.01:
+            signals.append("🧱 BULLISH ORDER BLOCK TEST")
+            confidence += 30
+            if not final_alert_type: final_alert_type = "ob_bull"
+            final_insight += "Price testing a major institutional buy zone. Demand expected. "
+        elif bear_ob and price >= extract_numeric(coin.get("Resistance", 0)) * 0.99:
+            signals.append("🧱 BEARISH ORDER BLOCK TEST")
+            confidence += 30
+            if not final_alert_type: final_alert_type = "ob_bear"
+            final_insight += "Price testing a major institutional sell zone. Supply expected. "
+
+        # === 3. COMPOSITE SCORE SURGE ===
+        if prev_score > 0 and comp_score > prev_score * 1.25:
+            signals.append("🚀 COMPOSITE SCORE SURGE")
+            confidence += 40
+            if not final_alert_type: final_alert_type = "score_surge"
+            final_insight += f"Intelligence score jumped {((comp_score/prev_score)-1)*100:.1f}% in one cycle. "
+
+        # === 4. LIQUIDITY POOL ENTRY ===
+        if "🔥 HIGH LIQUIDATION CLUSTER" in liq_heatmap:
+            signals.append("🌊 LIQUIDITY POOL ENTRY")
+            confidence += 25
+            if not final_alert_type: final_alert_type = "liq_pool"
+            final_insight += "Price entered a high-density liquidation zone. Expect volatility expansion. "
+
+        # === 5. MANIPULATION ALERTS (Pump/Dump, Wash Trading, Spoofing) ===
+        is_pump = change_24h > 10 and vol_ratio > 3.0
+        is_wash = vol_ratio > 4.0 and abs(change_24h) < 2.0
+        if is_pump:
+            signals.append("🚨 PUMP & DUMP SUSPECTED")
+            confidence += 45
+            if not final_alert_type: final_alert_type = "manip_pump"
+            final_insight += "Vertical price move on extreme volume suggests a pump phase. High risk. "
+        elif is_wash:
+            signals.append("🕵️ WASH TRADING DETECTED")
+            confidence += 35
+            if not final_alert_type: final_alert_type = "manip_wash"
+            final_insight += "Massive volume without price action suggests artificial activity (Wash Trading). "
+
+        # === 6. CASH FLOW SURGE ===
+        if net_accum_12h > 15_000_000 and change_24h > 0:
+            signals.append("🌊 MAJOR CASH FLOW INFLOW")
+            confidence += 40
+            if not final_alert_type: final_alert_type = "cash_inflow"
+            final_insight += f"Exceptional capital entry detected (+${format_money(net_accum_12h)}). "
+
+        # === 7. RSI DIVERGENCE CONFLUENCE ===
+        if "Bullish Divergence" in rsi_div:
+            signals.append("🟢 RSI BULLISH DIVERGENCE")
+            confidence += 35
+            if not final_alert_type: final_alert_type = "rsi_div_bull"
+            final_insight += "Price made a lower low but RSI is rising - exhaustion of sellers detected. "
+        elif "Bearish Divergence" in rsi_div:
+            signals.append("🔴 RSI BEARISH DIVERGENCE")
+            confidence += 35
+            if not final_alert_type: final_alert_type = "rsi_div_bear"
+            final_insight += "Price made a higher high but RSI is falling - lack of buyer momentum. "
+
+        # === 2. VOLUME CLIMAX (Exhaustion/Absorption) ===
+        if "Bullish Volume Climax" in vol_climax:
+            signals.append("🔥 BULLISH VOL CLIMAX")
+            confidence += 30
+            if not final_alert_type: final_alert_type = "vol_climax_bull"
+            final_insight += "Massive absorption volume at lows detected. Institutional buying likely. "
+        elif "Bearish Volume Climax" in vol_climax:
+            signals.append("🚨 BEARISH VOL CLIMAX")
+            confidence += 30
+            if not final_alert_type: final_alert_type = "vol_climax_bear"
+            final_insight += "Exhaustion volume at highs detected. Heavy distribution in play. "
+
+        # === 3. SFP (Swing Failure Pattern) ===
+        if "Bullish SFP" in sfp_pattern:
+            signals.append("🛡️ BULLISH SFP (LIQUIDITY)")
+            confidence += 25
+            if not final_alert_type: final_alert_type = "sfp_bull"
+            final_insight += "Lows swept and recovered. Liquidity hunt complete. "
+        elif "Bearish SFP" in sfp_pattern:
+            signals.append("⚠️ BEARISH SFP (STOP HUNT)")
+            confidence += 25
+            if not final_alert_type: final_alert_type = "sfp_bear"
+            final_insight += "Highs swept and rejected. Trapped longs identified. "
+
+        # === 4. SMART MONEY CONFLUENCE ===
         whale_buying = net_accum_12h > 5_000_000
         oi_rising = oi_change > 10
-        funding_negative = funding_rate < -0.0001  # Longs paying shorts = potential squeeze
+        funding_negative = funding_rate < -0.0001
         
-        if whale_buying and oi_rising and funding_negative and vol_ratio < 2.5:
+        if whale_buying and oi_rising and funding_negative:
             signals.append("🐋 SMART MONEY ACCUMULATION")
-            confidence += 35
-            alert_type = "smart_money_accum"
-            insight = f"Whales are silently accumulating (+${format_money(net_accum_12h)}) with rising Open Interest ({oi_change:+.1f}%) and negative funding rate. Potential squeeze setup."
-            
-            if _send_confluence_alert(symbol, "SMART MONEY DETECTED", "🧠", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
-                SIGNAL_TRACKER.record_signal("smart_money", symbol, price, {'net_accum': net_accum_12h, 'oi': oi_change})
-                alerts_triggered.append(symbol)
-        
-        # === 2. BREAKOUT PREDICTION ENGINE ===
-        # Bollinger Squeeze + Volume Spike + Strong Trend
+            confidence += 30
+            if not final_alert_type: final_alert_type = "smart_money"
+            final_insight += f"Whales accumulating (+${format_money(net_accum_12h)}) with rising OI ({oi_change:+.1f}%). "
+
+        # === 5. BREAKOUT PREDICTION ===
         bb_squeeze = coin.get("Bollinger Squeeze") == "Yes"
         volume_spike = vol_ratio > 3.0
-        strong_trend = adx > 25
-        rsi_momentum = (rsi > 60 and rsi < 80) or (rsi < 40 and rsi > 20)  # Not overbought/oversold
-        
-        if bb_squeeze and volume_spike and strong_trend and rsi_momentum:
-            signals.append("⚡ BREAKOUT IMMINENT")
+        if bb_squeeze and volume_spike:
+            dir_str = "BULLISH" if macd > 0 else "BEARISH"
+            signals.append(f"🎯 {dir_str} BREAKOUT SETUP")
             confidence += 40
-            direction = "BULLISH" if macd > 0 else "BEARISH"
-            alert_type = f"breakout_pred_{direction.lower()}"
-            insight = f"Bollinger Squeeze detected with {vol_ratio:.1f}x volume spike and ADX {adx:.0f}. Strong {direction} breakout likely within 1-4 hours."
-            
-            if _send_confluence_alert(symbol, f"{direction} BREAKOUT SETUP", "🎯", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
-                SIGNAL_TRACKER.record_signal("breakout_pred", symbol, price, {'adx': adx, 'vol': vol_ratio})
-                alerts_triggered.append(symbol)
-        
-        # === 3. LIQUIDITY HUNT RECOVERY ===
-        # Price dipped below support, swept stops, now recovering with volume
+            if not final_alert_type: final_alert_type = f"breakout_{dir_str.lower()}"
+            final_insight += f"Volatility compression releasing with {vol_ratio:.1f}x volume. "
+
+        # === 6. LIQUIDITY HUNT RECOVERY ===
         trap_detected = coin.get("Trap Status", "") == "Bear Trap Detected"
-        recovery = change_24h > 2.0  # Recovering now
-        high_volume = vol_ratio > 2.0
-        
-        if trap_detected and recovery and high_volume:
+        if trap_detected and change_24h > 2.0 and vol_ratio > 2.0:
             signals.append("🪤 LIQUIDITY SWEEP RECOVERY")
-            confidence += 30
-            alert_type = "liq_sweep_recovery"
-            insight = f"Bear trap detected! Price swept lows, grabbed liquidity, now reversing with {vol_ratio:.1f}x volume. Classic stop hunt pattern."
-            
-            if _send_confluence_alert(symbol, "LIQUIDITY HUNT REVERSAL", "🔄", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
-                SIGNAL_TRACKER.record_signal("liq_sweep", symbol, price, {'change': change_24h})
-                alerts_triggered.append(symbol)
-        
-        # === 4. CORRELATION DIVERGENCE (Decoupling) ===
-        # Coin moving opposite to BTC/ETH = independent strength/weakness
-        btc_divergence = abs(btc_corr) < 0.3 and abs(change_24h - btc_change) > 5.0
-        strong_move = abs(change_24h) > 3.0
-        
-        if btc_divergence and strong_move and vol_ratio > 1.5:
-            signals.append("🎭 BTC CORRELATION BREAK")
             confidence += 25
-            direction = "BULLISH" if change_24h > 0 else "BEARISH"
-            alert_type = f"btc_divergence_{direction.lower()}"
-            insight = f"Asset decoupled from BTC! Independent {direction} move ({change_24h:+.1f}% vs BTC {btc_change:+.1f}%). Unique narrative or catalyst in play."
-            
-            if _send_confluence_alert(symbol, f"BTC DIVERGENCE - {direction}", "🆚", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
-                SIGNAL_TRACKER.record_signal("btc_divergence", symbol, price, {'btc_corr': btc_corr})
-                alerts_triggered.append(symbol)
-        
-        # === 5. MULTI-TIMEFRAME MOMENTUM ALIGNMENT ===
-        # All timeframes aligned = High probability trend continuation
-        rsi_1h_bullish = rsi > 55 and rsi < 75
-        rsi_4h_bullish = rsi_4h > 50
-        macd_bullish = macd > 0
-        volume_confirm = vol_ratio > 1.3
-        
-        if rsi_1h_bullish and rsi_4h_bullish and macd_bullish and volume_confirm and adx > 20:
-            signals.append("📊 MTF ALIGNMENT")
-            confidence += 28
-            alert_type = "mtf_bullish_align"
-            insight = f"Multi-timeframe bullish alignment! 1H RSI: {rsi:.0f}, 4H RSI: {rsi_4h:.0f}, MACD positive, ADX {adx:.0f}. Strong trend continuation signal."
-            
-            if _send_confluence_alert(symbol, "MULTI-TIMEFRAME BULLISH", "🟢", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
-                SIGNAL_TRACKER.record_signal("mtf_align", symbol, price, {'rsi_1h': rsi, 'rsi_4h': rsi_4h})
-                alerts_triggered.append(symbol)
-        
-        # === 6. EXTREME FEAR/GREED REVERSAL ===
-        # RSI extremes + diverging volume = potential reversal
+            if not final_alert_type: final_alert_type = "liq_recovery"
+            final_insight += "Price swept lows, liquidity grabbed, now reversing. "
+
+        # === 7. CORRELATION DIVERGENCE ===
+        btc_corr = extract_numeric(coin.get("BTC Correlation", 0))
+        if abs(btc_corr) < 0.3 and abs(change_24h - btc_change) > 5.0 and vol_ratio > 1.5:
+            dir_str = "BULLISH" if change_24h > 0 else "BEARISH"
+            signals.append(f"🎭 BTC DIVERGENCE - {dir_str}")
+            confidence += 25
+            if not final_alert_type: final_alert_type = f"btc_div_{dir_str.lower()}"
+            final_insight += f"Asset decoupled from BTC ({change_24h:+.1f}% move). "
+
+        # === 8. EXTREME REVERSAL ZONE ===
         extreme_oversold = rsi < 25 and rsi_4h < 30
         extreme_overbought = rsi > 75 and rsi_4h > 70
-        vol_divergence = vol_ratio > 2.5  # High volume at extremes = possible exhaustion
-        
-        if (extreme_oversold or extreme_overbought) and vol_divergence:
-            signals.append("🎢 EXTREME REVERSAL ZONE")
-            confidence += 32
-            direction = "BULLISH" if extreme_oversold else "BEARISH"
-            alert_type = f"extreme_reversal_{direction.lower()}"
-            insight = f"Extreme {'oversold' if extreme_oversold else 'overbought'} on multiple timeframes with high volume. Potential {direction} reversal setup. Wait for confirmation."
+        if (extreme_oversold or extreme_overbought) and vol_ratio > 2.0:
+            dir_str = "BULLISH" if extreme_oversold else "BEARISH"
+            signals.append(f"🎢 EXTREME {dir_str} REVERSAL ZONE")
+            confidence += 30
+            if not final_alert_type: final_alert_type = f"reversal_{dir_str.lower()}"
+            final_insight += f"Extreme {'oversold' if extreme_oversold else 'overbought'} levels with exhaustion volume. "
+
+        # === 9. WHALE ROTATION SIGNALS ===
+        if btc_change < -1.0 and change_24h > 3.0 and vol_ratio > 2.0:
+            signals.append("🔄 WHALE ROTATION DETECTED")
+            confidence += 35
+            if not final_alert_type: final_alert_type = "whale_rot"
+            final_insight += "Capital moving from BTC into this asset during market weakness. "
+
+        # SEND COMBINED ALERT IF SIGNALS DETECTED
+        if signals:
+            # If we have contradictory signals (Bullish and Bearish in same coin)
+            has_bullish = any("🟢" in s or "BULLISH" in s or "ACCUMULATION" in s or "🔥" in s or "🛡️" in s for s in signals)
+            has_bearish = any("🔴" in s or "BEARISH" in s or "DISTRIBUTION" in s or "🚨" in s or "⚠️" in s for s in signals)
             
-            if _send_confluence_alert(symbol, f"EXTREME {direction} REVERSAL", "⚠️", insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, alert_type, now, cooldown):
-                SIGNAL_TRACKER.record_signal("extreme_reversal", symbol, price, {'rsi': rsi})
+            if has_bullish and has_bearish:
+                final_title = "VOLATILITY DIVERGENCE"
+                final_emoji = "🌓"
+                final_alert_type = "vol_div"
+            elif has_bullish:
+                final_title = "PRO BULLISH CONFLUENCE"
+                final_emoji = "💎"
+                if confidence > 60: final_title = "ELITE BULLISH SIGNAL"
+            elif has_bearish:
+                final_title = "PRO BEARISH CONFLUENCE"
+                final_emoji = "💥"
+                if confidence > 60: final_title = "ELITE BEARISH SIGNAL"
+
+            # Execute the confluence alert
+            if _send_confluence_alert(symbol, final_title, final_emoji, final_insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, final_alert_type, now, cooldown):
+                SIGNAL_TRACKER.record_signal(final_alert_type or "radar_v2", symbol, price, {'confidence': confidence})
                 alerts_triggered.append(symbol)
+    
+    return alerts_triggered
     
     return alerts_triggered
 
@@ -11266,8 +11453,23 @@ def get_market_alerts_report_string():
     if not SENT_ALERTS:
         return "✨ No high-priority alerts triggered in the last 4 hours.\nEverything is stable."
 
-    report = f"🔔 <b>Live Market Alerts & Triggers – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
-    report += "<i>Historical log of significant technical events (4h window)</i>\n\n"
+    now_dt = get_turkey_time()
+    report = f"🛸 <b>RADAR ULTRA AI v2 - Market Narrative Summary</b>\n"
+    
+    # Simple Narrative Logic
+    bull_count = sum(1 for s, a in SENT_ALERTS.items() for k, ts in a.items() if "bull" in k or "confluence" in k)
+    bear_count = sum(1 for s, a in SENT_ALERTS.items() for k, ts in a.items() if "bear" in k or "reversal" in k)
+    
+    if bull_count > bear_count * 2:
+        narrative = "High-conviction institutional accumulation detected across several assets. Risk-on environment likely."
+    elif bear_count > bull_count * 2:
+        narrative = "Heavy distribution and exhaustion wicks detected at extremes. Conservative/Short approach recommended."
+    else:
+        narrative = "Mixed signals with high intraday volatility. Selective focus on specific asset confluences is key."
+    
+    report += f"📝 <b>AI Context:</b> {narrative}\n"
+    report += f"🕐 <b>Last Update:</b> {now_dt.strftime('%H:%M:%S')} (GMT+3)\n"
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
     # Flatten and sort SENT_ALERTS by timestamp
     flat_alerts = []
@@ -11284,15 +11486,18 @@ def get_market_alerts_report_string():
 
     for alert in flat_alerts[:20]: # Show last 20 alerts
         dt_str = datetime.fromtimestamp(alert["timestamp"]).strftime('%H:%M:%S')
-        if "ema" in alert["type"]: icon = "⚡"
-        elif "volume" in alert["type"]: icon = "🚨"
-        elif "cash_flow" in alert["type"]: icon = "💰" if "high" in alert["type"] else "💸"
-        else: icon = "🔔"
+        icon = "🔔"
+        if "bull" in alert["type"]: icon = "🟢"
+        if "bear" in alert["type"]: icon = "🔴"
+        if "climax" in alert["type"]: icon = "🔥"
+        if "div" in alert["type"]: icon = "🎭"
+        if "smart_money" in alert["type"]: icon = "🐋"
+        if "elite" in alert["type"]: icon = "💎"
         
         desc = alert["type"].replace("_", " ").title()
         report += f"[{dt_str}] {icon} <b>{alert['symbol']}</b>: {desc}\n"
 
-    report += "\n<b>ℹ️ Info:</b> Alerts are kept for 4 hours to prevent noise. Check technical charts for confirmation."
+    report += "\n<b>ℹ️ Info:</b> Elite alerts are kept for 4 hours. Check structural charts for confirmation."
     return report
 
 def get_live_ticker_string():
@@ -11874,53 +12079,39 @@ def process_telegram_updates():
 
 
 def save_prev_stats():
-    global PREV_STATS
-    if ALL_RESULTS:
-        with global_lock:
-            for coin in ALL_RESULTS:
-                try:
-                    # parse_money fonksiyonu bazen sıfır dönebilir, bu durumu ele al
-                    price_str = coin["Price_Display"]
-                    price = parse_money(price_str)
-
-                    # Sıfıra bölme hatasını önle
-                    if price > 0:
-                        vol_score = round(extract_numeric(coin.get("ATR_raw", 0)) / price * 100, 2)
-                    else:
-                        print(
-                            f"[WARN] {coin['Coin']} için fiyat sıfır veya geçersiz: '{price_str}', vol_score 0 olarak ayarlandı")
-                        vol_score = 0
-
-                    # Her kaydetme işleminde composite score'u da hesapla ve kaydet
-                    composite_score = calculate_composite_score(coin)
-
-                    PREV_STATS[coin["Coin"]] = {
-                        "volume_ratio": extract_numeric(coin["Volume Ratio"]),
-                        "vol_score": vol_score,
-                        "price": price,
-                        "composite": composite_score,  # Composite score'u kaydet
-                        "timestamp": get_turkey_time().timestamp()
-                    }
-
-                    # print(f"[DEBUG] {coin['Coin']} için composite score kaydedildi: {composite_score}")
-
-                except Exception as e:
-                    print(f"[ERROR] {coin['Coin']} için istatistik kaydetme hatası: {e}")
-
-        # İstatistikleri dosyaya kaydet
-        try:
-            with open("prev_stats.json", "w") as f:
-                json.dump(PREV_STATS, f)
-        except Exception as e:
-            print(f"[ERROR] İstatistikleri dosyaya kaydetme hatası: {e}")
+    global PREV_STATS, PREV_RANKS, SENT_ALERTS
+    try:
+        data = {
+            "PREV_STATS": PREV_STATS,
+            "PREV_RANKS": PREV_RANKS,
+            "SENT_ALERTS": SENT_ALERTS,
+            "LAST_SAVE": get_turkey_time().timestamp()
+        }
+        with open("prev_stats.json", "w") as f:
+            json.dump(data, f, default=str)
+            f.flush()
+            os.fsync(f.fileno())
+        print("[INFO] Application state persisted to prev_stats.json")
+    except Exception as e:
+        print(f"[ERROR] Persistence failed: {e}")
 
 def load_prev_stats():
-    global PREV_STATS
+    global PREV_STATS, PREV_RANKS, SENT_ALERTS
     try:
-        with open("prev_stats.pkl", "rb") as f:
-            PREV_STATS = pickle.load(f)
-    except:
+        if os.path.exists("prev_stats.json"):
+            with open("prev_stats.json", "r") as f:
+                data = json.load(f)
+                PREV_STATS = data.get("PREV_STATS", {})
+                PREV_RANKS = data.get("PREV_RANKS", {})
+                SENT_ALERTS = data.get("SENT_ALERTS", {})
+                print(f"[INFO] Application state loaded ({len(PREV_STATS)} stats, {len(PREV_RANKS)} ranks, {len(SENT_ALERTS)} alerts)")
+        else:
+            print("[INFO] No prev_stats.json found, starting fresh")
+    except Exception as e:
+        print(f"[ERROR] Failed to load application state: {e}")
         PREV_STATS = {}
+        PREV_RANKS = {}
+        SENT_ALERTS = {}
 
 
 def analyze_market():
@@ -11952,46 +12143,110 @@ def analyze_market():
 
             # Her coin için işlem yap
             # Her coin için işlem yap
-            # ASYNCIO OPTIMIZASYONU: Tek tek döngü yerine toplu analiz
-            risk_report_data = market_analyzer.analyze_market_risks(coins)
-            
-            # Sonuçları eski formatla uyumlu hale getir (gerekirse)
-            # analyze_market_risks returns a report dict, we need 'results' list for existing logic
-            # The 'risk_scores' in report contain similar data but might need mapping if ALL_RESULTS expects specific keys.
-            # Let's map risk_scores back to the format ALL_RESULTS expects to minimize main.py breakage.
-            
-            results = []
-            for score in risk_report_data["risk_scores"]:
-                # Map 'score' dictionary back to 'indicators' structure used in main.py
-                # This is a critical mapping step.
-                # If mapped correctly, we save huge time.
-                # However, risk_scores logic in market_analyzer is slightly different than get_technical_indicators in main.py
-                # To be SAFE and FAST, we should just use the async fetching for the raw data, and then calculate indicators.
+            # MEMORY OPTIMIZED BATCH FETCH AND PROCESS
+            async def async_process_single_coin(session, coin_symbol, ref_rets):
+                """Processes a single coin from fetch to indicator calculation to PA analysis."""
+                try:
+                    # 1. Fetch data
+                    data = await binance_client.fetch_binance_data_async(session, coin_symbol, ref_returns=ref_rets)
+                    if not data: return None
+
+                    # 2. Extract DataFrames
+                    df_all = pd.DataFrame(data.get("df", []))
+                    if df_all.empty: return None
+
+                    df_1d = pd.DataFrame(data.get("df_1d", [])) if data.get("df_1d") else df_all
+                    df_4h_data = pd.DataFrame(data.get("df_4h", [])) if data.get("df_4h") else df_all
+                    df_15m_raw = data.get("df_15m", [])
+                    df_15m = pd.DataFrame(df_15m_raw) if df_15m_raw else df_all
+
+                    # 3. Core Calculations
+                    price = data["price"]
+                    coin_numeric = {
+                        "RSI": data.get('rsi', 50),
+                        "MACD": data.get('macd', 0),
+                        "ADX": data.get('adx', 0),
+                        "Momentum": data.get('momentum', 0),
+                        "NetAccum_raw": data.get('net_accumulation', 0)
+                    }
+                    comp_score = calculate_composite_score(coin_numeric)
+
+                    # 4. Advanced Analysis
+                    antigravity_pa_report = analyze_antigravity_pa_strategy(data, df_1d, df_4h_data, df_15m)
+                    ema_trend_val = get_ema_cross_trend(df_all)
+                    ema_crossover_val = get_ema_crossover(df_all)
+                    ema20_cross = get_ema20_crossover(df_all)
+                    
+                    sup_val = df_all["low"].rolling(window=20).min().iloc[-1] if len(df_all) >= 20 else data.get("low", 0)
+                    res_val = df_all["high"].rolling(window=20).max().iloc[-1] if len(df_all) >= 20 else data.get("high", 0)
+                    trap_val = detect_traps(df_all, price, sup_val, res_val, data.get("volume_ratio", 1.0), data.get("rsi", 50))
+                    
+                    trades_count = int(data.get("trades", 0))
+                    avg_vol = (data.get("quote_volume", 0) / trades_count) if trades_count > 0 else 0
+                    liq_map = analyze_liquidation_heatmap(df_all, price, data["symbol"])
+                    pa_results = analyze_price_action(df_all)
+                    
+                    # Elite Intelligence Indicators
+                    rsi_div = detect_rsi_divergence(df_all)
+                    vol_climax = detect_volume_climax(df_all)
+                    sfp_pattern = detect_sfp(df_all)
+
+                    # 5. Build Result Dictionary
+                    res = {
+                        "Coin": data["symbol"],
+                        "DisplaySymbol": "$" + data["symbol"].replace("USDT", ""),
+                        "Price": price,
+                        "Price_Display": format_money(price),
+                        "24h Change": f"{data['price_change_percent']:.2f}%",
+                        "24h Change Raw": data['price_change_percent'],
+                        "Composite Score": comp_score,
+                        "RSI": data.get('rsi', 50),
+                        "RSI_4h": data.get('rsi_4h', 50),
+                        "RSI_1d": data.get('rsi_1d', 50),
+                        "MACD": data.get('macd', 0),
+                        "ADX": data.get('adx', 0),
+                        "Volume Ratio": data.get('volume_ratio', 1.0),
+                        "SMA Trend": ema_trend_val,
+                        "EMA Crossover": ema_crossover_val,
+                        "EMA20 Cross": ema20_cross,
+                        "Support": format_money(sup_val),
+                        "Resistance": format_money(res_val),
+                        "Trap Status": trap_val,
+                        "Whale Activity": f"{trades_count} (Avg: ${format_money(avg_vol)})",
+                        "Funding Rate": f"{data.get('funding_rate', 0) * 100:.4f}%",
+                        "Long/Short Ratio": data.get('long_short_ratio', 1.0),
+                        "Antigravity Strategy": antigravity_pa_report,
+                        "Liq Heatmap": liq_map,
+                        "bullish_ob": pa_results.get("bullish_ob", False),
+                        "bearish_ob": pa_results.get("bearish_ob", False),
+                        "pa_structure": pa_results.get("structure", "Neutral"),
+                        "fvg_bullish": pa_results.get("fvg_bullish"),
+                        "fvg_bearish": pa_results.get("fvg_bearish"),
+                        "net_accum_4h": data.get("net_accum_4h", 0),
+                        "net_accum_12h": data.get("net_accum_12h", 0),
+                        "RSI_Div": rsi_div,
+                        "Vol_Climax": vol_climax,
+                        "SFP_Pattern": sfp_pattern,
+                        "net_accum_1d": data.get("net_accum_1d", 0),
+                        "BTC Correlation": data.get("btc_corr_1h", 0),
+                        "BTC Correlation_4h": data.get("btc_corr_4h", "N/A"),
+                        "BTC Correlation_1d": data.get("btc_corr_1d", "N/A"),
+                        "quote_vol_4h": data.get("quote_vol_4h", 0),
+                        "quote_vol_1d": data.get("quote_vol_1d", 0),
+                    }
+                    
+                    res["Advice"] = generate_trade_recommendation(res)
+                    
+                    # 6. MEMORY CLEANUP
+                    del df_all, df_1d, df_4h_data, df_15m
+                    data.clear()
+                    
+                    return res
+                except Exception as e:
+                    print(f"[ERROR] Async processing failed for {coin_symbol}: {e}")
+                    return None
                 
-                # REVISION: market_analyzer.analyze_market_risks does fetch + calc risk.
-                # But main.py expects 'indicators' with keys like 'RSI', 'MACD', 'Price'.
-                # binance_client.fetch_binance_data returns these!
-                # market_analyzer uses binance_client.
-                # So we can just access the pre-fetched data if we expose it.
-                
-                # Let's use the 'components' or raw data if available. 
-                # binance_client returns "rsi", "macd", "price".
-                # risk_scores item has "components" and some raw fields.
-                
-                # Re-constructing partial indicator object to satisfy main.py downstream logic
-                indicator_obj = {
-                    "Coin": score["symbol"],
-                    "Price": score["price"],
-                    "RSI": score["components"].get("rsi_risk", 50), # Wait, component is risk score, not raw RSI. 
-                    # We need RAW RSI. market_analyzer stores raw data in 'all_data' but doesn't return it in 'risk_scores'.
-                    # We should update market_analyzer to return raw data too.
-                }
-                # This path is risky. 
-                
-            # BETTER PLAN:
-            # Update get_technical_indicators in main.py to be async_get_technical_indicators, 
-            # and use asyncio.gather in the main loop directly.
-            # This preserves the Exact logic of main.py but parallelizes the I/O.
+            # PHASE 2: Optimized Batch Analysis
             
             # But I cannot easily allow 'await' in this sync function without wrapping the whole loop in asyncio.run.
             
@@ -12055,8 +12310,12 @@ def analyze_market():
                                  
                     return dfs
 
-            # Execute batch fetch
-            ref_dfs = asyncio.run(fetch_ref_data_batch())
+            # Execute batch fetch with safety timeout
+            try:
+                ref_dfs = asyncio.run(asyncio.wait_for(fetch_ref_data_batch(), timeout=45))
+            except Exception as e:
+                print(f"[ERROR] Ref Data Fetch STALLED or Failed: {e}")
+                ref_dfs = {}
             
             # Debug Log for Reference Data
             print(f"[DEBUG] Ref Data Keys: {list(ref_dfs.keys())}")
@@ -12071,7 +12330,7 @@ def analyze_market():
                 key = f"{sym}_{iv}"
                 if ref_dfs.get(key) is not None:
                     return ref_dfs[key]["close"].pct_change().dropna()
-                return None
+                return pd.Series(dtype=float) # Return empty series instead of None
 
             # Construct ref_returns dictionary
             ref_returns = {
@@ -12090,338 +12349,43 @@ def analyze_market():
             }
             
             # Debug log to confirm ref data
-            print(f"[DEBUG] Ref Data Loaded: BTC_4H={len(ref_returns['btc_4h_ret']) if ref_returns['btc_4h_ret'] is not None else 0}, "
-                  f"ETH_4H={len(ref_returns['eth_4h_ret']) if ref_returns['eth_4h_ret'] is not None else 0}")
+            print(f"[DEBUG] Ref Data Loaded: BTC_4H={len(ref_returns['btc_4h_ret'])}, ETH_4H={len(ref_returns['eth_4h_ret'])}")
 
-            async def fetch_batch_indicators(coin_list, ref_rets):
-                # Reduced semaphore to 5 to save RAM on Render
+            async def fetch_and_process_batch(coin_list, ref_rets):
                 sem = asyncio.Semaphore(5)
-                async def fetch_with_sem(session, c):
+                async def tasked_process(session, c):
                     async with sem:
-                        try:
-                            # fetch_binance_data_async now handles indicators, correlations, and order book
-                            return await binance_client.fetch_binance_data_async(session, c, ref_returns=ref_rets)
-                        except Exception as e:
-                            print(f"[WARN] Fetch failed for {c}: {e}")
-                            return None
+                        return await async_process_single_coin(session, c, ref_rets)
                 
                 async with aiohttp.ClientSession() as session:
-                    tasks = [fetch_with_sem(session, c) for c in coin_list]
-                    return await asyncio.gather(*tasks)
+                    tasks = [tasked_process(session, c) for c in coin_list]
+                    processed_results = await asyncio.gather(*tasks)
+                    return [r for r in processed_results if r is not None]
 
-            fetched_data_list = asyncio.run(fetch_batch_indicators(coins, ref_returns))
+            # Optimized batch analysis with safety timeout
+            try:
+                results = asyncio.run(asyncio.wait_for(fetch_and_process_batch(coins, ref_returns), timeout=300))
+            except Exception as e:
+                print(f"[ERROR] Batch Processing STALLED or Failed: {e}")
+                results = ALL_RESULTS # Fallback to previous data instead of crashing
 
 
             # Base returns already pre-calculated above as ref_returns
 
             # Enumerate results
-            results = []
-            for i, data in enumerate(fetched_data_list):
-                if data:
-                    try:
-                        # Extract BB data
-                        ticker_bb = data.get("bb", {"lower": 0, "upper": 0})
-                        bb_lower = ticker_bb["lower"]
-                        bb_upper = ticker_bb["upper"]
-                        curr_price = data["price"]
-                        # Calc distances safely
-                        bb_lower_dist = ((curr_price - bb_lower) / bb_lower * 100) if bb_lower > 0 else 0
-                        bb_upper_dist = ((bb_upper - curr_price) / bb_upper * 100) if bb_upper > 0 else 0
-                        
-                        coin_numeric = {
-                            "RSI": data.get('rsi', 50),
-                            "MACD": data.get('macd', 0),
-                            "ADX": data.get('adx', 0),
-                            "Momentum": data.get('momentum', 0),
-                            "NetAccum_raw": data.get('net_accumulation', 0)
-                        }
-                        # Calculate composite score immediately
-                        comp_score = calculate_composite_score(coin_numeric)
-
-                        # Correlations are now calculated async in binance_client
-                        btc_corr_1h = data.get("btc_corr_1h", 0)
-                        eth_corr_1h = data.get("eth_corr_1h", 0)
-                        sol_corr_1h = data.get("sol_corr_1h", 0)
-                        btc_corr_4h_val = data.get("btc_corr_4h", "N/A")
-                        btc_corr_1d_val = data.get("btc_corr_1d", "N/A")
-                        eth_corr_4h_val = data.get("eth_corr_4h", "N/A")
-                        eth_corr_1d_val = data.get("eth_corr_1d", "N/A")
-                        sol_corr_4h_val = data.get("sol_corr_4h", "N/A")
-                        sol_corr_1d_val = data.get("sol_corr_1d", "N/A")
-                        
-                        pass # Redundant 1H/4H/1D logic removed as it is handled async
-                        
-                        # Prepare Close/OI strings
-                        weekly_close_val = data.get("weekly_close")
-                        weekly_close_str = format_money(weekly_close_val) if weekly_close_val else "N/A"
-                        weekly_diff = "N/A"
-                        if weekly_close_val and data["price"]:
-                             try:
-                                diff = ((data["price"] - weekly_close_val) / weekly_close_val) * 100
-                                weekly_diff = f"{diff:.2f}%"
-                             except: pass
-
-                        # Monthly Close
-                        monthly_close_val = data.get("monthly_close")
-                        monthly_close_str = format_money(monthly_close_val) if monthly_close_val else "N/A"
-                        monthly_diff = "N/A"
-                        if monthly_close_val and data["price"]:
-                             try:
-                                diff = ((data["price"] - monthly_close_val) / monthly_close_val) * 100
-                                monthly_diff = f"{diff:.2f}%"
-                             except: pass
-
-                        # Multi-timeframe indicators
-                        rsi_4h = extract_numeric(data.get("rsi_4h", 50))
-                        macd_4h = extract_numeric(data.get("macd_4h", 0))
-                        adx_4h = extract_numeric(data.get("adx_4h", 0))
-                        mfi_4h = extract_numeric(data.get("mfi_4h", 50))
-                        mom_4h = extract_numeric(data.get("mom_4h", 0))
-                        vol_ratio_4h = extract_numeric(data.get("vol_ratio_4h", 1.0))
-                        net_accum_4h = extract_numeric(data.get("net_accum_4h", 0))
-                        z_score_4h = extract_numeric(data.get("z_score_4h", 0))
-                        comp_score_4h = extract_numeric(data.get("comp_score_4h", 0))
-
-                        rsi_1d = extract_numeric(data.get("rsi_1d", 50))
-                        macd_1d = extract_numeric(data.get("macd_1d", 0))
-                        adx_1d = extract_numeric(data.get("adx_1d", 0))
-                        mfi_1d = extract_numeric(data.get("mfi_1d", 50))
-                        mom_1d = extract_numeric(data.get("mom_1d", 0))
-                        vol_ratio_1d = extract_numeric(data.get("vol_ratio_1d", 1.0))
-                        net_accum_1d = extract_numeric(data.get("net_accum_1d", 0))
-                        z_score_1d = extract_numeric(data.get("z_score_1d", 0))
-                        comp_score_1d = extract_numeric(data.get("comp_score_1d", 0))
-                        
-                        comp_score_1d = extract_numeric(data.get("comp_score_1d", 0))
-                        
-                        # Debug: Check if we're getting real data
-                        if i == 0:  # Only log first coin to avoid spam
-                            print(f"[DEBUG] {data['symbol']} 4H/1D Data - RSI_4h: {rsi_4h}, RSI_1d: {rsi_1d}, MACD_4h: {macd_4h}, ADX_4h: {adx_4h}")
-
-                        # Calculate 4H Close from actual 4H data if available, else fallback to 1h DF
-                        four_h_str = "N/A"
-                        four_h_diff_str = "N/A"
-                        df_4h = data.get("df_4h", [])
-                        if df_4h and len(df_4h) >= 2:
-                             try:
-                                 # Previous 4H candle close
-                                 four_h_prev_close = float(df_4h[-2]["close"])
-                                 four_h_str = format_money(four_h_prev_close)
-                                 four_h_diff = ((data["price"] - four_h_prev_close) / four_h_prev_close) * 100
-                                 four_h_diff_str = f"{four_h_diff:.2f}%"
-                             except: pass
-                        elif "df" in data and len(data["df"]) >= 5:
-                             try:
-                                 four_h_close = float(data["df"][-5]["close"])
-                                 four_h_str = format_money(four_h_close)
-                                 four_h_diff = ((data["price"] - four_h_close) / four_h_close) * 100
-                                 four_h_diff_str = f"{four_h_diff:.2f}%"
-                             except: pass
-
-                        oi_val = data.get("open_interest", 0)
-                        oi_str = format_money(oi_val) if oi_val else "N/A"
-                        
-                        ls_val = data.get("long_short_ratio", 1.0)
-
-                        # Order Book Analysis
-                        ob_analysis = {}
-                        try:
-                            if "order_book" in data and data["order_book"]:
-                                bids = data["order_book"].get("bids", [])
-                                asks = data["order_book"].get("asks", [])
-                                ob_analysis = analyze_order_book(bids, asks, data["price"], data["symbol"])
-                        except Exception as e:
-                            print(f"[WARN] Order book analysis failed for {data['symbol']}: {e}")
-
-                        # Reconstruct combined DF for indicators
-                        df_all = pd.DataFrame(data["df"])
-                        
-                        # PREDICTIVE INTELLIGENCE (Antigravity PA Strategy)
-                        # CRITICAL FIX: Convert list data to DataFrames
-                        df_1d_raw = data.get("df_1d")
-                        df_4h_raw = data.get("df_4h")
-                        df_15m_raw = data.get("df_15m")
-                        
-                        # Convert to DataFrame if data exists and is a list
-                        if df_1d_raw is not None and isinstance(df_1d_raw, list) and len(df_1d_raw) > 0:
-                            df_1d = pd.DataFrame(df_1d_raw)
-                        else:
-                            df_1d = df_all
-                            
-                        if df_4h_raw is not None and isinstance(df_4h_raw, list) and len(df_4h_raw) > 0:
-                            df_4h_data = pd.DataFrame(df_4h_raw)
-                        else:
-                            df_4h_data = df_all
-                            
-                        if df_15m_raw is not None and isinstance(df_15m_raw, list) and len(df_15m_raw) > 0:
-                            df_15m = pd.DataFrame(df_15m_raw)
-                        else:
-                            df_15m = df_all
-                        
-                        antigravity_pa_report = analyze_antigravity_pa_strategy(data, df_1d, df_4h_data, df_15m)
-
-                        # Calculate missing EMA trends
-                        ema_trend_val = get_ema_cross_trend(df_all)
-                        ema_crossover_val = get_ema_crossover(df_all)
-                        ema20_cross = get_ema20_crossover(df_all)
-                        
-                        # Support/Resistance
-                        sup_val = df_all["low"].rolling(window=20).min().iloc[-1] if len(df_all) >= 20 else data["low"]
-                        res_val = df_all["high"].rolling(window=20).max().iloc[-1] if len(df_all) >= 20 else data["high"]
-                        
-                        # Traps & Activity
-                        trap_val = detect_traps(df_all, data["price"], sup_val, res_val, data.get("volume_ratio", 1.0), data.get("rsi", 50))
-                        trades_count = int(data.get("trades", 0))
-                        avg_vol = (data.get("quote_volume", 0) / trades_count) if trades_count > 0 else 0
-                        whale_act_str = f"{trades_count} (Avg: ${format_money(avg_vol)})"
-                        fr_val = data.get("funding_rate", 0)
-                        fr_str = f"{fr_val * 100:.4f}%" if fr_val != 0 else "0.0000%"
-                        liq_map = analyze_liquidation_heatmap(df_all, data["price"], data["symbol"])
-                        pa_results = analyze_price_action(df_all)
-
-                        # Logic for predictive metrics
-                        ob_imb = ob_analysis.get('imbalance', 0)
-                        whale_buy = data.get('whale_buy_vol', 0)
-                        whale_sell = data.get('whale_sell_vol', 0)
-                        whale_bias = "Neutral"
-                        if whale_buy > whale_sell * 1.8: whale_bias = "Bullish Accumulation"
-                        elif whale_sell > whale_buy * 1.8: whale_bias = "Bearish Distribution"
-                        smart_money_flow = "Steady"
-                        if ob_imb > 15 and whale_buy > whale_sell: smart_money_flow = "Strong Entry"
-                        elif ob_imb < -15 and whale_sell > whale_buy: smart_money_flow = "Heavy Exit"
-
-                        # Calculate Price ROC (5 periods)
-                        price_roc_val = calculate_price_roc(df_all, periods=5)
-
-                        res = {
-                            "Coin": data["symbol"],
-                            "DisplaySymbol": "$" + data["symbol"].replace("USDT", ""),
-                            "Price": data["price"],
-                            "Price_Display": format_money(data["price"]),
-                            "Antigravity Strategy": antigravity_pa_report,
-                            "Whale Bias": whale_bias,
-                            "Smart Money": smart_money_flow,
-                            "OB Imbalance": f"{ob_imb:.2f}%",
-                            "Price ROC": price_roc_val,
-                            "RSI": extract_numeric(data.get('rsi', 50)),
-                            "Composite Score": comp_score,
-                            # Keep old keys for UI compatibility
-                            "RSI_4h": rsi_4h,
-                            "RSI_1d": rsi_1d,
-                            "MACD_4h": macd_4h,
-                            "MACD_1d": macd_1d,
-                            "ADX_4h": adx_4h,
-                            "ADX_1d": adx_1d,
-                            "MFI_4h": mfi_4h,
-                            "MFI_1d": mfi_1d,
-                            "MACD": extract_numeric(data.get('macd', 0)),
-                            "MFI": data.get('mfi', 50),
-                            "Momentum": data.get('momentum', 0),
-                            "Net Accum": data.get('net_accumulation', 0),
-                            "Volume Ratio": data.get('volume_ratio', 1.0),
-                            "Funding Rate": fr_str,
-                            "24h Change": data["price_change_percent"],
-                            "Weekly Change": (weekly_close_str, weekly_diff),
-                            "4H Change": (four_h_str, four_h_diff_str),
-                            "Monthly Change": (monthly_close_str, monthly_diff),
-                            "Open Interest": oi_str,
-                            "OI_raw": oi_val,
-                            "Long/Short Ratio": ls_val,
-                            "EMA Trend": ema_trend_val,
-                            "OrderBook": ob_analysis,
-                            "df": data.get("df", []),
-                            # Keep old keys for UI compatibility
-                            "BTC Correlation": btc_corr_1h,
-                            "EMA_20": data.get("ema_20", 0),
-                            "EMA_50": data.get("ema_50"),
-                            "EMA_100": data.get("ema_100"),
-                            "EMA_200": data.get("ema_200"),
-                            "Support": sup_val,
-                            "Resistance": res_val,
-                            "Support_Resistance": f"{format_money(sup_val)} - {format_money(res_val)}",
-                            "Bollinger Bands": f"{format_money(bb_lower)} - {format_money(bb_upper)}",
-                            "BB Lower Distance": f"{bb_lower_dist:.2f}%",
-                            "BB Upper Distance": f"{bb_upper_dist:.2f}%",
-                            "Whale Activity": whale_act_str,
-                            "Whale_Buy_M": data.get('whale_buy_vol', 0),
-                            "Whale_Sell_M": data.get('whale_sell_vol', 0),
-                            "Avg Trade Size": avg_vol,
-                            "Trap Status": trap_val,
-                            "Liq Heatmap": liq_map,
-                            "bullish_ob": pa_results.get("bullish_ob", False),
-                            "bearish_ob": pa_results.get("bearish_ob", False),
-                            "pa_structure": pa_results.get("structure", "Neutral"),
-                            "fvg_bullish": pa_results.get("fvg_bullish"),
-                            "fvg_bearish": pa_results.get("fvg_bearish"),
-                            # Multi-timeframe data (4h/1d)
-                            "net_accum_4h": net_accum_4h,
-                            "net_accum_12h": extract_numeric(data.get("net_accum_12h", 0)),
-                            "net_accum_1d": net_accum_1d,
-                            "comp_score_4h": comp_score_4h,
-                            "comp_score_12h": extract_numeric(data.get("comp_score_12h", 0)),
-                            "comp_score_1d": comp_score_1d,
-                            "comp_score_1d": comp_score_1d,
-                            "mom_4h": mom_4h,
-                            "BTC Correlation": btc_corr_1h,
-                            "BTC Correlation_4h": btc_corr_4h_val,
-                            "BTC Correlation_1d": btc_corr_1d_val,
-                            "ETH Correlation": eth_corr_1h,
-                            "ETH Correlation_4h": eth_corr_4h_val,
-                            "ETH Correlation_1d": eth_corr_1d_val,
-                            "SOL Correlation": sol_corr_1h,
-                            "SOL Correlation_4h": sol_corr_4h_val,
-                            "SOL Correlation_1d": sol_corr_1d_val,
-                            "mom_12h": extract_numeric(data.get("mom_12h", 0)),
-                            "mom_1d": mom_1d,
-                            "z_score_4h": z_score_4h,
-                            "z_score_12h": extract_numeric(data.get("z_score_12h", 0)),
-                            "z_score_1d": z_score_1d,
-                            "vol_ratio_4h": vol_ratio_4h,
-                            "vol_ratio_12h": extract_numeric(data.get("vol_ratio_12h", 1.0)),
-                            "vol_ratio_1d": vol_ratio_1d,
-                            "quote_vol_4h": data.get("quote_vol_4h", 0),
-                            "quote_vol_1d": data.get("quote_vol_1d", 0),
-                            "NetAccum_raw": data.get('net_accumulation', 0),
-                            "df": [], # CRITICAL: Do NOT store raw candles in memory results to avoid RAM Limit Exceeded
-                        }
-                        
-                        # Generate trade recommendation using the completed res dict
-                        res["Advice"] = generate_trade_recommendation(res)
-                        results.append(res)
-                        
-                        # Incremental Dashboard Update (Every 5 coins)
-                        if len(results) % 5 == 0:
-                            try:
-                                incremental_data = []
-                                for c in results:
-                                    cc = c.copy()
-                                    for k, v in cc.items():
-                                        if isinstance(v, float): cc[k] = round(v, 4)
-                                    incremental_data.append(cc)
-                                with open("web_results.json", "w") as f:
-                                    json.dump(incremental_data, f, default=str)
-                                    f.flush()
-                                    os.fsync(f.fileno()) # Ensure it's written to disk
-                                gc.collect() 
-                                print(f"[WEB-SYNC] Incremental results saved to web_results.json ({len(results)} coins)")
-                            except Exception as e:
-                                print(f"[WEB-SYNC] Incremental save failed: {e}")
-
-                    except Exception as e:
-                        print(f"[ERROR] Result mapping error for {data.get('symbol', 'Unknown')}: {e}")
-                        traceback.print_exc()
+            # ANALYSIS LOOP MOVED TO async_process_single_coin
 
 
 
             # Sort results by Composite Score before assigning to global results
             results.sort(key=lambda x: x.get("Composite Score", 0), reverse=True)
 
-            # Global sonuçları güncelle
+            # Update global results
             with global_lock:
-                if len(results) > 5:  # Yeterli veri olduğundan emin ol
-                    ALL_RESULTS = results[:50]  # En fazla 50 coin ile sınırla
+                if len(results) > 5:  # Ensure enough data collected
+                    ALL_RESULTS = results[:50]  # Limit to top 50 coins
                     
-                    # Web Dashboard için verileri kaydet (Ondalıkları temizleyerek)
+                    # Save data for Web Dashboard (cleaning decimals)
                     try:
                         clean_results = []
                         for c in ALL_RESULTS:
@@ -12437,7 +12401,7 @@ def analyze_market():
                             os.fsync(f.fileno())
                         print(f"[WEB-SYNC] Final results saved safely.")
                     except Exception as e:
-                        print(f"[ERROR] Web verileri kaydedilemedi: {e}")
+                        print(f"[ERROR] Failed to save web data: {e}")
                     
                     active_coins = {coin["Coin"] for coin in ALL_RESULTS}
 
@@ -12445,7 +12409,7 @@ def analyze_market():
                 else:
                     print("[WARN] Not enough data collected, preserving previous results")
 
-            # Verilerimiz olduğunda raporları oluştur
+            # Generate reports when data is available
             if ALL_RESULTS:
                 # Yeni makroekonomik verileri al - her döngüde gerçek veriler
                 macro_data = fetch_macro_economic_data()
@@ -12605,12 +12569,12 @@ def analyze_market():
 
                 record_five_min_report(ALL_RESULTS)
 
-                # Gerektiğinde saatlik rapor oluştur
+                # Generate hourly report if needed
                 if (get_turkey_time() - last_hourly_report_time).total_seconds() >= 3600:
                     generate_hourly_report()
-                    last_hourly_report_time = datetime.now()
+                    last_hourly_report_time = get_turkey_time()
 
-                # İstatistikleri gelecekte kullanmak üzere kaydet
+                # Save stats for future use
                 save_prev_stats()
 
             print(f"[DEBUG] Analysis completed. Coin count: {len(ALL_RESULTS)}")

@@ -1137,9 +1137,10 @@
     <div id="modal" class="modal">
         <div class="modal-inner">
             <div class="modal-h">
-                <h3 id="modalT" style="color: var(--accent);">Report</h3>
+                <h3 id="modalT" style="color: var(--accent);" translate="no">Report</h3>
                 <div>
-                    <button class="copy-btn" onclick="copyM()"><i class="fas fa-copy"></i> Copy</button>
+                    <button class="copy-btn" onclick="copyM()" translate="no"><i class="fas fa-copy"></i> COPY
+                        REPORT</button>
                     <button onclick="closeM()"
                         style="background:transparent; border:none; color:white; font-size:28px; cursor:pointer; margin-left:15px;">&times;</button>
                 </div>
@@ -1261,8 +1262,10 @@
             const t = document.getElementById('modalB').innerText;
             navigator.clipboard.writeText(t);
             const btn = document.querySelector('.copy-btn');
-            btn.innerText = "Copied! ✅";
-            setTimeout(() => btn.innerText = "Copy", 2000);
+            btn.innerText = "COPIED! ✅";
+            setTimeout(() => {
+                btn.innerHTML = '<i class="fas fa-copy"></i> COPY REPORT';
+            }, 2000);
         }
 
         function closeM() { document.getElementById('modal').style.display = 'none'; }

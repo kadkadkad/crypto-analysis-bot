@@ -342,39 +342,32 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         ticker_data["adx"] = safe_get(ticker_data["adx"])
         ticker_data["momentum"] = (ticker_data["rsi"] * 0.3) + (ticker_data["macd"] * 100) + (ticker_data["adx"] * 0.2)
         
-        ticker_data["klines"] = klines
+        # WE KEEP THE DFS BUT main.py MUST CLEAN THEM ASAP
         ticker_data["df"] = df.to_dict('records')
 
-        # Weekly Close Fetching
+        # Weekly/Monthly Close
         try:
             weekly_url = f"{config.BINANCE_API_URL}klines?symbol={symbol}&interval=1w&limit=2"
             async with session.get(weekly_url, timeout=5) as w_response:
                 if w_response.status == 200:
                     w_data = await w_response.json()
-                    if len(w_data) >= 2:
-                        ticker_data["weekly_close"] = float(w_data[-2][4])
-        except:
-            ticker_data["weekly_close"] = None
+                    if len(w_data) >= 2: ticker_data["weekly_close"] = float(w_data[-2][4])
+        except: ticker_data["weekly_close"] = None
 
-        # Monthly Close Fetching (New)
         try:
             monthly_url = f"{config.BINANCE_API_URL}klines?symbol={symbol}&interval=1M&limit=2"
             async with session.get(monthly_url, timeout=5) as m_response:
                 if m_response.status == 200:
                     m_data = await m_response.json()
-                    if len(m_data) >= 2:
-                        ticker_data["monthly_close"] = float(m_data[-2][4])
-        except:
-            ticker_data["monthly_close"] = None
+                    if len(m_data) >= 2: ticker_data["monthly_close"] = float(m_data[-2][4])
+        except: ticker_data["monthly_close"] = None
 
-        # 4H Klines implementation
+        # 4H data
         try:
             k4_data = await fetch_kline_with_fallback(session, symbol, "4h", 100)
-            
             if k4_data:
                 df_4h = pd.DataFrame(k4_data, columns=["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"])
                 df_4h = df_4h.apply(pd.to_numeric, errors='coerce').dropna(subset=["close"])
-                
                 if len(df_4h) >= 14:
                     ticker_data["rsi_4h"] = RSIIndicator(close=df_4h["close"], window=14).rsi().iloc[-1]
                     ticker_data["macd_4h"] = MACD(close=df_4h["close"]).macd().iloc[-1]
@@ -383,35 +376,17 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
                     ticker_data["stoch_rsi_4h"] = calculate_stoch_rsi(df_4h)
                     ticker_data["mom_4h"] = df_4h["close"].pct_change(periods=min(10, len(df_4h)-1)).iloc[-1] * 100
                     ticker_data["vol_ratio_4h"] = df_4h["volume"].iloc[-1] / df_4h["volume"].iloc[-21:-1].mean() if len(df_4h) > 21 and df_4h["volume"].iloc[-21:-1].mean() > 0 else 1.0
-                    
-                    # Net Accum 4h
                     na_4h = calculate_net_accumulation_detailed(df_4h)
                     ticker_data["net_accum_4h"] = na_4h["net"]
-                    
-                    # Z-Score 4h
                     m4 = df_4h["close"].rolling(window=min(20, len(df_4h))).mean().iloc[-1]
                     s4 = df_4h["close"].rolling(window=min(20, len(df_4h))).std().iloc[-1]
                     ticker_data["z_score_4h"] = (df_4h["close"].iloc[-1] - m4) / s4 if s4 > 0 else 0
-                    
-                    # Composite 4h
-                    ticker_data["comp_score_4h"] = (
-                        (ticker_data.get("rsi_4h", 50) or 50) + 
-                        (ticker_data.get("mfi_4h", 50) or 50) + 
-                        (50 + (ticker_data.get("mom_4h", 0) or 0))
-                    ) / 3
-                else:
-                    # Insufficient data, set 0 for numeric fields
-                    for k in ["rsi_4h", "macd_4h", "adx_4h", "mfi_4h", "stoch_rsi_4h", "net_accum_4h", "z_score_4h", "comp_score_4h"]:
-                         ticker_data[k] = 0
-                
+                    ticker_data["comp_score_4h"] = ((ticker_data.get("rsi_4h", 50) or 50) + (ticker_data.get("mfi_4h", 50) or 50) + (50 + (ticker_data.get("mom_4h", 0) or 0))) / 3
                 ticker_data["quote_vol_4h"] = df_4h["quote_volume"].iloc[-1] if not df_4h.empty else 0
                 ticker_data["df_4h"] = df_4h.to_dict('records')
-        except Exception as e:
-            print(f"[ERROR] 4H fetch/calc failed for {symbol}: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception as e: print(f"[ERROR] 4H calc failed for {symbol}: {e}")
 
-        # 12H Klines implementation (New)
+        # 12H data
         try:
             k12_data = await fetch_kline_with_fallback(session, symbol, "12h", 100)
             if k12_data:
@@ -430,26 +405,16 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
                     m12 = df_12h["close"].rolling(window=min(20, len(df_12h))).mean().iloc[-1]
                     s12 = df_12h["close"].rolling(window=min(20, len(df_12h))).std().iloc[-1]
                     ticker_data["z_score_12h"] = (df_12h["close"].iloc[-1] - m12) / s12 if s12 > 0 else 0
-                    ticker_data["comp_score_12h"] = (
-                        (ticker_data.get("rsi_12h", 50) or 50) + 
-                        (ticker_data.get("mfi_12h", 50) or 50) + 
-                        (50 + (ticker_data.get("mom_12h", 0) or 0))
-                    ) / 3
-                else:
-                    for k in ["rsi_12h", "macd_12h", "adx_12h", "mfi_12h", "stoch_rsi_12h", "net_accum_12h", "z_score_12h", "comp_score_12h"]:
-                        ticker_data[k] = 0
+                    ticker_data["comp_score_12h"] = ((ticker_data.get("rsi_12h", 50) or 50) + (ticker_data.get("mfi_12h", 50) or 50) + (50 + (ticker_data.get("mom_12h", 0) or 0))) / 3
                 ticker_data["df_12h"] = df_12h.to_dict('records')
-        except Exception as e:
-            print(f"[ERROR] 12H fetch/calc failed for {symbol}: {e}")
+        except Exception as e: print(f"[ERROR] 12H calc failed for {symbol}: {e}")
 
-        # 1D Klines implementation
+        # 1D data
         try:
             k1_data = await fetch_kline_with_fallback(session, symbol, "1d", 100)
-            
             if k1_data:
                 df_1d = pd.DataFrame(k1_data, columns=["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"])
                 df_1d = df_1d.apply(pd.to_numeric, errors='coerce').dropna(subset=["close"])
-                
                 if len(df_1d) >= 14:
                     ticker_data["rsi_1d"] = RSIIndicator(close=df_1d["close"], window=14).rsi().iloc[-1]
                     ticker_data["macd_1d"] = MACD(close=df_1d["close"]).macd().iloc[-1]
@@ -458,102 +423,61 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
                     ticker_data["stoch_rsi_1d"] = calculate_stoch_rsi(df_1d)
                     ticker_data["mom_1d"] = df_1d["close"].pct_change(periods=min(10, len(df_1d)-1)).iloc[-1] * 100
                     ticker_data["vol_ratio_1d"] = df_1d["volume"].iloc[-1] / df_1d["volume"].iloc[-21:-1].mean() if len(df_1d) > 21 and df_1d["volume"].iloc[-21:-1].mean() > 0 else 1.0
-                    
-                    # Net Accum 1d
                     na_1d = calculate_net_accumulation_detailed(df_1d)
                     ticker_data["net_accum_1d"] = na_1d["net"]
-                    
-                    # Z-Score 1d
                     m1 = df_1d["close"].rolling(window=min(20, len(df_1d))).mean().iloc[-1]
                     s1 = df_1d["close"].rolling(window=min(20, len(df_1d))).std().iloc[-1]
                     ticker_data["z_score_1d"] = (df_1d["close"].iloc[-1] - m1) / s1 if s1 > 0 else 0
-                    
-                    # Composite 1d
-                    ticker_data["comp_score_1d"] = (ticker_data.get("rsi_1d", 0) or 0 + ticker_data.get("mfi_1d", 0) or 0 + (50 + ticker_data.get("mom_1d", 0))) / 3
-                    print(f"[SUCCESS] {symbol} 1D indicators calculated: RSI={ticker_data.get('rsi_1d')}, MACD={ticker_data.get('macd_1d')}")
-                else:
-                    print(f"[WARN] {symbol} Not enough 1D data for indicators ({len(df_1d)} < 14)")
-                    for k in ["rsi_1d", "macd_1d", "adx_1d", "mfi_1d", "stoch_rsi_1d", "net_accum_1d", "z_score_1d", "comp_score_1d"]:
-                         ticker_data[k] = 0
-                
+                    ticker_data["comp_score_1d"] = ((ticker_data.get("rsi_1d", 0) or 0 + ticker_data.get("mfi_1d", 0) or 0 + (50 + ticker_data.get("mom_1d", 0))) / 3)
                 ticker_data["quote_vol_1d"] = df_1d["quote_volume"].iloc[-1] if not df_1d.empty else 0
                 ticker_data["df_1d"] = df_1d.to_dict('records')
-            else:
-                 print(f"[ERROR] {symbol} No 1D data available from any source")
-        except Exception as e:
-            print(f"[ERROR] 1D fetch/calc failed for {symbol}: {e}")
-            import traceback
-            traceback.print_exc()
+        except Exception as e: print(f"[ERROR] 1D calc failed for {symbol}: {e}")
+
+        # 15M Data for Antigravity PA
+        try:
+            k15_data = await fetch_kline_with_fallback(session, symbol, "15m", 100)
+            if k15_data: ticker_data["df_15m"] = k15_data # We don't need DataFrame conversion here, PA strategy handles it
+        except: ticker_data["df_15m"] = []
 
         # Order Book Fetching
         try:
             bids, asks = await fetch_order_book_async(session, symbol)
             ticker_data["order_book"] = {"bids": bids, "asks": asks}
-        except:
-            ticker_data["order_book"] = {"bids": [], "asks": []}
+        except: ticker_data["order_book"] = {"bids": [], "asks": []}
 
-        # Handle Correlations internally if ref_returns provided
-        ticker_data["btc_corr_1h"] = 0
-        ticker_data["eth_corr_1h"] = 0
-        ticker_data["sol_corr_1h"] = 0
-        ticker_data["btc_corr_4h"] = "N/A"
-        ticker_data["btc_corr_1d"] = "N/A"
-        ticker_data["eth_corr_4h"] = "N/A"
-        ticker_data["eth_corr_1d"] = "N/A"
-        ticker_data["sol_corr_4h"] = "N/A"
-        ticker_data["sol_corr_1d"] = "N/A"
-
+        # Internal Correlations
         if ref_returns:
             try:
-                # 1H Correlation (from main df)
                 c_ret = df["close"].pct_change().dropna()
                 for base in ["btc", "eth", "sol"]:
                     base_ret_1h = ref_returns.get(f"{base}_1h_ret")
                     if base_ret_1h is not None and len(c_ret) > 5:
                         common_len = min(len(c_ret), len(base_ret_1h))
-                        # Use .values to avoid index mismatch
-                        c = c_ret.iloc[-common_len:].values
-                        b = base_ret_1h.iloc[-common_len:].values
-                        correlation = pd.Series(c).corr(pd.Series(b))
+                        correlation = pd.Series(c_ret.iloc[-common_len:].values).corr(pd.Series(base_ret_1h.iloc[-common_len:].values))
                         ticker_data[f"{base}_corr_1h"] = round(correlation, 2) if not pd.isna(correlation) else 0
 
-                # 4H Correlation
                 if 'df_4h' in locals() and df_4h is not None:
                     c_4h_ret = df_4h["close"].pct_change().dropna()
-                    # print(f"[DEBUG] {symbol} 4H returns length: {len(c_4h_ret)}")
                     for base in ["btc", "eth", "sol"]:
                         base_ret_4h = ref_returns.get(f"{base}_4h_ret")
                         if base_ret_4h is not None and len(c_4h_ret) > 5:
                             common_len = min(len(c_4h_ret), len(base_ret_4h))
-                            c = c_4h_ret.iloc[-common_len:].values
-                            b = base_ret_4h.iloc[-common_len:].values
-                            correlation = pd.Series(c).corr(pd.Series(b))
+                            correlation = pd.Series(c_4h_ret.iloc[-common_len:].values).corr(pd.Series(base_ret_4h.iloc[-common_len:].values))
                             ticker_data[f"{base}_corr_4h"] = round(correlation, 2) if not pd.isna(correlation) else "N/A"
-                        else:
-                             # print(f"[DEBUG] {symbol} 4H correlation skip for {base}. Ret: {base_ret_4h is not None}, Len: {len(c_4h_ret)}")
-                             pass
 
-                # 1D Correlation
                 if 'df_1d' in locals() and df_1d is not None:
                     c_1d_ret = df_1d["close"].pct_change().dropna()
                     for base in ["btc", "eth", "sol"]:
                         base_ret_1d = ref_returns.get(f"{base}_1d_ret")
                         if base_ret_1d is not None and len(c_1d_ret) > 5:
                             common_len = min(len(c_1d_ret), len(base_ret_1d))
-                            c = c_1d_ret.iloc[-common_len:].values
-                            b = base_ret_1d.iloc[-common_len:].values
-                            correlation = pd.Series(c).corr(pd.Series(b))
+                            correlation = pd.Series(c_1d_ret.iloc[-common_len:].values).corr(pd.Series(base_ret_1d.iloc[-common_len:].values))
                             ticker_data[f"{base}_corr_1d"] = round(correlation, 2) if not pd.isna(correlation) else "N/A"
-            except Exception as e:
-                print(f"[WARN] Internal correlation calculation failed for {symbol}: {e}")
+            except Exception as e: print(f"[WARN] Internal correlation failed for {symbol}: {e}")
 
         # Add futures data
-        futures_data = await fetch_futures_data_async(session, symbol)
-        ticker_data.update(futures_data)
-        
-        # Placeholder preserved if not set by futures_data, but fetch_futures_data_async should try to set it.
-        if "long_short_ratio" not in ticker_data:
-             ticker_data["long_short_ratio"] = 1.0 
+        ticker_data.update(await fetch_futures_data_async(session, symbol))
+        ticker_data.setdefault("long_short_ratio", 1.0)
 
         return ticker_data
 
