@@ -342,6 +342,11 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         ticker_data["adx"] = safe_get(ticker_data["adx"])
         ticker_data["momentum"] = (ticker_data["rsi"] * 0.3) + (ticker_data["macd"] * 100) + (ticker_data["adx"] * 0.2)
         
+        # EXPOSE CORE METRICS FOR REPORTS
+        ticker_data["trades"] = float(df["trades"].iloc[-1]) if not df.empty else 0
+        ticker_data["quote_volume"] = float(df["quote_volume"].iloc[-1]) if not df.empty else 0
+        ticker_data["taker_buy_quote"] = float(df["taker_buy_quote"].iloc[-1]) if not df.empty else 0
+        
         # WE KEEP THE DFS BUT main.py MUST CLEAN THEM ASAP
         ticker_data["df"] = df.to_dict('records')
 

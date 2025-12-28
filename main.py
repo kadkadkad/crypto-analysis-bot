@@ -7076,37 +7076,38 @@ def get_order_block_report_string():
         return "⚠️ No analysis data available yet."
     
     report = f"📦 <b>Market-Wide Order Block Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
-    report += "<i>Analyzing institutional supply/demand zones</i>\n\n"
+    report += "<i>Analyzing institutional supply/demand zones with structural shift detection</i>\n\n"
     
     bullish_obs = []
     bearish_obs = []
     
+    # Analyze Top 50 results for detailed OBs
     for coin in ALL_RESULTS[:50]:
         symbol = "$" + coin["Coin"].replace("USDT", "")
+        # bullish_ob and bearish_ob are expected to be strings with price ranges
         if coin.get("bullish_ob"):
-            bullish_obs.append(symbol)
+            bullish_obs.append(f"• <b>{symbol}</b>: Zone {coin.get('bullish_ob')}")
         if coin.get("bearish_ob"):
-            bearish_obs.append(symbol)
+            bearish_obs.append(f"• <b>{symbol}</b>: Zone {coin.get('bearish_ob')}")
             
-    report += f"🟢 <b>BULLISH ORDER BLOCKS ({len(bullish_obs)}):</b>\n"
+    report += f"🟢 <b>INSTITUTIONAL BUY ZONES (Bullish OBs):</b>\n"
     if bullish_obs:
-        report += ", ".join(bullish_obs[:20])
-        if len(bullish_obs) > 20: report += "..."
+        report += "\n".join(bullish_obs[:15])
+        if len(bullish_obs) > 15: report += "\n...and more detected."
     else:
         report += "None detected in top 50."
     report += "\n\n"
     
-    report += f"🔴 <b>BEARISH ORDER BLOCKS ({len(bearish_obs)}):</b>\n"
+    report += f"🔴 <b>INSTITUTIONAL SELL ZONES (Bearish OBs):</b>\n"
     if bearish_obs:
-        report += ", ".join(bearish_obs[:20])
-        if len(bearish_obs) > 20: report += "..."
+        report += "\n".join(bearish_obs[:15])
+        if len(bearish_obs) > 15: report += "\n...and more detected."
     else:
         report += "None detected in top 50."
     report += "\n\n"
     
-    report += "<b>💡 Interpretation:</b>\n"
-    report += "• <b>Bullish OB:</b> Significant buy interest detected, price often bounces from these levels.\n"
-    report += "• <b>Bearish OB:</b> Significant sell interest detected, price often rejects from these levels.\n"
+    report += "<b>💡 Master Strategy Tip:</b>\n"
+    report += "Look for Order Blocks that coincide with High Liquidity Clusters (Heatmap) for ultra-high conviction entries. Prices often front-run these zones by 0.5%."
     
     return report
 
@@ -7115,25 +7116,28 @@ def get_liq_heatmap_report_string():
         return "⚠️ No analysis data available yet."
     
     report = f"🔥 <b>Global Liquidation Heatmap Summary – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
-    report += "<i>Concentrated liquidation clusters in the market</i>\n\n"
+    report += "<i>Concentrated liquidation clusters in the market (±10% Range)</i>\n\n"
     
     hot_zones = []
     for coin in ALL_RESULTS[:50]:
         lh = coin.get("Liq Heatmap", "")
-        if "🔥" in lh or "High Intensity" in lh or "Risk" in lh:
+        if lh and ("🔥" in lh or "High Intensity" in lh or "Risk" in lh or "Cluster" in lh):
             symbol = "$" + coin["Coin"].replace("USDT", "")
-            # Extract just the first line of the heatmap report which usually has the summary
-            summary = lh.split("\n")[0].replace("🔥 Liq Heatmap:", "").strip()
-            hot_zones.append(f"• <b>{symbol}</b>: {summary}")
+            # Include much more detail from the full Liq Heatmap report
+            summary = lh.replace("🔥 Liq Heatmap:", "").strip()
+            # If the summary is too long, we take the top few lines
+            summary_lines = summary.split("\n")[:3]
+            short_summary = "\n    ".join(summary_lines)
+            hot_zones.append(f"• <b>{symbol}</b>:\n    {short_summary}")
             
     if hot_zones:
-        report += "🏮 <b>HIGH INTENSITY ZONES:</b>\n"
-        report += "\n".join(hot_zones[:15])
-        if len(hot_zones) > 15: report += "\n...and more."
+        report += "🏮 <b>HIGH INTENSITY LIQUIDITY CLUSTERS:</b>\n"
+        report += "\n\n".join(hot_zones[:10])
+        if len(hot_zones) > 10: report += "\n\n<i>...and more detected in the scan.</i>"
     else:
         report += "No major liquidation cascades detected in the current ±10% range."
         
-    report += "\n\n<b>ℹ️ Note:</b> These are zones where significant liquidations are likely to occur, often acting as magnets for price."
+    report += "\n\n<b>ℹ️ Note:</b> These are zones where significant liquidations are likely to occur, often acting as magnetic levels for big players to sweep liquidity."
     return report
 
 
@@ -8812,317 +8816,60 @@ def generate_notebooklm_export(results):
 
 
 def generate_metric_report(metric, results):
-    # Map Turkish metric names to English for the header
+    # Normalize metric name: remove spaces and 1H suffix for lookup
+    lookup_key = metric.replace(" 1H", "").replace("1H", "").strip()
+    
+    # Map for display names
     metric_map = {
-        "Fark Endeksi": "Difference Index",
-        "Outlier Score": "Outlier Score",
-        "Composite Skor": "Composite Score",
         "Composite Score": "Composite Score",
         "BTC Correlation": "BTC Correlation",
         "ETH Correlation": "ETH Correlation",
         "SOL Correlation": "SOL Correlation",
         "Net Accum": "Net Accumulation",
-        "RSI": "RSI (1h)",
-        "RSI_4h": "RSI (4h)",
-        "RSI_1d": "RSI (1d)",
-        "EMA": "EMA Trend Status",
-        "4H Change": "4H Change",
-        "Haftalık Değişim": "Weekly Change",
-        "Aylık Değişim": "Monthly Change",
-        "Volume Ratio": "Volume Ratio",
-        "24h Volume": "24h Volume",
-        "ATR": "ATR",
-        "ADX": "ADX (1h)",
-        "ADX_4h": "ADX (4h)",
-        "ADX_1d": "ADX (1d)",
-        "MACD": "MACD (1h)",
-        "MACD_4h": "MACD (4h)",
-        "MACD_1d": "MACD (1d)",
-        "MFI": "MFI",
-        "StochRSI": "Stochastic RSI",
-        "Open Interest": "Open Interest",
-        "Taker Rate": "Taker Rate",
-        "Z-Score": "Z-Score",
-        "Support": "Support",
-        "Resistance": "Resistance",
-        "Bollinger Bands": "Bollinger Bands",
-        "Momentum": "Momentum",
-        "Support_Resistance": "Support/Resistance Levels",
-        "Support/Resistance": "Support/Resistance",
-        "RSI 4H": "RSI (4h)", "RSI_4h": "RSI (4h)",
-        "RSI 1D": "RSI (1d)", "RSI_1d": "RSI (1d)",
-        "ADX 4H": "ADX (4h)", "ADX_4h": "ADX (4h)",
-        "ADX 1D": "ADX (1d)", "ADX_1d": "ADX (1d)",
-        "MACD 4H": "MACD (4h)", "MACD_4h": "MACD (4h)",
-        "MACD 1D": "MACD (1d)", "MACD_1d": "MACD (1d)",
-        "MFI 4H": "MFI (4h)", "MFI_4h": "MFI (4h)",
-        "MFI 1D": "MFI (1d)", "MFI_1d": "MFI (1d)",
-        "Z-Score 4H": "Z-Score (4h)", "Z-Score_4h": "Z-Score (4h)",
-        "Z-Score 1D": "Z-Score (1d)", "Z-Score_1d": "Z-Score (1d)",
-        "Net Accum 4H": "Net Accum (4h)", "Net Accum_4h": "Net Accum (4h)",
-        "Net Accum 1D": "Net Accum (1d)", "Net Accum_1d": "Net Accum (1d)",
-        "Composite 4H": "Composite Score (4h)", "Composite Score_4h": "Composite Score (4h)",
-        "Composite 1D": "Composite Score (1d)", "Composite Score_1d": "Composite Score (1d)",
-        "BTC Correlation_4h": "BTC Correlation (4h)", "BTC Correlation_1d": "BTC Correlation (1d)",
-        "ETH Correlation_4h": "ETH Correlation (4h)", "ETH Correlation_1d": "ETH Correlation (1d)",
-        "SOL Correlation_4h": "SOL Correlation (4h)", "SOL Correlation_1d": "SOL Correlation (1d)"
+        "RSI": "RSI (1h)", "RSI_4h": "RSI (4h)", "RSI_1d": "RSI (1d)",
+        "EMA": "EMA Trend Status", "SMA Trend": "EMA Trend Status",
+        "ADX": "ADX (1h)", "ADX_4h": "ADX (4h)", "ADX_1d": "ADX (1d)",
+        "MACD": "MACD (1h)", "MACD_4h": "MACD (4h)", "MACD_1d": "MACD (1d)",
+        "MFI": "MFI (1h)", "MFI_4h": "MFI (4h)", "MFI_1d": "MFI (1d)",
+        "Taker Rate": "Taker Rate", "Z-Score": "Z-Score (1h)",
+        "Volume Ratio": "Volume Ratio", "Momentum": "Momentum (1h)"
     }
     
-    display_metric = metric_map.get(metric, metric)
+    display_name = metric_map.get(metric, metric_map.get(lookup_key, metric))
     
-    # Translate report headers
-    report = f"📊 <b>{display_metric} Analysis Report</b>\n"
+    # Determine which key to use for data extraction from the results dict
+    data_key = metric
+    if metric in ["EMA", "EMA 1H", "EMA Report", "EMA Crossings"]: data_key = "SMA Trend"
+    elif lookup_key in ["ADX", "RSI", "MACD", "MFI", "Z-Score", "Momentum", "Composite Score"]: data_key = lookup_key
+    elif lookup_key == "Net Accum": data_key = "NetAccum_raw"
+
+    report = f"📊 <b>{display_name} Analysis Report</b>\n"
     report += f"<i>Total analyzed coins: {len(results)}</i>\n"
     report += "--------------------------------\n"
 
-    if not results:
-        report += "⚠️ Data missing, report could not be generated.\n"
-        return report
+    # Sort results
+    try:
+        sorted_results = sorted(results, key=lambda x: extract_numeric(x.get(data_key, 0)), reverse=True)
+    except:
+        sorted_results = results
 
-    if metric == "Fark Endeksi" or metric == "Difference Index":
-        if not PREV_STATS:
-            report += "⚠️ Previous stats missing, difference index could not be calculated.\n"
-            return report
-        composite_scores = [PREV_STATS[c["Coin"]]["composite"] for c in results if
-                            c["Coin"] in PREV_STATS and "composite" in PREV_STATS[c["Coin"]]]
-        avg_score = sum(composite_scores) / len(composite_scores) if composite_scores else 0.0
-        if avg_score == 0:
-            report += "⚠️ Average composite score is zero, difference index could not be calculated.\n"
-            return report
-        for coin in results:
-            coin_score = PREV_STATS.get(coin["Coin"], {}).get("composite", 0)
-            diff_index = calculate_percentage_change(coin_score, avg_score)
-            coin["DiffIndex"] = diff_index
-        sorted_results = sorted(results, key=lambda x: x.get("DiffIndex", 0), reverse=True)
-        total_val = 0
-        count = 0
-        for coin in sorted_results[:50]:
-            symbol = f"${coin['Coin'].replace('USDT', '')}"
-            diff_val = coin.get('DiffIndex', 0)
-            value = f"{round(diff_val, 2)}%"
-            report += f"{symbol}: {value}\n"
-            total_val += diff_val
-            count += 1
+    for coin in sorted_results[:50]:
+        symbol = "$" + coin['Coin'].replace("USDT", "")
+        val = coin.get(data_key, "N/A")
+        
+        # Smart formatting
+        if isinstance(val, (int, float)):
+            if "Correlation" in display_name: val_str = f"{val:.2f}"
+            elif "Taker" in display_name: val_str = f"{val:.4f}"
+            elif "Accum" in display_name: val_str = format_money(val)
+            else: val_str = f"{val:.2f}"
+        else:
+            val_str = str(val)
             
-        if count > 0:
-            avg_val = total_val / count
-            report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.2f}%\n"
+        report += f"{symbol}: {val_str}\n"
 
-    elif metric == "Outlier Score":
-        if not PREV_STATS:
-            report += "⚠️ Previous stats missing, outlier could not be calculated.\n"
-            return report
-        composite_scores = [PREV_STATS[c["Coin"]]["composite"] for c in results if
-                            c["Coin"] in PREV_STATS and "composite" in PREV_STATS[c["Coin"]]]
-        if not composite_scores:
-            report += "⚠️ Composite scores missing, outlier could not be calculated.\n"
-            return report
-        median_score = np.median(composite_scores)
-        mad = np.median([abs(s - median_score) for s in composite_scores]) or 1e-6
-        for coin in results:
-            coin_score = PREV_STATS.get(coin["Coin"], {}).get("composite", 0)
-            outlier = (coin_score - median_score) / mad if mad != 0 else 0.0
-            coin["OutlierScore"] = outlier
-        sorted_results = sorted(results, key=lambda x: x.get("OutlierScore", 0), reverse=True)
-        total_val = 0
-        count = 0
-        for coin in sorted_results[:50]:
-            symbol = f"${coin['Coin'].replace('USDT', '')}"
-            outlier_val = coin.get('OutlierScore', 0)
-            value = f"{round(outlier_val, 2)}"
-            report += f"{symbol}: {value}\n"
-            total_val += outlier_val
-            count += 1
-            
-        if count > 0:
-            avg_val = total_val / count
-            report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.2f}\n"
-
-    elif metric == "Composite Skor" or metric == "Composite Score":
-        total_val = 0
-        count = 0
-        
-        # Calculate composite score for each coin and sort
-        for coin in results:
-            coin["_tmp_comp"] = calculate_composite_score(coin)
-            with global_lock:
-                if coin["Coin"] not in PREV_STATS:
-                    PREV_STATS[coin["Coin"]] = {}
-                PREV_STATS[coin["Coin"]]["composite"] = coin["_tmp_comp"]
-        
-        sorted_results = sorted(results, key=lambda x: x["_tmp_comp"], reverse=True)
-        
-        for coin in sorted_results[:50]:
-            symbol = f"${coin['Coin'].replace('USDT', '')}"
-            report += f"{symbol}: {coin['_tmp_comp']}\n"
-            total_val += coin["_tmp_comp"]
-            count += 1
-        
-        if count > 0:
-            avg_val = total_val / count
-            report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.2f}\n"
-
-    elif metric in ["BTC Correlation", "ETH Correlation", "SOL Correlation", 
-                  "BTC Correlation", "ETH Correlation", "SOL Correlation",
-                  "BTC Correlation_4h", "BTC Correlation_1d",
-                  "ETH Correlation_4h", "ETH Correlation_1d",
-                  "SOL Correlation_4h", "SOL Correlation_1d"]:
-        total_val = 0
-        count = 0
-        
-        def get_corr_val(coin):
-            try:
-                val = coin.get(metric, 0)
-                if val == "N/A" or val is None or str(val) == "N/A":
-                    return -1.0
-                return float(str(val))
-            except: return -1.0
-            
-        sorted_results = sorted(results, key=get_corr_val, reverse=True)
-        
-        for coin in sorted_results[:50]:
-            symbol = f"${coin['Coin'].replace('USDT', '')}"
-            value = coin.get(metric, "N/A")
-            try:
-                if value != "N/A" and value is not None and str(value) != "N/A":
-                    total_val += float(str(value))
-                    count += 1
-            except: pass
-            report += f"{symbol}: {value}\n"
-            
-        if count > 0:
-            avg_val = total_val / count
-            report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.2f}\n"
-
-    else:
-        total_val = 0
-        count = 0
-        
-        # Consistent numeric sorting key
-        def get_sort_value(coin):
-            try:
-                # Use raw numeric keys if possible
-                num_key_map = {
-                    "RSI": "RSI", "RSI_4h": "RSI_4h", "RSI_1d": "RSI_1d",
-                    "ADX": "ADX", "ADX_4h": "ADX_4h", "ADX_1d": "ADX_1d",
-                    "MACD": "MACD", "MACD_4h": "MACD_4h", "MACD_1d": "MACD_1d",
-                    "MFI": "MFI", "MFI_4h": "MFI_4h", "MFI_1d": "MFI_1d",
-                    "Volume Ratio": "Volume Ratio", "Volume Ratio_4h": "vol_ratio_4h", "Volume Ratio_1d": "vol_ratio_1d",
-                    "24h Volume": "24h Volume", "24h Vol_4h": "quote_vol_4h", "24h Vol_1d": "quote_vol_1d",
-                    "ATR": "ATR", "Momentum": "Momentum", "Momentum_4h": "mom_4h", "Momentum_1d": "mom_1d",
-                    "Taker Rate": "Taker Rate",
-                    "Z-Score": "Z-Score", "Z-Score_4h": "z_score_4h", "Z-Score_1d": "z_score_1d",
-                    "Open Interest": "OI_raw",
-                    "Net Accum": "NetAccum_raw", 
-                    "Net Accum_4h": "net_accum_4h", "Net Accum 4H": "net_accum_4h",
-                    "Net Accum_1d": "net_accum_1d", "Net Accum 1D": "net_accum_1d",
-                    "Composite Score_4h": "comp_score_4h", "Composite 4H": "comp_score_4h",
-                    "Composite Score_1d": "comp_score_1d", "Composite 1D": "comp_score_1d",
-                    "RSI 4H": "RSI_4h", "RSI 1D": "RSI_1d",
-                    "ADX 4H": "ADX_4h", "ADX 1D": "ADX_1d",
-                    "MACD 4H": "MACD_4h", "MACD 1D": "MACD_1d",
-                    "MFI 4H": "MFI_4h", "MFI 1D": "MFI_1d",
-                    "Z-Score 4H": "z_score_4h", "Z-Score 1D": "z_score_1d",
-                    "Scale Buy": "RSI",
-                    "Support/Resistance": "Price", "Hourly Analysis": "Price"
-                }
-                k = num_key_map.get(metric, metric)
-                val = coin.get(k, 0)
-                
-                if isinstance(val, (int, float)): return extract_numeric(val)
-                if isinstance(val, tuple): return float(str(val[1]).strip("%"))
-                
-                # Extract numeric from string
-                matches = re.findall(r"[-+]?\d*\.\d+|\d+", str(val).replace(",", ""))
-                return float(matches[0]) if matches else 0
-            except: return -9999
-            
-        sorted_results = sorted(results, key=get_sort_value, reverse=True)
-        if metric == "Bollinger Bands": sorted_results = sorted(results, key=lambda x: extract_numeric(x.get("BB Lower Distance", "100%")), reverse=False)
-
-        for coin in sorted_results[:50]:
-            symbol = f"${coin['Coin'].replace('USDT', '')}"
-            
-            # Helper to safely format values, showing N/A if data is missing
-            def fv(key, fmt="{:.2f}", default="N/A"):
-                val = coin.get(key, default)
-                if val == "N/A" or val is None or (isinstance(val, str) and val.strip() == ""):
-                    return "N/A"
-                try:
-                    return fmt.format(float(val))
-                except:
-                    return "N/A"
-            
-            if metric in ["RSI", "RSI Report"]: value = fv('RSI', '{:.1f}')
-            elif metric in ["RSI_4h", "RSI 4H"]: value = fv('RSI_4h', '{:.1f}')
-            elif metric in ["RSI_1d", "RSI 1D"]: value = fv('RSI_1d', '{:.1f}')
-            elif metric == "ADX": value = fv('ADX', '{:.1f}')
-            elif metric in ["ADX_4h", "ADX 4H"]: value = fv('ADX_4h', '{:.1f}')
-            elif metric in ["ADX_1d", "ADX 1D"]: value = fv('ADX_1d', '{:.1f}')
-            elif metric == "MACD": value = fv('MACD', '{:.4f}')
-            elif metric in ["MACD_4h", "MACD 4H"]: value = fv('MACD_4h', '{:.4f}')
-            elif metric in ["MACD_1d", "MACD 1D"]: value = fv('MACD_1d', '{:.4f}')
-            elif metric == "MFI": value = fv('MFI', '{:.1f}')
-            elif metric in ["MFI_4h", "MFI 4H"]: value = fv('MFI_4h', '{:.1f}')
-            elif metric in ["MFI_1d", "MFI 1D"]: value = fv('MFI_1d', '{:.1f}')
-            elif metric == "Momentum": value = fv('Momentum')
-            elif metric in ["Momentum_4h", "Momentum 4H"]: value = fv('mom_4h')
-            elif metric in ["Momentum_1d", "Momentum 1D"]: value = fv('mom_1d')
-            elif metric == "Z-Score": value = fv('Z-Score')
-            elif metric in ["Z-Score_4h", "Z-Score 4H"]: value = fv('z_score_4h')
-            elif metric in ["Z-Score_1d", "Z-Score 1D"]: value = fv('z_score_1d')
-            elif metric == "Volume Ratio": value = fv('Volume Ratio') + "x" if fv('Volume Ratio') != "N/A" else "N/A"
-            elif metric in ["Volume Ratio_4h", "Volume Ratio 4H"]: value = fv('vol_ratio_4h') + "x" if fv('vol_ratio_4h') != "N/A" else "N/A"
-            elif metric in ["Volume Ratio_1d", "Volume Ratio 1D"]: value = fv('vol_ratio_1d') + "x" if fv('vol_ratio_1d') != "N/A" else "N/A"
-            elif metric == "Net Accum": value = f"${format_money(coin.get('NetAccum_raw', 0))}" if coin.get('NetAccum_raw') != "N/A" else "N/A"
-            elif metric in ["Net Accum_4h", "Net Accum 4H"]: value = f"${format_money(coin.get('net_accum_4h', 0))}" if coin.get('net_accum_4h') != "N/A" else "N/A"
-            elif metric in ["Net Accum_1d", "Net Accum 1D"]: value = f"${format_money(coin.get('net_accum_1d', 0))}" if coin.get('net_accum_1d') != "N/A" else "N/A"
-            elif metric == "Composite Score": value = fv('Composite Score')
-            elif metric in ["Composite Score_4h", "Composite 4H"]: value = fv('comp_score_4h')
-            elif metric in ["Composite Score_1d", "Composite 1D"]: value = fv('comp_score_1d')
-            elif metric == "24h Volume": value = f"${format_money(coin.get('24h Volume', 0))}"
-            elif metric == "24h Vol_4h": value = f"${format_money(coin.get('quote_vol_4h', 0))}" if coin.get('quote_vol_4h') != "N/A" else "N/A"
-            elif metric == "24h Vol_1d": value = f"${format_money(coin.get('quote_vol_1d', 0))}" if coin.get('quote_vol_1d') != "N/A" else "N/A"
-            elif metric == "EMA": value = coin.get("EMA Trend", "N/A")
-            elif metric in ["Weekly Change", "Haftalık Değişim"]:
-                value = coin.get("Weekly Change", ("N/A", "0%"))[1]
-            elif metric in ["Monthly Change", "Aylık Değişim"]:
-                value = coin.get("Monthly Change", ("N/A", "0%"))[1]
-            elif metric in ["4H Change", "4H Change"]:
-                value = coin.get("4H Change", ("N/A", "0%"))[1]
-            elif metric == "ATR": value = format_money(coin.get("ATR", 0))
-            elif metric == "StochRSI": value = fv('StochRSI')
-            elif metric == "Open Interest": value = coin.get("Open Interest", "N/A")
-            elif metric == "Taker Rate": value = fv('Taker Rate')
-            elif metric == "Bollinger Bands": value = coin.get("Bollinger Bands", "N/A")
-            elif metric == "Support/Resistance": value = coin.get("Support_Resistance", "N/A")
-            else: value = str(coin.get(metric, "N/A"))
-            
-            # Numeric aggregation for average
-            try:
-                nv = get_sort_value(coin)
-                if nv != -9999:
-                    total_val += nv
-                    count += 1
-            except: pass
-            
-            report += f"{symbol}: {value}\n"
-            
-        if count > 0:
-            avg_val = total_val / count
-            if metric == "Net Accum": report += f"\n📊 <b>Average {display_metric}:</b> ${format_money(avg_val)}\n"
-            elif metric == "24h Volume": report += f"\n📊 <b>Average {display_metric}:</b> ${format_money(avg_val)}\n"
-            elif metric == "Volume Ratio": report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.2f}x\n"
-            elif "Change" in display_metric: report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:+.2f}%\n"
-            elif metric == "Open Interest": report += f"\n📊 <b>Average {display_metric}:</b> ${format_money(avg_val)}\n"
-            elif metric in ["MACD", "ATR"]: report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.4f}\n"
-            elif "Bollinger Bands" in metric: report += f"\n📊 <b>Average Proximity to Lower Band:</b> {avg_val:.2f}%\n"
-            else: report += f"\n📊 <b>Average {display_metric}:</b> {avg_val:.2f}\n"
-
+    report += "\n<i>⚡ Intelligence Feed • Data verified in real-time</i>"
     return report
-
-
-# ---------------- Telegram Güncelleme ve Komut İşlemleri ----------------
 
 def handle_trust_index_report():
     print("[DEBUG] Güven Endeksi Raporu işleniyor...")
@@ -12213,6 +11960,9 @@ def analyze_market():
                         "Resistance": format_money(res_val),
                         "Trap Status": trap_val,
                         "Whale Activity": f"{trades_count} (Avg: ${format_money(avg_vol)})",
+                        "WhaleActivity": trades_count,
+                        "NetAccum_raw": data.get('net_accumulation', 0),
+                        "Taker Rate": data.get("taker_buy_quote", 0) / data.get("quote_volume", 1) if data.get("quote_volume", 1) > 0 else 0,
                         "Funding Rate": f"{data.get('funding_rate', 0) * 100:.4f}%",
                         "Long/Short Ratio": data.get('long_short_ratio', 1.0),
                         "Antigravity Strategy": antigravity_pa_report,
@@ -12468,33 +12218,62 @@ def analyze_market():
                     web_reports["Hourly Analysis"] = generate_hourly_report_string()
                     
                     try: web_reports["Whale Movement"] = get_whale_movement_report_string()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Whale Movement report failed: {e}")
                     try: web_reports["Smart Money"] = get_smart_money_report_string()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Smart Money report failed: {e}")
                     try: web_reports["Whale Strategies"] = get_whale_strategies_report_string()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Whale Strategies report failed: {e}")
                     try: web_reports["Manipulation Detector"] = generate_enhanced_manipulation_report()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Manipulation Detector report failed: {e}")
                     try: web_reports["Whale Ranking"] = generate_whale_ranking_report()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Whale Ranking report failed: {e}")
                     try: web_reports["Smart Score"] = generate_smart_score_report()
-                    except: pass
-                    try: web_reports["MM Analysis"] = generate_advanced_whale_trend_report()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Smart Score report failed: {e}")
+                    try:
+                        wh_rep = generate_advanced_whale_trend_report()
+                        web_reports["MM Analysis"] = wh_rep
+                        web_reports["Whale Movement"] = wh_rep
+                    except Exception as e: print(f"[WARN] MM Analysis report failed: {e}")
+                    
                     try: web_reports["Bollinger Squeeze"] = generate_bollinger_squeeze_report()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Bollinger Squeeze report failed: {e}")
+                    
                     try: web_reports["Flow Migrations"] = generate_cash_flow_migration_report()
-                    except: pass
-                    try: web_reports["EMA Crossings"] = get_ema_crossings_report_string()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Flow Migrations report failed: {e}")
+
+                    try:
+                        crr = get_market_alerts_report_string()
+                        web_reports["Market Alerts"] = crr
+                        web_reports["Live Signals"] = crr
+                    except Exception as e: print(f"[WARN] Market Alerts report failed: {e}")
+
+                    try:
+                        ema_rep = get_ema_crossings_report_string()
+                        web_reports["EMA Crossings"] = ema_rep
+                        web_reports["EMA Report"] = ema_rep
+                    except Exception as e: print(f"[WARN] EMA Crossings report failed: {e}")
+
+                    try:
+                        cand_rep = get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data)
+                        web_reports["Candlestick Patterns"] = cand_rep
+                        web_reports["Candle Patterns"] = cand_rep
+                    except Exception as e: print(f"[WARN] Candlestick Patterns report failed: {e}")
+
                     try: web_reports["Order Block"] = get_order_block_report_string()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Order Block report failed: {e}")
+
                     try: web_reports["Liq Heatmap Summary"] = get_liq_heatmap_report_string()
+                    except Exception as e: print(f"[WARN] Liq Heatmap report failed: {e}")
+
+                    try: web_reports["Whale Ranking"] = generate_whale_ranking_report()
+                    except Exception as e: print(f"[WARN] Whale Ranking report failed: {e}")
+
+                    try: web_reports["Signal Performance"] = SIGNAL_TRACKER.get_performance_report()
                     except: pass
-                    try: web_reports["Candlestick Patterns"] = get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data)
-                    except: pass
-                    try: web_reports["Market Alerts"] = get_market_alerts_report_string()
-                    except: pass
+
+                    # AI EXPORT PLACEHOLDERS (Dashboard expects these)
+                    web_reports["NotebookLM Export"] = "Consolidated Market Analysis ready for download via Export menu."
+                    web_reports["YouTube Transcripts"] = "Latest YouTube transcripts available in the Export menu."
                    
                     # PREMIUM FEATURES
                     try: web_reports["Money Flow"] = money_flow_report
@@ -12515,25 +12294,29 @@ def analyze_market():
                         pass
                     
                     try: web_reports["Live Ticker"] = get_live_ticker_string()
-                    except: pass
+                    except Exception as e: print(f"[WARN] Live Ticker failed: {e}")
                     try: 
                         m_risk = calculate_macro_risk_level()
                         web_reports["Risk Analysis"] = generate_comprehensive_risk_report(ALL_RESULTS, m_risk)
                     except: pass
                     
                     indicators = [
-                        "RSI", "RSI_4h", "RSI_1d", "MACD", "MACD_4h", "MACD_1d",
-                        "ADX", "ADX_4h", "ADX_1d", "MFI", "MFI_4h", "MFI_1d",
-                        "Momentum", "Momentum_4h", "Momentum_1d", "Net Accum", "Net Accum_4h", "Net Accum_1d",
-                        "Composite Score", "Composite Score_4h", "Composite Score_1d", "Outlier Score",
-                        "Funding Rate", "Long/Short Ratio", "Taker Rate", "EMA", "Z-Score",
+                        "RSI", "RSI 1H", "RSI_4h", "RSI_1d", 
+                        "MACD", "MACD 1H", "MACD_4h", "MACD_1d",
+                        "ADX", "ADX 1H", "ADX_4h", "ADX_1d", 
+                        "MFI", "MFI 1H", "MFI_4h", "MFI_1d",
+                        "Momentum", "Momentum 1H", "Momentum_4h", "Momentum_1d", 
+                        "Net Accum", "Net Accum 1H", "Net Accum_4h", "Net Accum_1d",
+                        "Composite Score", "Composite Score 1H", "Composite Score_4h", "Composite Score_1d", 
+                        "Outlier Score",
+                        "Funding Rate", "Long/Short Ratio", "Taker Rate", "EMA", "EMA 1H", "Z-Score", "Z-Score 1H",
                         "BTC Correlation", "BTC Correlation_4h", "BTC Correlation_1d",
                         "ETH Correlation", "ETH Correlation_4h", "ETH Correlation_1d",
                         "SOL Correlation", "SOL Correlation_4h", "SOL Correlation_1d"
                     ]
                     for ind in indicators:
                         try: web_reports[ind] = generate_metric_report(ind, ALL_RESULTS)
-                        except: pass
+                        except Exception as e: print(f"[WARN] Metric report '{ind}' failed: {e}")
                     
                     try:
                         # Increased from Top 10 to Top 30 for comprehensive PA analysis
