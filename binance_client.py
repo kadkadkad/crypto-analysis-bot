@@ -159,18 +159,50 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
             if not k_data or isinstance(k_data, Exception): return None
             sub_df = pd.DataFrame(k_data, columns=["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"])
             sub_df = sub_df.apply(pd.to_numeric, errors='coerce').dropna(subset=["close"])
+            
             if len(sub_df) >= 14:
                 ticker_data[f"rsi_{interval_name}"] = safe_get(RSIIndicator(sub_df["close"]).rsi().iloc[-1])
+            
+            # Multi-interval Net Accumulation
+            net_accum = calculate_net_accumulation_detailed(sub_df)
+            ticker_data[f"net_accum_{interval_name}"] = net_accum["net"]
+            ticker_data[f"quote_vol_{interval_name}"] = sub_df["quote_volume"].sum()
+            
             ticker_data[f"df_{interval_name}"] = sub_df.to_dict('records')
             return sub_df
 
         df_4h = process_sub_df(results[3], "4h")
         if df_4h is not None and len(df_4h) >= 2: ticker_data["fourh_close"] = float(df_4h["close"].iloc[-2])
         process_sub_df(results[4], "12h")
-        process_sub_df(results[5], "1d")
+        df_1d = process_sub_df(results[5], "1d")
         if not isinstance(results[6], Exception): ticker_data["df_15m"] = results[6]
 
-        # 3. Stats & OrderBook
+        # 3. Correlation Logic
+        if ref_returns:
+            try:
+                def calc_corr(rets, ref_rets):
+                    if len(rets) < 10 or len(ref_rets) < 10: return 0.0
+                    # Align lengths
+                    min_len = min(len(rets), len(ref_rets))
+                    return float(rets.tail(min_len).corr(ref_rets.tail(min_len)))
+
+                # 1H Correlation
+                coin_1h_ret = df["close"].pct_change().dropna()
+                ticker_data["btc_corr_1h"] = calc_corr(coin_1h_ret, ref_returns.get("btc_1h_ret", pd.Series()))
+                
+                # 4H Correlation
+                if df_4h is not None:
+                    coin_4h_ret = df_4h["close"].pct_change().dropna()
+                    ticker_data["btc_corr_4h"] = calc_corr(coin_4h_ret, ref_returns.get("btc_4h_ret", pd.Series()))
+                
+                # 1D Correlation
+                if df_1d is not None:
+                    coin_1d_ret = df_1d["close"].pct_change().dropna()
+                    ticker_data["btc_corr_1d"] = calc_corr(coin_1d_ret, ref_returns.get("btc_1d_ret", pd.Series()))
+            except Exception as corr_e:
+                print(f"[WARN] Correlation calc failed for {symbol}: {corr_e}")
+
+        # 4. Stats & OrderBook
         ticker_data["funding_rate"] = results[7] if not isinstance(results[7], Exception) else 0.0
         ticker_data["long_short_ratio"] = results[8] if not isinstance(results[8], Exception) else 1.0
         ob = results[9]
