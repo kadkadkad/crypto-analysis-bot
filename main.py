@@ -1837,7 +1837,7 @@ def handle_main_menu_option(option, chat_id):
         elif option == "SOL Correlation":
             if ALL_RESULTS:
                 sorted_results = sorted(ALL_RESULTS,
-                                        key=lambda x: float(str(x.get("SOL Correlation", 0))) if x.get("SOL Correlation") not in ["None", "N/A", "N/A", None] else -1,
+                                        key=lambda x: extract_numeric(x.get("SOL Correlation", 0)) if x.get("SOL Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("SOL Correlation", sorted_results)
                 send_telegram_message_long(report)
@@ -1879,7 +1879,7 @@ def handle_main_menu_option(option, chat_id):
         elif option == "BTC Correlation":
             if ALL_RESULTS:
                 sorted_results = sorted(ALL_RESULTS,
-                                        key=lambda x: float(str(x.get("BTC Correlation", 0))) if x.get("BTC Correlation") not in ["None", "N/A", "N/A", None] else -1,
+                                        key=lambda x: extract_numeric(x.get("BTC Correlation", 0)) if x.get("BTC Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("BTC Correlation", sorted_results)
                 send_telegram_message_long(report)
@@ -1892,7 +1892,7 @@ def handle_main_menu_option(option, chat_id):
                         # Try English key first then Turkish fallback
                         val_tuple = x.get("Monthly Change", x.get("Monthly Change", ("N/A", "N/A")))
                         val = val_tuple[1]
-                        return float(val.strip("%"))
+                        return extract_numeric(val)
                     except: return -9999
                 sorted_results = sorted(ALL_RESULTS, key=get_monthly_change, reverse=True)
                 report = generate_metric_report("Monthly Change", sorted_results)
@@ -1974,7 +1974,7 @@ def handle_main_menu_option(option, chat_id):
         elif option == "ETH Correlation":
             if ALL_RESULTS:
                 sorted_results = sorted(ALL_RESULTS,
-                                        key=lambda x: float(str(x.get("ETH Correlation", 0))) if x.get("ETH Correlation") not in ["None", "N/A", "N/A", None] else -1,
+                                        key=lambda x: extract_numeric(x.get("ETH Correlation", 0)) if x.get("ETH Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("ETH Correlation", sorted_results)
                 send_telegram_message_long(report)
@@ -2166,7 +2166,7 @@ def handle_main_menu_option(option, chat_id):
                     try:
                         val_tuple = x.get("4H Change", x.get("4H Change", ("N/A", "N/A")))
                         val = val_tuple[1]
-                        return float(val.strip("%"))
+                        return extract_numeric(val)
                     except: return -9999
                 sorted_results = sorted(ALL_RESULTS, key=get_4h_change, reverse=True)
                 report = generate_metric_report("4H Change", sorted_results)
@@ -2179,7 +2179,7 @@ def handle_main_menu_option(option, chat_id):
                     try:
                         val_tuple = x.get("Weekly Change", x.get("Weekly Change", ("N/A", "N/A")))
                         val = val_tuple[1]
-                        return float(val.strip("%"))
+                        return extract_numeric(val)
                     except: return -9999
                 sorted_results = sorted(ALL_RESULTS, key=get_weekly_change, reverse=True)
                 report = generate_metric_report("Weekly Change", sorted_results)
@@ -2259,8 +2259,7 @@ def handle_main_menu_option(option, chat_id):
                     try:
                         val = x.get("24h Volume", 0)
                         if isinstance(val, (int, float)): return extract_numeric(val)
-                        num = float(str(val).replace("$", "").replace("M", "").replace(" ", "").replace(",", ""))
-                        return num
+                        return extract_numeric(val)
                     except: return -9999
                 sorted_results = sorted(ALL_RESULTS, key=get_24h_vol, reverse=True)
                 report = generate_metric_report("24h Volume", sorted_results)
@@ -2932,7 +2931,7 @@ def generate_dynamic_cash_flow_report():
             return "⚠️ Ticker data not available, report could not be generated."
     last_ticker_data = ticker_data
 
-    total_volume = sum(float(t.get("quoteVolume", 0)) for t in ticker_data if float(t.get("quoteVolume", 0)) > 0)
+    total_volume = sum(extract_numeric(t.get("quoteVolume", 0)) for t in ticker_data if extract_numeric(t.get("quoteVolume", 0)) > 0)
     if total_volume == 0:
         return "⚠️ No volume data available for any coin."
 
@@ -2950,7 +2949,7 @@ def generate_dynamic_cash_flow_report():
     valid_symbols = set(t["symbol"] for t in ticker_data)
     for t in ticker_data:
         symbol = t["symbol"]
-        volume = float(t.get("quoteVolume", 0))
+        volume = extract_numeric(t.get("quoteVolume", 0))
         if volume <= 0 or symbol not in valid_symbols:
             continue
         kline_15m = sync_fetch_kline_data(symbol, "15m", limit=20)
@@ -3418,8 +3417,8 @@ def calculate_anomaly_score(metric, historical_data, window=20):
 
     try:
         # Sayısal değerleri al
-        recent_value = float(metric)
-        past_values = [float(v) for v in historical_data[-window:] if v is not None]
+        recent_value = extract_numeric(metric)
+        past_values = [extract_numeric(v) for v in historical_data[-window:] if v is not None]
 
         if len(past_values) < 5:
             return 0
@@ -3698,7 +3697,7 @@ def generate_bollinger_squeeze_report():
                 )
 
                 volume_ratio = extract_numeric(coin.get("Volume Ratio", 0))
-                rsi_val = float(str(coin.get("RSI", "0")))
+                rsi_val = extract_numeric(coin.get("RSI", "0"))
                 volume_comment = "Volume support present" if volume_ratio > 1.5 else "Volume is weak"
                 rsi_comment = (
                     "Overbought" if rsi_val > 70 else
@@ -12250,10 +12249,17 @@ async def analyze_market():
                 web_reports = {}
                 try:
                     web_reports["Current Analysis"] = analysis_message
-                    web_reports["Summary"] = get_summary_report_string()
-                    web_reports["Significant Changes"] = get_significant_changes_report_string()
-                    web_reports["Cash Flow Report"] = generate_dynamic_cash_flow_report()
-                    web_reports["Hourly Analysis"] = generate_hourly_report_string()
+                    try: web_reports["Summary"] = get_summary_report_string()
+                    except Exception as e: print(f"[WARN] Summary report failed: {e}")
+                    
+                    try: web_reports["Significant Changes"] = get_significant_changes_report_string()
+                    except Exception as e: print(f"[WARN] Significant Changes report failed: {e}")
+                    
+                    try: web_reports["Cash Flow Report"] = generate_dynamic_cash_flow_report()
+                    except Exception as e: print(f"[WARN] Cash Flow Report failed: {e}")
+                    
+                    try: web_reports["Hourly Analysis"] = generate_hourly_report_string()
+                    except Exception as e: print(f"[WARN] Hourly Analysis report failed: {e}")
                     
                     try:
                         wh_rep = generate_advanced_whale_trend_report()

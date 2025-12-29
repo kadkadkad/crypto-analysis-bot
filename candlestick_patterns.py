@@ -30,7 +30,7 @@ def extract_candlestick_patterns(klines):
 
     # Convert to numeric
     for col in ["open", "high", "low", "close"]:
-        df[col] = pd.to_numeric(df[col])
+        df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # Check last candles
     for i in range(2, min(len(df), 10)):  # Check up to last 10 candles
