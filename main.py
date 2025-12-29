@@ -8842,6 +8842,8 @@ def generate_metric_report(metric, results):
     if metric in ["EMA", "EMA 1H", "EMA Report", "EMA Crossings"]: data_key = "SMA Trend"
     elif lookup_key in ["ADX", "RSI", "MACD", "MFI", "Z-Score", "Momentum", "Composite Score"]: data_key = lookup_key
     elif lookup_key == "Net Accum": data_key = "NetAccum_raw"
+    elif metric in ["Support/Resistance", "S/R", "Levels"]: data_key = "Support_Resistance"
+    elif metric in ["Whale Ranking", "Whale Analysis", "Whale Movement"]: data_key = "Whale Activity"
 
     report = f"📊 <b>{display_name} Analysis Report</b>\n"
     report += f"<i>Total analyzed coins: {len(results)}</i>\n"
@@ -11861,7 +11863,7 @@ def load_prev_stats():
         SENT_ALERTS = {}
 
 
-def analyze_market():
+async def analyze_market():
     """
     Piyasa analizini yapar, verileri günceller ve Telegram'a rapor gönderir.
     """
@@ -11870,6 +11872,9 @@ def analyze_market():
 
     while True:
         try:
+            # Heartbeat Log
+            print(f"\n[HEARTBEAT] Loop #{loop_count + 1} Starting at {get_turkey_time().strftime('%H:%M:%S')}")
+            
             # Her 5 döngüde bir bellek optimizasyonu yap
             loop_count += 1
             if loop_count % 5 == 0:
@@ -11882,15 +11887,13 @@ def analyze_market():
             coins = get_filtered_coins()
             if not coins:
                 print("[ERROR] Could not retrieve coin list, retrying in 30 seconds")
-                time.sleep(30)
+                await asyncio.sleep(30)
                 continue
 
-            print(f"[INFO] {len(coins)} coins will be analyzed")
+            print(f"[INFO] Analyzing {len(coins)} coins...")
             results = []
 
-            # Her coin için işlem yap
-            # Her coin için işlem yap
-            # MEMORY OPTIMIZED BATCH FETCH AND PROCESS
+            # 1. ASYNC PROCESS SINGLE COIN
             async def async_process_single_coin(session, coin_symbol, ref_rets):
                 """Processes a single coin from fetch to indicator calculation to PA analysis."""
                 try:
@@ -11905,7 +11908,11 @@ def analyze_market():
                     df_1d = pd.DataFrame(data.get("df_1d", [])) if data.get("df_1d") else df_all
                     df_4h_data = pd.DataFrame(data.get("df_4h", [])) if data.get("df_4h") else df_all
                     df_15m_raw = data.get("df_15m", [])
-                    df_15m = pd.DataFrame(df_15m_raw) if df_15m_raw else df_all
+                    # FIX: Provide column names for raw kline list
+                    columns = ["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"]
+                    df_15m = pd.DataFrame(df_15m_raw, columns=columns) if df_15m_raw else df_all
+                    for col in ["open", "high", "low", "close", "volume"]:
+                        df_15m[col] = pd.to_numeric(df_15m[col], errors='coerce')
 
                     # 3. Core Calculations
                     price = data["price"]
@@ -11938,6 +11945,26 @@ def analyze_market():
                     vol_climax = detect_volume_climax(df_all)
                     sfp_pattern = detect_sfp(df_all)
 
+                    # 4.5. Bollinger Squeeze Detection
+                    try:
+                        bb = BollingerBands(df_all["close"], window=20, window_dev=2)
+                        bb_h = bb.bollinger_hband()
+                        bb_l = bb.bollinger_lband()
+                        bb_m = bb.bollinger_mavg()
+                        bb_width = (bb_h - bb_l) / bb_m
+                        # Squeeze if current width is 20% below its 100-period average
+                        is_squeeze = bb_width.iloc[-1] < bb_width.rolling(window=100).mean().iloc[-1] * 0.8
+                        bb_squeeze_val = "Squeeze 🔥" if is_squeeze else "Normal"
+                    except:
+                        bb_squeeze_val = "N/A"
+
+                    # 5. Build Result Dictionary
+                     # New fields: Weekly/Monthly/4H Change
+                    def calc_ch_tuple(curr, old):
+                        if old is None or old == 0: return ("N/A", "0.00%")
+                        diff = ((curr - old) / old) * 100
+                        return (format_money(old), f"{diff:+.2f}%")
+
                     # 5. Build Result Dictionary
                     res = {
                         "Coin": data["symbol"],
@@ -11946,6 +11973,9 @@ def analyze_market():
                         "Price_Display": format_money(price),
                         "24h Change": f"{data['price_change_percent']:.2f}%",
                         "24h Change Raw": data['price_change_percent'],
+                        "Weekly Change": calc_ch_tuple(price, data.get("weekly_close")),
+                        "4H Change": calc_ch_tuple(price, data.get("fourh_close")),
+                        "Monthly Change": calc_ch_tuple(price, data.get("monthly_close")),
                         "Composite Score": comp_score,
                         "RSI": data.get('rsi', 50),
                         "RSI_4h": data.get('rsi_4h', 50),
@@ -11958,6 +11988,7 @@ def analyze_market():
                         "EMA20 Cross": ema20_cross,
                         "Support": format_money(sup_val),
                         "Resistance": format_money(res_val),
+                        "Support_Resistance": f"{format_money(sup_val)} - {format_money(res_val)}",
                         "Trap Status": trap_val,
                         "Whale Activity": f"{trades_count} (Avg: ${format_money(avg_vol)})",
                         "WhaleActivity": trades_count,
@@ -11967,6 +11998,7 @@ def analyze_market():
                         "Long/Short Ratio": data.get('long_short_ratio', 1.0),
                         "Antigravity Strategy": antigravity_pa_report,
                         "Liq Heatmap": liq_map,
+                        "BB Squeeze": bb_squeeze_val,
                         "bullish_ob": pa_results.get("bullish_ob", False),
                         "bearish_ob": pa_results.get("bearish_ob", False),
                         "pa_structure": pa_results.get("structure", "Neutral"),
@@ -12060,27 +12092,20 @@ def analyze_market():
                                  
                     return dfs
 
-            # Execute batch fetch with safety timeout
+             # Execute batch fetch with safety timeout
+            print("[INFO] Fetching reference data (BTC, ETH, SOL) async...")
             try:
-                ref_dfs = asyncio.run(asyncio.wait_for(fetch_ref_data_batch(), timeout=45))
+                ref_dfs = await asyncio.wait_for(fetch_ref_data_batch(), timeout=60)
             except Exception as e:
                 print(f"[ERROR] Ref Data Fetch STALLED or Failed: {e}")
                 ref_dfs = {}
             
-            # Debug Log for Reference Data
-            print(f"[DEBUG] Ref Data Keys: {list(ref_dfs.keys())}")
-            for k, v in ref_dfs.items():
-                if v is not None:
-                     print(f"[DEBUG] {k} length: {len(v)}")
-                else:
-                     print(f"[DEBUG] {k} is None")
-
             # Helper to get returns safely
             def get_ret(sym, iv):
                 key = f"{sym}_{iv}"
                 if ref_dfs.get(key) is not None:
                     return ref_dfs[key]["close"].pct_change().dropna()
-                return pd.Series(dtype=float) # Return empty series instead of None
+                return pd.Series(dtype=float)
 
             # Construct ref_returns dictionary
             ref_returns = {
@@ -12097,9 +12122,6 @@ def analyze_market():
                 "eth_12h_ret": get_ret("ETHUSDT", "12h"),
                 "sol_12h_ret": get_ret("SOLUSDT", "12h"),
             }
-            
-            # Debug log to confirm ref data
-            print(f"[DEBUG] Ref Data Loaded: BTC_4H={len(ref_returns['btc_4h_ret'])}, ETH_4H={len(ref_returns['eth_4h_ret'])}")
 
             async def fetch_and_process_batch(coin_list, ref_rets):
                 sem = asyncio.Semaphore(5)
@@ -12114,10 +12136,12 @@ def analyze_market():
 
             # Optimized batch analysis with safety timeout
             try:
-                results = asyncio.run(asyncio.wait_for(fetch_and_process_batch(coins, ref_returns), timeout=300))
+                print(f"[INFO] Processing batch for {len(coins)} coins...")
+                results = await asyncio.wait_for(fetch_and_process_batch(coins, ref_returns), timeout=480)
+                print(f"[HEARTBEAT] Batch processed. Received {len(results)} valid results.")
             except Exception as e:
                 print(f"[ERROR] Batch Processing STALLED or Failed: {e}")
-                results = ALL_RESULTS # Fallback to previous data instead of crashing
+                results = ALL_RESULTS  # Fallback
 
 
             # Base returns already pre-calculated above as ref_returns
@@ -12371,10 +12395,8 @@ def analyze_market():
         time.sleep(SLEEP_INTERVAL)
 
 
-# Modül düzeyinde değişkenleri tanımla (tüm fonksiyonların dışında)
-ALL_RESULTS = []
-PREV_STATS = {}
-# Diğer global değişkenler...
+
+# Main entry point
 
 if __name__ == "__main__":
     load_prev_stats()  # Tek çağrı
@@ -12388,6 +12410,6 @@ if __name__ == "__main__":
     #     print(f"[ERROR] Failed to send main menu: {e}")
 
     print("[INFO] Starting Market Analysis Engine...")
-    analyze_market() # Run on main thread now since Telegram polling is disabled
+    asyncio.run(analyze_market()) 
 
 

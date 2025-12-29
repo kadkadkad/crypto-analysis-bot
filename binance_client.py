@@ -389,6 +389,7 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
                     ticker_data["comp_score_4h"] = ((ticker_data.get("rsi_4h", 50) or 50) + (ticker_data.get("mfi_4h", 50) or 50) + (50 + (ticker_data.get("mom_4h", 0) or 0))) / 3
                 ticker_data["quote_vol_4h"] = df_4h["quote_volume"].iloc[-1] if not df_4h.empty else 0
                 ticker_data["df_4h"] = df_4h.to_dict('records')
+                ticker_data["fourh_close"] = float(df_4h["close"].iloc[-2]) if len(df_4h) >= 2 else None
         except Exception as e: print(f"[ERROR] 4H calc failed for {symbol}: {e}")
 
         # 12H data
