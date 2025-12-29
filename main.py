@@ -8753,8 +8753,8 @@ def generate_detailed_analysis_message(results):
         coin_report += f"\n<b>🐋 Whale Movement Analysis:</b>\n"
         coin_report += f"💰 Net Accumulation: {format_money(coin.get('NetAccum_raw', 0))} USD\n"
         coin_report += f"🐳 Whale Trades: {format_money(coin.get('Whale_Buy_M', 0))} buy | {format_money(coin.get('Whale_Sell_M', 0))} sell\n"
-        coin_report += f"📊 Volume Ratio: {coin.get('Volume Ratio', 1.0):.2f}x\n"
-        coin_report += f"📉 Price Change: {coin.get('24h Change', 0):.2f}%\n"
+        coin_report += f"📊 Volume Ratio: {fv(coin.get('Volume Ratio'))}x\n"
+        coin_report += f"📉 Price Change: {fv(coin.get('24h Change Raw'))}%\n"
         coin_report += f"Recommendation: {'📈 Buy' if extract_numeric(coin.get('NetAccum_raw', 0)) > 0 else '📉 Sell'}\n"
 
         # 8. Trade Recommendation Section
@@ -12189,9 +12189,13 @@ async def analyze_market():
                 macro_data = fetch_macro_economic_data()
 
                 # Güncel verilere göre analiz mesajı oluştur
-                analysis_message, coin_details, _ = generate_detailed_analysis_message(ALL_RESULTS)
-                with global_lock:
-                    COIN_DETAILS = coin_details
+                try:
+                    analysis_message, coin_details, _ = generate_detailed_analysis_message(ALL_RESULTS)
+                    with global_lock:
+                        COIN_DETAILS = coin_details
+                except Exception as e:
+                    print(f"[ERROR] Detailed analysis message generation failed: {e}")
+                    # analysis_message, coin_details = "", {} # Fallback
 
                 # Mark data as fresh and process alerts BEFORE generating web reports
                 handle_market_alerts(ALL_RESULTS)
@@ -12336,7 +12340,8 @@ async def analyze_market():
                         "Funding Rate", "Long/Short Ratio", "Taker Rate", "EMA", "EMA 1H", "Z-Score", "Z-Score 1H",
                         "BTC Correlation", "BTC Correlation_4h", "BTC Correlation_1d",
                         "ETH Correlation", "ETH Correlation_4h", "ETH Correlation_1d",
-                        "SOL Correlation", "SOL Correlation_4h", "SOL Correlation_1d"
+                        "SOL Correlation", "SOL Correlation_4h", "SOL Correlation_1d",
+                        "BB Squeeze"
                     ]
                     for ind in indicators:
                         try: web_reports[ind] = generate_metric_report(ind, ALL_RESULTS)
