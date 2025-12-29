@@ -11992,6 +11992,8 @@ async def analyze_market():
                         "Trap Status": trap_val,
                         "Whale Activity": f"{trades_count} (Avg: ${format_money(avg_vol)})",
                         "WhaleActivity": trades_count,
+                        "Whale_Buy_M": data.get('buy', 0),
+                        "Whale_Sell_M": data.get('sell', 0),
                         "NetAccum_raw": data.get('net_accumulation', 0),
                         "Taker Rate": data.get("taker_buy_quote", 0) / data.get("quote_volume", 1) if data.get("quote_volume", 1) > 0 else 0,
                         "Funding Rate": f"{data.get('funding_rate', 0) * 100:.4f}%",
@@ -12125,9 +12127,17 @@ async def analyze_market():
 
             async def fetch_and_process_batch(coin_list, ref_rets):
                 sem = asyncio.Semaphore(5)
+                processed_count = 0
+                total = len(coin_list)
+                
                 async def tasked_process(session, c):
+                    nonlocal processed_count
                     async with sem:
-                        return await async_process_single_coin(session, c, ref_rets)
+                        res = await async_process_single_coin(session, c, ref_rets)
+                        processed_count += 1
+                        if processed_count % 5 == 0 or processed_count == total:
+                            print(f"[INFO] Analysis Progress: {processed_count}/{total} coins processed...")
+                        return res
                 
                 async with aiohttp.ClientSession() as session:
                     tasks = [tasked_process(session, c) for c in coin_list]
@@ -12245,18 +12255,6 @@ async def analyze_market():
                     web_reports["Cash Flow Report"] = generate_dynamic_cash_flow_report()
                     web_reports["Hourly Analysis"] = generate_hourly_report_string()
                     
-                    try: web_reports["Whale Movement"] = get_whale_movement_report_string()
-                    except Exception as e: print(f"[WARN] Whale Movement report failed: {e}")
-                    try: web_reports["Smart Money"] = get_smart_money_report_string()
-                    except Exception as e: print(f"[WARN] Smart Money report failed: {e}")
-                    try: web_reports["Whale Strategies"] = get_whale_strategies_report_string()
-                    except Exception as e: print(f"[WARN] Whale Strategies report failed: {e}")
-                    try: web_reports["Manipulation Detector"] = generate_enhanced_manipulation_report()
-                    except Exception as e: print(f"[WARN] Manipulation Detector report failed: {e}")
-                    try: web_reports["Whale Ranking"] = generate_whale_ranking_report()
-                    except Exception as e: print(f"[WARN] Whale Ranking report failed: {e}")
-                    try: web_reports["Smart Score"] = generate_smart_score_report()
-                    except Exception as e: print(f"[WARN] Smart Score report failed: {e}")
                     try:
                         wh_rep = generate_advanced_whale_trend_report()
                         web_reports["MM Analysis"] = wh_rep
