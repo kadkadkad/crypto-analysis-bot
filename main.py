@@ -12957,7 +12957,7 @@ async def analyze_market():
                     last_hourly_report_time = get_turkey_time()
 
                 # Update BASELINE_RANKS every hour (3600 seconds)
-                global last_baseline_update
+                global last_baseline_update, BASELINE_RANKS
                 now_ts = get_turkey_time().timestamp()
                 if not BASELINE_RANKS or (now_ts - last_baseline_update) >= 3600:
                     BASELINE_RANKS = {coin["Coin"]: i + 1 for i, coin in enumerate(ALL_RESULTS)}
