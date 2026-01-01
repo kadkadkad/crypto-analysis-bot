@@ -12693,8 +12693,12 @@ async def analyze_market():
                     
                     web_reports["Current Analysis"] = analysis_message
                     
-                    try: web_reports["Summary"] = get_summary_report_string()
-                    except Exception as e: print(f"[WARN] Summary report failed: {e}")
+                    try:
+                        web_reports["Summary"] = get_summary_report_string()
+                    except Exception as e:
+                        import traceback
+                        print(f"[WARN] Summary report failed: {e}")
+                        traceback.print_exc()
                     
                     try: web_reports["Significant Changes"] = get_significant_changes_report_string()
                     except Exception as e: print(f"[WARN] Significant Changes report failed: {e}")
