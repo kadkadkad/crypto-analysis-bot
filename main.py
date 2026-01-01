@@ -3756,7 +3756,7 @@ def generate_whale_ranking_report():
         symbol = "$" + coin['Coin'].replace("USDT", "")
         report += f"{symbol}:\n"
         report += f"   • Trade Count: {format_money(item['activity'])} trades\n"
-        report += f"   • Net Accumulation: {coin['Net Accum']}\n\n"
+        report += f"   • Net Accumulation: {coin.get('Net Accum', 'N/A')}\n\n"
 
     # Rank by Net Accumulation
     sorted_by_net = sorted(valid_data, key=lambda x: x["net_accum_raw"], reverse=True)
@@ -3766,7 +3766,7 @@ def generate_whale_ranking_report():
     for item in sorted_by_net:
         coin = item["coin"]
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"{symbol}: {coin['Net Accum']}\n"
+        report += f"{symbol}: {coin.get('Net Accum', 'N/A')}\n"
         report += f"   • Volume Ratio: {coin.get('Volume Ratio', '0')}x\n"
         report += f"   • Price: {coin['Price_Display']}\n\n"
 
@@ -5469,7 +5469,7 @@ def generate_coin_full_report(symbol):
 
     # Whale Data
     report += "<b>Whale Analysis:</b>\n"
-    report += f"   • Net Accumulation: {coin_data['Net Accum']}\n"
+    report += f"   • Net Accumulation: {coin_data.get('Net Accum', 'N/A')}\n"
     report += f"   • Whale Activity: {coin_data['Whale Activity']}\n"
     report += f"   • Whale Buy (M$): {coin_data['Whale_Buy_M']}\n"
     report += f"   • Whale Sell (M$): {coin_data['Whale_Sell_M']}\n\n"
@@ -9732,7 +9732,7 @@ def handle_one_cikanlar():
                                reverse=True)[:5]
         report += "<b>En high Net Accum:</b>\n"
         for coin in top_net_accum:
-            report += f"   • {coin['Coin']}: {coin['Net Accum']}\n"
+            report += f"   • {coin['Coin']}: {coin.get('Net Accum', 'N/A')}\n"
         report += "\n<b>En high Composite Skor:</b>\n"
         for coin in top_composite:
             report += f"   • {coin['Coin']}: {coin['CompositeScore']}\n"
@@ -9768,7 +9768,7 @@ def handle_net_buy_sell_status():
                 roc = extract_numeric(coin["24h Change"])
                 comment = "Opportunity!" if coin["NetAccum_raw"] > 0 and roc > 0 else "Caution!" if coin[
                                                                                                   "NetAccum_raw"] < 0 else "Watch"
-                report += f"{symbol}: {coin['Net Accum']} (ROC: {coin['24h Change']}, Vol: {coin['Volume Ratio']}x) - {comment}\n"
+                report += f"{symbol}: {coin.get('Net Accum', 'N/A')} (ROC: {coin.get('24h Change', 'N/A')}, Vol: {coin.get('Volume Ratio', 'N/A')}x) - {comment}\n"
                 total_shown += 1
             report += "\n"
 
@@ -9777,7 +9777,7 @@ def handle_net_buy_sell_status():
             report += "<b>Other Coins:</b>\n"
             for coin in others[:50 - total_shown]:
                 symbol = "$" + coin["Coin"].replace("USDT", "")
-                report += f"{symbol}: {coin['Net Accum']} ({get_netaccum_comment(coin['NetAccum_raw'])})\n"
+                report += f"{symbol}: {coin.get('Net Accum', 'N/A')} ({get_netaccum_comment(coin.get('NetAccum_raw', 0))})\n"
 
         # Market summary
         total_net_accum = sum(coin["NetAccum_raw"] for coin in sorted_results)
@@ -10850,7 +10850,7 @@ def get_summary_report_string():
     report += "\n<b>Top Net Accumulation:</b>\n"
     for coin in top_accum:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin['Net Accum']} (ROC: {coin.get('24h Change', 'N/A')})\n"
+        report += f"• {symbol}: {coin.get('Net Accum', 'N/A')} (ROC: {coin.get('24h Change', 'N/A')})\n"
 
     # RSI based opportunities
     oversold = [coin for coin in ALL_RESULTS if extract_numeric(coin["RSI"]) < 30]
