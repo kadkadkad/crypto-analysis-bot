@@ -6,6 +6,7 @@ from ta.trend import MACD, ADXIndicator, EMAIndicator
 from ta.momentum import RSIIndicator, StochRSIIndicator
 from ta.volume import MFIIndicator
 from ta.volatility import AverageTrueRange, BollingerBands
+import numpy as np
 
 async def fetch_klines_bybit_async(session, symbol, interval, limit=100):
     bybit_interval_map = {"1h": "60", "4h": "240", "12h": "720", "1d": "D", "1w": "W", "1M": "M"}
@@ -54,6 +55,34 @@ async def fetch_long_short_ratio_async(session, symbol):
                     return float(data[0].get("longShortRatio", 1.0))
     except: pass
     return 1.0
+
+async def fetch_open_interest_async(session, symbol):
+    """Fetches current and historical Open Interest (to calculate change)"""
+    url = f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}"
+    hist_url = f"https://fapi.binance.com/futures/data/openInterestHist?symbol={symbol}&period=1h&limit=2"
+    try:
+        async with session.get(url, timeout=5) as resp:
+            current_oi = 0.0
+            if resp.status == 200:
+                data = await resp.json()
+                current_oi = float(data.get("openInterest", 0))
+        
+        async with session.get(hist_url, timeout=5) as resp:
+            oi_change_pct = 0.0
+            if resp.status == 200:
+                data = await resp.json()
+                if len(data) >= 2:
+                    old_oi = float(data[-2].get("sumOpenInterest", 0))
+                    new_oi = float(data[-1].get("sumOpenInterest", 0))
+                    if old_oi > 0:
+                        oi_change_pct = ((new_oi - old_oi) / old_oi) * 100
+            elif current_oi > 0:
+                # Basic fallback if hist fails
+                oi_change_pct = 0.0
+                
+            return {"current": current_oi, "change_pct": oi_change_pct}
+    except: pass
+    return {"current": 0.0, "change_pct": 0.0}
 
 async def fetch_order_book_async(session, symbol, limit=100):
     url = f"{config.BINANCE_API_URL}depth?symbol={symbol}&limit={limit}"
@@ -107,7 +136,8 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
             fetch_kline_with_fallback(session, symbol, "15m", 100),
             fetch_funding_rate_async(session, symbol),
             fetch_long_short_ratio_async(session, symbol),
-            fetch_order_book_async(session, symbol)
+            fetch_order_book_async(session, symbol),
+            fetch_open_interest_async(session, symbol)
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -135,7 +165,32 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         ticker_data["macd"] = safe_get(MACD(df["close"]).macd().iloc[-1])
         ticker_data["adx"] = safe_get(calculate_adx(df))
         ticker_data["momentum"] = (ticker_data["rsi"] * 0.3) + (ticker_data["macd"] * 100) + (ticker_data["adx"] * 0.2)
-        ticker_data.update(calculate_net_accumulation_detailed(df))
+        
+        # Z-Score 1H
+        sma20 = df["close"].rolling(window=20).mean().iloc[-1]
+        std20 = df["close"].rolling(window=20).std().iloc[-1]
+        ticker_data["z_score"] = (ticker_data["price"] - sma20) / std20 if std20 > 0 else 0.0
+        
+        # Net Accumulation Key Fix
+        net_stats = calculate_net_accumulation_detailed(df)
+        ticker_data.update(net_stats)
+        ticker_data["net_accumulation"] = net_stats["net"]
+
+        # Volume Ratio Logic (Current 24h / Avg 24h)
+        try:
+            if len(df) >= 48:
+                # Rolling 24h volume sum
+                rolling_24h = df["quote_volume"].rolling(window=24).sum()
+                avg_24h_vol = rolling_24h.mean()
+                if avg_24h_vol > 0:
+                    ticker_data["volume_ratio"] = round(ticker_data["quote_volume"] / avg_24h_vol, 2)
+                else:
+                    ticker_data["volume_ratio"] = 1.0
+            else:
+                 ticker_data["volume_ratio"] = 1.0
+        except: 
+            ticker_data["volume_ratio"] = 1.0
+
         ticker_data["df"] = df.to_dict('records')
         ticker_data["atr"] = AverageTrueRange(high=df["high"], low=df["low"], close=df["close"]).average_true_range().iloc[-1]
         ticker_data["mfi"] = MFIIndicator(high=df["high"], low=df["low"], close=df["close"], volume=df["volume"]).money_flow_index().iloc[-1]
@@ -158,11 +213,32 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         def process_sub_df(k_data, interval_name):
             if not k_data or isinstance(k_data, Exception): return None
             sub_df = pd.DataFrame(k_data, columns=["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"])
-            sub_df = sub_df.apply(pd.to_numeric, errors='coerce').dropna(subset=["close"])
+            sub_df = sub_df.apply(pd.to_numeric, errors='coerce')
+            
+            # FIX: Set datetime index for correlation alignment
+            sub_df["close_time"] = pd.to_datetime(sub_df["close_time"], unit='ms')
+            sub_df.set_index("close_time", inplace=True)
+            sub_df.dropna(subset=["close"], inplace=True)
             
             if len(sub_df) >= 14:
                 ticker_data[f"rsi_{interval_name}"] = safe_get(RSIIndicator(sub_df["close"]).rsi().iloc[-1])
+                ticker_data[f"adx_{interval_name}"] = safe_get(ADXIndicator(sub_df["high"], sub_df["low"], sub_df["close"], window=14).adx().iloc[-1])
+                try:
+                    ticker_data[f"mfi_{interval_name}"] = safe_get(MFIIndicator(sub_df["high"], sub_df["low"], sub_df["close"], sub_df["volume"], window=14).money_flow_index().iloc[-1])
+                except: 
+                    ticker_data[f"mfi_{interval_name}"] = 0.0
+
+            if len(sub_df) >= 26:
+                ticker_data[f"macd_{interval_name}"] = safe_get(MACD(sub_df["close"]).macd().iloc[-1])
             
+            # Z-Score for interval
+            if len(sub_df) >= 20:
+                sma = sub_df["close"].rolling(window=20).mean().iloc[-1]
+                std = sub_df["close"].rolling(window=20).std().iloc[-1]
+                ticker_data[f"z_score_{interval_name}"] = (sub_df["close"].iloc[-1] - sma) / std if std > 0 else 0.0
+            else:
+                ticker_data[f"z_score_{interval_name}"] = 0.0
+                
             # Multi-interval Net Accumulation
             net_accum = calculate_net_accumulation_detailed(sub_df)
             ticker_data[f"net_accum_{interval_name}"] = net_accum["net"]
@@ -180,31 +256,46 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         # 3. Correlation Logic
         if ref_returns:
             try:
-                def calc_corr(rets, ref_rets):
-                    if len(rets) < 10 or len(ref_rets) < 10: return 0.0
-                    # Align lengths
-                    min_len = min(len(rets), len(ref_rets))
-                    return float(rets.tail(min_len).corr(ref_rets.tail(min_len)))
+                def calc_corr(series_a, series_b):
+                    if len(series_a) < 10 or len(series_b) < 10: return 0.0
+                    try:
+                        # Since both have datetime index, corr() auto-aligns them
+                        res = series_a.corr(series_b)
+                        if pd.isna(res): return 0.0
+                        return float(res)
+                    except: return 0.0
 
                 # 1H Correlation
                 coin_1h_ret = df["close"].pct_change().dropna()
                 ticker_data["btc_corr_1h"] = calc_corr(coin_1h_ret, ref_returns.get("btc_1h_ret", pd.Series()))
+                ticker_data["eth_corr_1h"] = calc_corr(coin_1h_ret, ref_returns.get("eth_1h_ret", pd.Series()))
+                ticker_data["sol_corr_1h"] = calc_corr(coin_1h_ret, ref_returns.get("sol_1h_ret", pd.Series()))
                 
                 # 4H Correlation
                 if df_4h is not None:
                     coin_4h_ret = df_4h["close"].pct_change().dropna()
                     ticker_data["btc_corr_4h"] = calc_corr(coin_4h_ret, ref_returns.get("btc_4h_ret", pd.Series()))
+                    ticker_data["eth_corr_4h"] = calc_corr(coin_4h_ret, ref_returns.get("eth_4h_ret", pd.Series()))
+                    ticker_data["sol_corr_4h"] = calc_corr(coin_4h_ret, ref_returns.get("sol_4h_ret", pd.Series()))
                 
                 # 1D Correlation
                 if df_1d is not None:
                     coin_1d_ret = df_1d["close"].pct_change().dropna()
                     ticker_data["btc_corr_1d"] = calc_corr(coin_1d_ret, ref_returns.get("btc_1d_ret", pd.Series()))
+                    ticker_data["eth_corr_1d"] = calc_corr(coin_1d_ret, ref_returns.get("eth_1d_ret", pd.Series()))
+                    ticker_data["sol_corr_1d"] = calc_corr(coin_1d_ret, ref_returns.get("sol_1d_ret", pd.Series()))
             except Exception as corr_e:
                 print(f"[WARN] Correlation calc failed for {symbol}: {corr_e}")
 
         # 4. Stats & OrderBook
         ticker_data["funding_rate"] = results[7] if not isinstance(results[7], Exception) else 0.0
         ticker_data["long_short_ratio"] = results[8] if not isinstance(results[8], Exception) else 1.0
+        
+        # Open Interest Data
+        oi_data = results[10] if not isinstance(results[10], Exception) else {"current": 0, "change_pct": 0}
+        ticker_data["open_interest"] = oi_data.get("current", 0)
+        ticker_data["oi_change_pct"] = oi_data.get("change_pct", 0)
+
         ob = results[9]
         if not isinstance(ob, Exception) and ob:
             ticker_data["bids"], ticker_data["asks"] = ob

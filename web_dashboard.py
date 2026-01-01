@@ -89,7 +89,7 @@ def get_data():
     return jsonify(results)
 
 # 📈 API: Rapor çekme (rate limited)
-@app.route('/api/report/<report_type>')
+@app.route('/api/report/<path:report_type>')
 @limiter.limit("20 per minute")
 @auth.login_required
 def get_report(report_type):
@@ -115,9 +115,9 @@ def get_report(report_type):
                 "MM Analysis": "MM Analysis",
                 "Manipulation Detector": "Manipulation Detector",
                 "Taker Rate": "Taker Rate",
-                "RSI 1H": "RSI", "RSI 4H": "RSI_4h", "RSI 1D": "RSI_1d",
-                "MACD 1H": "MACD", "MACD 4H": "MACD_4h", "MACD 1D": "MACD_1d",
-                "ADX 1H": "ADX", "ADX 4H": "ADX_4h", "ADX 1D": "ADX_1d",
+                "RSI 1H": "RSI", "RSI 4H": "RSI 4h", "RSI 1D": "RSI 1d",
+                "MACD 1H": "MACD", "MACD 4H": "MACD 4h", "MACD 1D": "MACD 1d",
+                "ADX 1H": "ADX", "ADX 4H": "ADX 4h", "ADX 1D": "ADX 1d",
                 "EMA Report": "EMA",
                 "EMA Crossings": "EMA Crossings",
                 "MFI": "MFI",
@@ -130,12 +130,12 @@ def get_report(report_type):
                 "BTC Correlation": "BTC Correlation",
                 "ETH Correlation": "ETH Correlation",
                 "SOL Correlation": "SOL Correlation",
-                "BTC Correlation 4H": "BTC Correlation_4h",
-                "BTC Correlation 1D": "BTC Correlation_1d",
-                "ETH Correlation 4H": "ETH Correlation_4h",
-                "ETH Correlation 1D": "ETH Correlation_1d",
-                "SOL Correlation 4H": "SOL Correlation_4h",
-                "SOL Correlation 1D": "SOL Correlation_1d",
+                "BTC Correlation 4H": "BTC Correlation 4h",
+                "BTC Correlation 1D": "BTC Correlation 1d",
+                "ETH Correlation 4H": "ETH Correlation 4h",
+                "ETH Correlation 1D": "ETH Correlation 1d",
+                "SOL Correlation 4H": "SOL Correlation 4h",
+                "SOL Correlation 1D": "SOL Correlation 1d",
                 "Order Block": "Order Block",
                 "Liq Heat Map": "Liq Heatmap Summary",
                 "Candle Patterns": "Candlestick Patterns",
@@ -143,7 +143,19 @@ def get_report(report_type):
                 "Market Regime": "Market Regime",
                 "Signal Performance": "Signal Performance",
                 "Antigravity PA": "Antigravity Strategy",
-                "Smart Money Indicators": "Smart Money Indicators"
+                "Smart Money Indicators": "Smart Money Indicators",
+                "Arbitrage Report": "Arbitrage Report",
+                "OI Change": "OI Change",
+                "Open Interest": "Open Interest",
+                "Global Analysis": "Global Analysis",
+                "15m Change": "15m Change",
+                "1H Change": "1H Change",
+                "4H Change": "4H Change",
+                "Weekly Change": "Weekly Change",
+                "Monthly Change": "Monthly Change",
+                "24h Volume": "24h Volume",
+                "S/R Levels": "Support/Resistance",
+                "Support/Resistance": "Support/Resistance"
             }
             
             key = mapping.get(report_type, report_type)
@@ -161,14 +173,19 @@ def get_report(report_type):
 @app.route('/api/alerts/status')
 @limiter.limit("60 per minute")
 def get_alerts_status():
-    """Public endpoint for checking updates"""
+    """Public endpoint for checking updates based on actual signal time"""
     try:
         if os.path.exists(REPORTS_FILE):
-            mtime = os.path.getmtime(REPORTS_FILE)
-            return jsonify({"last_update": mtime})
+            with open(REPORTS_FILE, "r") as f:
+                data = json.load(f)
+                latest = data.get("Latest Signal Time", 0)
+                if latest:
+                    return jsonify({"last_update": latest})
+            # Fallback to mtime only if JSON is empty or missing key
+            return jsonify({"last_update": os.path.getmtime(REPORTS_FILE)})
         return jsonify({"last_update": 0})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"last_update": 0})
 
 # 📥 API: Export (şifre korumalı, rate limited)
 @app.route('/api/export/<export_type>')
@@ -202,6 +219,29 @@ def export_data(export_type):
             with open(file_path, "w") as f:
                 f.write(content)
             
+            return send_file(file_path, as_attachment=True)
+
+        elif export_type == "YouTube Alpha":
+            import youtube_analyzer
+            
+            # Use data from main report file for context if available
+            market_summary = "General Crypto Market Context"
+            if os.path.exists(RESULTS_FILE):
+                try:
+                    with open(RESULTS_FILE, "r") as f:
+                        data = json.load(f)
+                        # Create a mini summary of top 5 coins
+                        top_coins = sorted(data, key=lambda x: str(x.get("Composite Score", 0)), reverse=True)[:5]
+                        market_summary = "\\n".join([f"{c.get('Coin')}: {c.get('Price_Display')} (Score: {c.get('Composite Score')})" for c in top_coins])
+                except: pass
+
+            report_content = youtube_analyzer.analyze_youtube_alpha(market_summary)
+            
+            filename = f"YouTube_Alpha_Analysis_{int(time.time())}.md"
+            file_path = f"/tmp/{filename}"
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(report_content)
+                
             return send_file(file_path, as_attachment=True)
 
         elif export_type == "YouTube Transcripts":

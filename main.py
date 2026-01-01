@@ -41,6 +41,7 @@ import binance_client
 import market_analyzer
 import telegram_bot
 import youtube_analyzer
+import exchange_aggregator # [NEW] Global Data
 from candlestick_patterns import (
     handle_candlestick_patterns_report,
     handle_candlestick_pattern_menu,
@@ -81,6 +82,9 @@ PREV_HOURLY_REPORTS = config.PREV_HOURLY_REPORTS
 MONEY_FLOW_ANALYZER = MoneyFlowAnalyzer()
 MARKET_REGIME_DETECTOR = MarketRegimeDetector()
 SIGNAL_TRACKER = SignalWinRateTracker()
+SENT_ALERTS = {}
+LAST_SIGNAL_TIME = 0  # Global tracker for web dashboard
+COIN_DETAILS = {}
 PREV_ALL_RESULTS = []  # For flow analysis
 
 # Load previous results for Money Flow Persistence
@@ -1138,6 +1142,7 @@ def create_strategy_submenu_keyboard():
         ("🛸 Master Antigravity", "Antigravity Strategy"),
         ("🎯 Candidate Signals", "Significant Changes"),
         ("💹 Smart Money Flow", "Smart Money"),
+        ("🧱 Order Block", "Order Block"),
         ("↩️ Main Menu", "Main Menu")
     ]
     keyboard = []
@@ -1162,6 +1167,8 @@ def create_overview_submenu_keyboard():
         ("🕯️ Candle Patterns", "Candle Patterns"),
         ("📐 S/R Levels", "Support/Resistance"),
         ("📏 Bollinger Bands", "Bollinger Bands"),
+        ("📊 Arbitrage Report", "Arbitrage Report"),
+        ("📏 Outlier Score", "Outlier Score"),
         ("↩️ Main Menu", "Main Menu")
     ]
     keyboard = []
@@ -1206,6 +1213,7 @@ def create_futures_submenu_keyboard():
         ("🌊 Volatility Ranking", "Volatility Ranking"),
         ("🔒 Trust Index", "Trust Index"),
         ("🛡️ Risk Analysis", "Risk Analysis"),
+        ("🌐 Global Analysis", "Global Analysis"),
         ("↩️ Main Menu", "Main Menu")
     ]
     keyboard = []
@@ -1422,6 +1430,9 @@ def create_complete_command_mapping():
         "🔒 Trust Index": "Trust Index",
         "Trust Index": "Trust Index",
         "🔒 Trust Index Report": "Trust Index",
+        "🌐 Global Analysis": "Global Analysis",
+        "📊 Arbitrage Report": "Arbitrage Report",
+        "🧱 Order Block": "Order Block",
         
         "BTC Tüm Veriler": "BTC Tüm Veriler",
         
@@ -1804,6 +1815,95 @@ def handle_reply_message(message):
                               keyboard=main_keyboard)
 
 
+# ---------------- MISSING HANDLERS ----------------
+
+def handle_order_block(chat_id=None):
+    """Generates Order Block Report and saves to reports dict."""
+    try:
+        report = "🧱 **ORDER BLOCK DETECTOR**\n"
+        report += "--------------------------------\n"
+        
+        found = False
+        if ALL_RESULTS:
+            for coin in ALL_RESULTS:
+                symbol = coin.get("DisplaySymbol", coin.get("Coin"))
+                bull = coin.get("bullish_ob", False)
+                bear = coin.get("bearish_ob", False)
+                
+                if bull:
+                    report += f"🟢 {symbol}: **Bullish OB** Detected\n"
+                    found = True
+                if bear:
+                    report += f"🔴 {symbol}: **Bearish OB** Detected\n"
+                    found = True
+                
+        if not found:
+            report += "No significant order blocks detected in current timeframe.\n"
+            
+        report += "\n--------------------------------\n"
+        
+        # SAVE TO GLOBAL REPORTS
+        reports["Order Block"] = report
+        
+        if chat_id:
+            send_telegram_message(chat_id, report)
+        else:
+            send_telegram_message_long(report)
+            
+    except Exception as e:
+        print(f"[ERROR] Order Block handler failed: {e}")
+        send_telegram_message_long(f"⚠️ Error: {str(e)}")
+
+def handle_candlestick_patterns(chat_id=None):
+    """Wrapper for candlestick pattern report."""
+    try:
+        report = "⚠️ Candlestick Pattern module not fully loaded."
+        
+        # If the external function exists, use it to get string
+        if 'get_candlestick_patterns_report_string' in globals():
+            report = get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data)
+        elif 'extract_candlestick_patterns' in globals() and ALL_RESULTS:
+             # Fallback manual generation
+             report = "🕯️ **CANDLESTICK PATTERNS**\n\n"
+             for coin in ALL_RESULTS[:30]: # Limit to top 30
+                 pat = coin.get("latest_pattern", "")
+                 if pat: report += f"{coin.get('DisplaySymbol')}: {pat}\n"
+        
+        reports["Candlestick Patterns"] = report
+        
+        if chat_id:
+             send_telegram_message(chat_id, report)
+        else:
+             send_telegram_message_long(report)
+        
+    except Exception as e:
+        print(f"[ERROR] Candlestick handler failed: {e}")
+        send_telegram_message_long(f"⚠️ Error: {str(e)}")
+
+def check_bollinger_squeeze():
+    """Generates Bollinger Squeeze Report."""
+    try:
+        if not ALL_RESULTS: return "⚠️ No data."
+        
+        report = "🌭 **BOLLINGER SQUEEZE ALERT**\n"
+        report += "Coins preparing for explosive move:\n"
+        report += "--------------------------------\n"
+        
+        squeeze_coins = [c for c in ALL_RESULTS if "Squeeze" in str(c.get("BB Squeeze", ""))]
+        
+        if not squeeze_coins:
+            report += "No active squeezes detected.\n"
+        
+        for coin in squeeze_coins:
+             symbol = coin.get("DisplaySymbol", coin.get("Coin"))
+             report += f"🔥 {symbol}\n"
+             
+        return report
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# ---------------- END MISSING HANDLERS ----------------
+
 def handle_main_menu_option(option, chat_id):
     """
     Ana menüden seçilen seçenekleri işleyen yardımcı fonksiyon.
@@ -1817,6 +1917,7 @@ def handle_main_menu_option(option, chat_id):
             handle_antigravity_report(chat_id)
         elif option == "Manipulation Detector":
             handle_enhanced_manipulation_report()
+            # Note: handle_enhanced_manipulation_report now updates reports dict internally
         elif option == "Whale Strategies":
             handle_whale_strategies()
         elif option == "MM Analysis":
@@ -1840,21 +1941,101 @@ def handle_main_menu_option(option, chat_id):
                                         key=lambda x: extract_numeric(x.get("SOL Correlation", 0)) if x.get("SOL Correlation") not in ["None", "N/A", "N/A", None] else -1,
                                         reverse=True)
                 report = generate_metric_report("SOL Correlation", sorted_results)
+                reports["SOL Correlation"] = report
                 send_telegram_message_long(report)
             else:
                 send_telegram_message_long("⚠️ No analysis data available yet.")
-        elif option == "SOL Corr 4H":
+        elif option == "SOL Correlation 4H":
             if ALL_RESULTS:
                 report = generate_metric_report("SOL Correlation_4h", ALL_RESULTS)
+                reports["SOL Correlation_4h"] = report
                 send_telegram_message_long(report)
             else:
                 send_telegram_message_long("⚠️ No analysis data available yet.")
-        elif option == "SOL Corr 1D":
+        elif option == "SOL Correlation 1D":
             if ALL_RESULTS:
                 report = generate_metric_report("SOL Correlation_1d", ALL_RESULTS)
+                reports["SOL Correlation_1d"] = report
                 send_telegram_message_long(report)
             else:
                 send_telegram_message_long("⚠️ No analysis data available yet.")
+        
+        # --- BTC CORRELATION HANDLERS ---
+        elif option == "BTC Correlation":
+            if ALL_RESULTS:
+                report = generate_metric_report("BTC Correlation", ALL_RESULTS)
+                reports["BTC Correlation"] = report
+                send_telegram_message_long(report)
+        elif option == "BTC Correlation 4H":
+            if ALL_RESULTS:
+                report = generate_metric_report("BTC Correlation_4h", ALL_RESULTS)
+                reports["BTC Correlation_4h"] = report
+                send_telegram_message_long(report)
+        elif option == "BTC Correlation 1D":
+            if ALL_RESULTS:
+                report = generate_metric_report("BTC Correlation_1d", ALL_RESULTS)
+                reports["BTC Correlation_1d"] = report
+                send_telegram_message_long(report)
+
+        # --- ETH CORRELATION HANDLERS ---
+        elif option == "ETH Correlation":
+            if ALL_RESULTS:
+                report = generate_metric_report("ETH Correlation", ALL_RESULTS)
+                reports["ETH Correlation"] = report
+                send_telegram_message_long(report)
+        elif option == "ETH Correlation 4H":
+            if ALL_RESULTS:
+                report = generate_metric_report("ETH Correlation_4h", ALL_RESULTS)
+                reports["ETH Correlation_4h"] = report
+                send_telegram_message_long(report)
+        elif option == "ETH Correlation 1D":
+            if ALL_RESULTS:
+                report = generate_metric_report("ETH Correlation_1d", ALL_RESULTS)
+                reports["ETH Correlation_1d"] = report
+                send_telegram_message_long(report)
+
+        # --- NEW GLOBAL & ARBITRAGE HANDLERS ---
+        elif option == "Arbitrage Report":
+            if ALL_RESULTS:
+                report = generate_metric_report("Price Spread", ALL_RESULTS)
+                reports["Arbitrage Report"] = report
+                send_telegram_message_long(report)
+        elif option == "Global Analysis":
+            if ALL_RESULTS:
+                 # Custom handler for Global metrics
+                 report = "🌐 **GLOBAL MARKET MONITOR**\n"
+                 report += "--------------------------------\n"
+                 sorted_global = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("Global Price", 0)), reverse=True)
+                 for coin in sorted_global[:30]:
+                     sym = coin.get("DisplaySymbol", coin.get("Coin"))
+                     gp = coin.get("Global Price", "N/A")
+                     gs = coin.get("Price Spread", 0)
+                     de = coin.get("Dominant Exchange", "N/A")
+                     report += f"🔹 {sym}: Global ${gp} (Spread: {gs}%)\n"
+                     report += f"   Exch: {de}\n"
+                 reports["Global Analysis"] = report
+                 send_telegram_message_long(report)
+
+        # --- MISSING METRICS HANDLERS ---
+        elif option == "Outlier Score":
+            if ALL_RESULTS:
+                report = generate_metric_report("Outlier Score", ALL_RESULTS)
+                reports["Outlier Score"] = report
+                send_telegram_message_long(report)
+        elif option == "Order Block":
+             handle_order_block(chat_id)
+        elif option == "Candlestick Patterns":
+             handle_candlestick_patterns(chat_id)
+        elif option == "MFI":
+            if ALL_RESULTS:
+                report = generate_metric_report("MFI", ALL_RESULTS)
+                reports["MFI"] = report
+                send_telegram_message_long(report)
+        elif option == "Bollinger Squeeze":
+            if ALL_RESULTS:
+                report = check_bollinger_squeeze()
+                reports["Bollinger Squeeze"] = report
+                send_telegram_message_long(report)
         elif option == "Net Accum":
             try:
                 if ALL_RESULTS:
@@ -2160,6 +2341,17 @@ def handle_main_menu_option(option, chat_id):
                 send_telegram_message_long(report)
             else:
                 send_telegram_message_long("⚠️ No analysis data available yet.")
+        elif option == "Net Accum": # Added Net Accum (general)
+            try:
+                if ALL_RESULTS:
+                    report = generate_metric_report("Net Accum", ALL_RESULTS)
+                    reports["Net Accum"] = report # Save to global reports dict
+                    send_telegram_message_long(report)
+                else:
+                    send_telegram_message_long("⚠️ No analysis data available yet.")
+            except Exception as e:
+                print(f"[ERROR] Net Accum failed: {e}")
+                send_telegram_message_long(f"⚠️ Error: {str(e)}")
         elif option == "4H Change":
             if ALL_RESULTS:
                 def get_4h_change(x):
@@ -3444,21 +3636,24 @@ def calculate_anomaly_score(metric, historical_data, window=20):
 # ---------------- Yeni "Akıllı Balina & Trend" Raporu Fonksiyonları ----------------
 def calculate_trend_score(coin_data):
     try:
-        rsi = extract_numeric(coin_data["RSI"])
-        macd = extract_numeric(coin_data["MACD"])
-        adx = extract_numeric(coin_data["ADX"])
-        net_accum = extract_numeric(coin_data["NetAccum_raw"])
-        volume_ratio = extract_numeric(coin_data["Volume Ratio"])
-        atr = extract_numeric(coin_data["ATR_raw"])
-        price_roc = extract_numeric(coin_data["24h Change"])
-        btc_corr = extract_numeric(coin_data["BTC Correlation"]) if coin_data["BTC Correlation"] != "N/A" else 0
+        rsi = extract_numeric(coin_data.get("RSI", 50))
+        macd = extract_numeric(coin_data.get("MACD", 0))
+        adx = extract_numeric(coin_data.get("ADX", 0))
+        net_accum = extract_numeric(coin_data.get("NetAccum_raw", 0))
+        volume_ratio = extract_numeric(coin_data.get("Volume Ratio", 1))
+        atr = extract_numeric(coin_data.get("ATR_raw", 0))
+        price_roc = extract_numeric(coin_data.get("24h Change Raw", 0))
+        # Correlation key fixed
+        btc_corr = extract_numeric(coin_data.get("btc_corr_1h", 0))
+        
         trend_strength = (adx / 100) * 30
         momentum_boost = (price_roc / 10) * 20 if price_roc > 0 else 0
         whale_impact = (min(abs(net_accum) / 10, 1) * 30) if net_accum > 0 else 0
-        price_value = parse_money(coin_data["Price_Display"])
+        price_value = extract_numeric(coin_data.get("Price", 0))
         volatility_adjust = (atr / price_value) * 20 if price_value != 0 else 0
         volume_boost = min(volume_ratio / 2, 1) * 20
         correlation_penalty = abs(btc_corr) * 10 if abs(btc_corr) > 0.8 else 0
+        
         total_score = trend_strength + momentum_boost + whale_impact + volatility_adjust + volume_boost - correlation_penalty
         total_score = max(0, total_score)
         total_score = min(100, total_score)
@@ -3468,23 +3663,27 @@ def calculate_trend_score(coin_data):
         return 50.0
 
 def detect_advanced_whale_strategy(coin_data):
-    net_accum = extract_numeric(coin_data["NetAccum_raw"])
-    whale_activity = extract_numeric(coin_data["Whale Activity"])
-    volume_ratio = extract_numeric(coin_data["Volume Ratio"])
-    rsi = extract_numeric(coin_data["RSI"])
-    price_roc = extract_numeric(coin_data["24h Change"])
-    price_value = parse_money(coin_data["Price_Display"])
-    atr_percent = extract_numeric(coin_data["ATR_raw"]) / price_value * 100 if price_value != 0 else 0  # Sıfır kontrolü eklendi
-    if net_accum > 10 and volume_ratio > 2 and price_roc > 5 and rsi < 60:
-        return "Sessiz Birikim: Balinalar agresif alımda, pump öncesi olabilir."
-    elif net_accum < -10 and atr_percent > 2 and price_roc < -5:
-        return "Panik Satışı: Balinalar stop-loss avcılığı yapıyor."
-    elif abs(net_accum) < 5 and whale_activity > 1000 and volume_ratio > 3:
-        return "Spoofing: Balinalar sahte hacim yaratıyor."
-    elif net_accum > 5 and price_roc < 2 and rsi < 50:
-        return "Stratejik Toplama: Balinalar dipte birikiyor."
-    else:
-        return "Belirgin strateji yok."
+    try:
+        net_accum = extract_numeric(coin_data.get("NetAccum_raw", 0))
+        whale_activity = extract_numeric(coin_data.get("WhaleActivity", 0))
+        volume_ratio = extract_numeric(coin_data.get("Volume Ratio", 1))
+        rsi = extract_numeric(coin_data.get("RSI", 50))
+        price_roc = extract_numeric(coin_data.get("24h Change Raw", 0))
+        price_value = extract_numeric(coin_data.get("Price", 0))
+        atr_percent = extract_numeric(coin_data.get("ATR_raw", 0)) / price_value * 100 if price_value != 0 else 0
+        
+        if net_accum > 10 and volume_ratio > 2 and price_roc > 5 and rsi < 60:
+            return "Sessiz Birikim: Balinalar agresif alımda, pump öncesi olabilir."
+        elif net_accum < -10 and atr_percent > 2 and price_roc < -5:
+            return "Panik Satışı: Balinalar stop-loss avcılığı yapıyor."
+        elif abs(net_accum) < 5 and whale_activity > 1000 and volume_ratio > 3:
+            return "Spoofing: Balinalar sahte hacim yaratıyor."
+        elif net_accum > 5 and price_roc < 2 and rsi < 50:
+            return "Stratejik Toplama: Balinalar dipte birikiyor."
+        else:
+            return "Belirgin strateji yok."
+    except Exception as e:
+        return "Strateji tespit edilemedi (Hata)"
 
 
 # ---------------- Vadeli İşlemler Analizi Fonksiyonları ----------------
@@ -5546,68 +5745,40 @@ def get_futures_data(symbol):
         }
 
 
-def detect_whale_strategies_enhanced(coin_data, historical_data=None):
+def detect_whale_strategies_enhanced(coin_data, klines_15m=None, klines_1h=None, klines_4h=None):
     """
-    Balina stratejilerini ve manipülasyon kalıplarını daha derinlemesine tespit eder.
-
-    Args:
-        coin_data (dict): Coin verileri
-        historical_data (dict, optional): Önceki analizlerden gelen tarihsel veriler
-
-    Returns:
-        dict: Tespit edilen stratejiler ve manipülasyon puanları
+    Detects advanced whale strategies and manipulative patterns.
+    If klines are provided, it uses them directly to avoid event loop issues.
     """
     try:
         symbol = coin_data["Coin"]
-        print(f"[DEBUG] {symbol} için balina stratejileri analiz ediliyor")
+        # Use provided klines or defaults
+        klines_15m = klines_15m or []
+        klines_1h = klines_1h or []
+        klines_4h = klines_4h or []
 
-        # Temel metrikler - güvenle çıkarma
-        try:
-            rsi_val = extract_numeric(coin_data.get("RSI", "50"))
-            net_accum = extract_numeric(coin_data.get("NetAccum_raw", 0))
-            volume_ratio = extract_numeric(coin_data.get("Volume Ratio", 1))
-            price_roc = extract_numeric(coin_data.get("24h Change", "0"))
-            current_price = parse_money(coin_data.get("Price_Display", "0"))
-            price_str = coin_data.get("Price_Display", "0")
+        # Taker ratio calculation
+        taker_ratio_15m = calculate_buyer_ratio(klines_15m) if klines_15m else 50
+        taker_ratio_1h = calculate_buyer_ratio(klines_1h) if klines_1h else 50
+        
+        if taker_ratio_15m == "N/A": taker_ratio_15m = 50
+        if taker_ratio_1h == "N/A": taker_ratio_1h = 50
 
-            # Balina metriklerini çıkar
-            whale_buy = parse_money(coin_data.get("Whale_Buy_M", "0"))
-            whale_sell = parse_money(coin_data.get("Whale_Sell_M", "0"))
-            whale_activity = extract_numeric(coin_data.get("Whale Activity", "0"))
-
-            # ATR (volatilite için)
-            atr = extract_numeric(coin_data.get("ATR_raw", 0))
-
-            # MACD ve ADX
-            macd = extract_numeric(coin_data.get("MACD", "0"))
-            adx = extract_numeric(coin_data.get("ADX", "0"))
-        except Exception as e:
-            print(f"[ERROR] {symbol} için temel metrikler çıkarılırken hata: {e}")
-            # Varsayılan değerler
-            rsi_val, net_accum, volume_ratio = 50, 0, 1
-            price_roc, current_price = 0, 1
-            whale_buy, whale_sell, whale_activity = 0, 0, 0
-            atr, macd, adx = 0, 0, 0
-
-        # Kline verileri al
-        try:
-            klines_15m = sync_fetch_kline_data(symbol, "15m", limit=30)
-            klines_1h = sync_fetch_kline_data(symbol, "1h", limit=24)
-            klines_4h = sync_fetch_kline_data(symbol, "4h", limit=20)
-
-            # Taker ratio hesapla
-            taker_ratio_15m = calculate_buyer_ratio(klines_15m)
-            taker_ratio_1h = calculate_buyer_ratio(klines_1h)
-
-            if taker_ratio_15m == "N/A":
-                taker_ratio_15m = 50
-            if taker_ratio_1h == "N/A":
-                taker_ratio_1h = 50
-        except Exception as e:
-            print(f"[ERROR] {symbol} kline veya taker ratio hesaplanırken hata: {e}")
-            klines_15m, klines_1h, klines_4h = [], [], []
-            taker_ratio_15m, taker_ratio_1h = 50, 50
-
+        # extraction of indicators for logic
+        rsi_val = extract_numeric(coin_data.get("RSI", 50))
+        net_accum = extract_numeric(coin_data.get("NetAccum_raw", 0))
+        volume_ratio = extract_numeric(coin_data.get("Volume Ratio", 1))
+        price_roc = extract_numeric(coin_data.get("24h Change Raw", 0)) # Fixed key
+        current_price = extract_numeric(coin_data.get("Price", 0))
+        
+        whale_activity = extract_numeric(coin_data.get("WhaleActivity", 0))
+        funding_rate = extract_numeric(coin_data.get("Funding Rate", 0))
+        
+        macd = extract_numeric(coin_data.get("MACD", 0))
+        adx = extract_numeric(coin_data.get("ADX", 0))
+        atr = extract_numeric(coin_data.get("ATR_raw", 0))
+        long_short_ratio = extract_numeric(coin_data.get("Long/Short Ratio", 1.0))
+        
         # Emir defteri al
         try:
             bids, asks = fetch_order_book(symbol, limit=100)
@@ -6486,13 +6657,13 @@ The formation of <b>{onay_modeli}</b> structure at the HTF {fvg_zone if fvg_dete
 
 def generate_enhanced_manipulation_report():
     """
-    Geliştirilmiş manipülasyon tespit raporu oluşturur.
+    Generates an enhanced manipulation detection report.
 
     Returns:
-        str: Formatlı rapor
+        str: Formatted report
     """
     if not ALL_RESULTS:
-        return "⚠️ Henüz analiz verisi bulunmuyor."
+        return "⚠️ No analysis data available yet."
 
     report = f"🔍 <b>Enhanced Manipulation Detection Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report shows various manipulation strategies and whale movements detected in the market.\n\n"
@@ -6508,9 +6679,15 @@ def generate_enhanced_manipulation_report():
         "Front-Running": 0
     }
 
-    # Tüm coinler için manipülasyon analizi
+    # Analysis for all coins
     for coin in ALL_RESULTS:
-        result = detect_whale_strategies_enhanced(coin)
+        # result = detect_whale_strategies_enhanced(coin)
+        # Use pre-calculated manipulation results if present
+        if "Manipulation_Results" in coin:
+            result = coin["Manipulation_Results"]
+        else:
+            # Fallback if not pre-calculated (only if absolutely needed)
+            result = {"detected_strategies": [], "symbol": coin.get("Coin", "Unknown")}
 
         if result["detected_strategies"]:
             for strategy in result["detected_strategies"]:
@@ -6520,35 +6697,34 @@ def generate_enhanced_manipulation_report():
                     "strategy": strategy
                 })
 
-    # Manipülasyon türlerine göre grupla
+    # Group by manipulation types
     if all_strategies:
-        # Manipülasyon türlerine göre grupla
         for strategy_type in ["Pump and Dump", "Wash Trading", "Spoofing", "Stop-Loss Hunt", "Front-Running"]:
             matching_strategies = [s for s in all_strategies if s["strategy"]["type"] == strategy_type]
 
             if matching_strategies:
                 report += f"<b>🚨 {strategy_type} Detection ({len(matching_strategies)} coins):</b>\n"
 
-                # En yüksek skorlu stratejileri göster
+                # Show highest score strategies
                 sorted_strategies = sorted(matching_strategies, key=lambda x: x["strategy"]["score"], reverse=True)
 
-                for strategy_data in sorted_strategies[:5]:  # İlk 5 tanesini göster
+                for strategy_data in sorted_strategies[:5]:  # Show top 5
                     symbol = strategy_data["symbol"]
                     strategy = strategy_data["strategy"]
 
                     report += f"• <b>{symbol}</b> (Score: {strategy['score']}/100) - {strategy['danger_level']}\n"
 
-                    # Kanıtları göster
+                    # Show evidence
                     for evidence in strategy["evidence"]:
                         report += f"  - {evidence}\n"
 
                     report += f"  <b>Recommendation:</b> {strategy['recommendation']}\n\n"
 
                 if len(matching_strategies) > 5:
-                    report += f"  ...ve {len(matching_strategies) - 5} coin daha.\n\n"
+                    report += f"  ...and {len(matching_strategies) - 5} more coins.\n\n"
 
-        # Fırsat stratejileri
-        opportunity_strategies = ["Sessiz Birikim", "Agresif Alım"]
+        # Opportunity strategies
+        opportunity_strategies = ["Silent Accumulation", "Aggressive Buying"]
         matching_opportunities = [s for s in all_strategies if s["strategy"]["type"] in opportunity_strategies]
 
         if matching_opportunities:
@@ -6565,24 +6741,24 @@ def generate_enhanced_manipulation_report():
                 for evidence in strategy["evidence"]:
                     report += f"  - {evidence}\n"
 
-                report += f"  <b>Öneri:</b> {strategy['recommendation']}\n\n"
+                report += f"  <b>Recommendation:</b> {strategy['recommendation']}\n\n"
 
             if len(matching_opportunities) > 5:
-                report += f"  ...ve {len(matching_opportunities) - 5} coin daha.\n\n"
+                report += f"  ...and {len(matching_opportunities) - 5} more coins.\n\n"
     else:
-        report += "✅ <b>Şu anda hiçbir manipülasyon tespit edilmedi.</b>\n\n"
+        report += "✅ <b>No manipulation detected at this time.</b>\n\n"
 
-    # Manipülasyon türleri hakkında açıklamalar
-    report += "<b>📚 Manipülasyon Türleri Hakkında:</b>\n"
-    report += "• <b>Pump and Dump:</b> Fiyatı yapay olarak şişirip, yüksek fiyattan satış yapma stratejisi.\n"
-    report += "• <b>Wash Trading:</b> Sahte işlem hacmi oluşturarak ilgi çekme stratejisi.\n"
-    report += "• <b>Spoofing:</b> Emir defterinde büyük alış/satış duvarları oluşturup sonra geri çekmek.\n"
-    report += "• <b>Stop-Loss Avı:</b> Ani düşüşlerle stop-loss emirlerini tetikleyip ucuza alım yapmak.\n"
-    report += "• <b>Front-Running:</b> Büyük emirlerden önce işlem yaparak kar elde etmek.\n"
-    report += "• <b>Sessiz Birikim:</b> low fiyattan sessizce büyük miktarda alım yapmak (manipülasyon değil).\n"
-    report += "• <b>Agresif Alım:</b> Kısa sürede yüksek hacimle alım yaparak fiyatı hızla yükseltmek.\n\n"
+    # Explanations
+    report += "<b>📚 About Manipulation Types:</b>\n"
+    report += "• <b>Pump and Dump:</b> Strategy to artificially inflate price and sell at peaks.\n"
+    report += "• <b>Wash Trading:</b> Creating fake volume to attract interest.\n"
+    report += "• <b>Spoofing:</b> Creating large walls in order book and withdrawing them.\n"
+    report += "• <b>Stop-Loss Hunt:</b> Causing sudden drops to trigger stops and buy cheap.\n"
+    report += "• <b>Front-Running:</b> Executing trades before large orders.\n"
+    report += "• <b>Silent Accumulation:</b> Quietly buying large amounts at low prices.\n"
+    report += "• <b>Aggressive Buying:</b> Rapidly buying with high volume to push price up.\n\n"
 
-    report += "<b>⚠️ Not:</b> Bu tespitler algoritmik analizler olup kesin sonuçlar değildir. Daima kendi araştırmanızı yapın."
+    report += "<b>⚠️ Note:</b> These detections are algorithmic analyses and not definitive. Always do your own research."
 
     return report
 
@@ -6592,6 +6768,7 @@ def handle_enhanced_manipulation_report():
     """
     try:
         report = generate_enhanced_manipulation_report()
+        reports["Manipulation Detector"] = report
         send_telegram_message_long(report)
     except Exception as e:
         print(f"[ERROR] Manipülasyon raporu oluşturulurken hata: {e}")
@@ -6663,6 +6840,51 @@ def get_correlation(symbol, base_symbol="BTCUSDT", interval="1h", limit=100):
         traceback.print_exc()
         return None
 
+
+async def async_get_correlation(session, symbol, base_symbol="BTCUSDT", interval="1h", limit=100):
+    """Asynchronous version of get_correlation to avoid blocking the event loop."""
+    try:
+        url_coin = BINANCE_API_URL + f"klines?symbol={symbol}&interval={interval}&limit={limit}"
+        url_base = BINANCE_API_URL + f"klines?symbol={base_symbol}&interval={interval}&limit={limit}"
+        
+        async with session.get(url_coin, timeout=aiohttp.ClientTimeout(total=15)) as resp_coin:
+            async with session.get(url_base, timeout=aiohttp.ClientTimeout(total=15)) as resp_base:
+                if resp_coin.status == 429 or resp_base.status == 429:
+                    return None
+                if resp_coin.status != 200 or resp_base.status != 200:
+                    return None
+
+                data_coin = await resp_coin.json()
+                data_base = await resp_base.json()
+
+                df_coin = pd.DataFrame(data_coin, columns=["timestamp", "open", "high", "low", "close", "volume",
+                                                                "close Zamanı", "quote_volume", "trades",
+                                                                "Alıcı Baz Varlık Hacmi", "Alıcı quote_volume", "Yoksay"])
+                df_base = pd.DataFrame(data_base, columns=["timestamp", "open", "high", "low", "close", "volume",
+                                                                "close Zamanı", "quote_volume", "trades",
+                                                                "Alıcı Baz Varlık Hacmi", "Alıcı quote_volume", "Yoksay"])
+
+                df_coin["close"] = pd.to_numeric(df_coin["close"], errors="coerce")
+                df_base["close"] = pd.to_numeric(df_base["close"], errors="coerce")
+
+                if len(df_coin) < 10 or len(df_base) < 10:
+                    return None
+
+                min_len = min(len(df_coin), len(df_base))
+                coin_close = df_coin["close"].iloc[-min_len:].reset_index(drop=True)
+                base_close = df_base["close"].iloc[-min_len:].reset_index(drop=True)
+                
+                coin_pct = coin_close.pct_change().dropna()
+                base_pct = base_close.pct_change().dropna()
+                
+                if len(coin_pct) < 5: return 0.0
+                
+                correlation = coin_pct.corr(base_pct)
+                if pd.isna(correlation):
+                    return None
+                return round(correlation, 2)
+    except Exception as e:
+        return None
 
 
 def get_sol_correlation(symbol, interval="1h", limit=100):
@@ -8057,14 +8279,21 @@ def get_technical_indicators(symbol, kline_data=None):
     adx = adx_series.iloc[-1] if len(adx_series) >= 14 else None
     adx_prev = adx_series.iloc[-2] if len(adx_series) >= 15 else None
     
+
     # New indicators: MFI and StochRSI
     try:
+        # Try calculating from available DF first
         mfi_series = MFIIndicator(df["high"], df["low"], df["close"], df["volume"].astype(float), window=14).money_flow_index()
         mfi = mfi_series.iloc[-1] if len(mfi_series) >= 14 and not pd.isna(mfi_series.iloc[-1]) else None
         mfi_prev = mfi_series.iloc[-2] if len(mfi_series) >= 15 and not pd.isna(mfi_series.iloc[-2]) else None
     except:
         mfi = None
         mfi_prev = None
+    
+    # Fallback to Binance Client data if available and calculation failed
+    if mfi is None:
+        mfi = coin_data.get("mfi")
+
 
     try:
         stoch_rsi_series = StochRSIIndicator(df["close"], window=14).stochrsi()
@@ -8108,7 +8337,7 @@ def get_technical_indicators(symbol, kline_data=None):
     if futures_oi is None or futures_ls is None:
         print(f"[WARN] {symbol} için futures verisi alınamadı.")
 
-    # Korelasyonlar
+    # Korelasyonlar (Sync version for non-async function)
     btc_corr_15m = get_correlation(symbol, base_symbol="BTCUSDT", interval="15m", limit=100)
     btc_corr_1h = get_correlation(symbol, base_symbol="BTCUSDT", interval="1h", limit=100)
     btc_corr_4h = get_correlation(symbol, base_symbol="BTCUSDT", interval="4h", limit=100)
@@ -8261,7 +8490,7 @@ def get_technical_indicators(symbol, kline_data=None):
         "MACD_Ok": get_arrow(macd, macd_prev) if macd is not None and macd_prev is not None else "",
         "ADX": adx_disp,
         "ADX_Ok": get_arrow(adx, adx_prev) if adx is not None and adx_prev is not None else "",
-        "MFI": mfi_disp,
+        "MFI": mfi_disp if mfi_disp != "N/A" else (f"{round(mfi, 2)}" if mfi is not None else "N/A"),
         "MFI_Ok": get_arrow(mfi, mfi_prev) if mfi is not None and mfi_prev is not None else "",
         "StochRSI": stoch_rsi_disp,
         "StochRSI_Ok": get_arrow(stoch_rsi, stoch_rsi_prev) if stoch_rsi is not None and stoch_rsi_prev is not None else "",
@@ -8269,7 +8498,7 @@ def get_technical_indicators(symbol, kline_data=None):
         "Corrected Momentum": round(corrected_momentum, 4) if corrected_momentum is not None else "N/A",
         "Momentum_Ok": get_arrow(momentum, momentum) if momentum is not None else "",
         "Taker Rate": f"{round(taker_rate, 2)}",
-        "Z-Score": f"{round(z_score, 2)}",
+        "Z-Score": f"{round(z_score, 2)}" if z_score is not None else "0.00",
         "Price ROC": f"{price_roc}%" if price_roc is not None else "N/A",
         "Volume Ratio": volume_ratio if volume_ratio is not None else "N/A",
         "Order Block": "None",
@@ -8529,6 +8758,44 @@ def get_strategy_comment(coin_data):
     return comment
 
 
+def calculate_outliers(results):
+    """Calculates outlier score based on Z-scores of key metrics."""
+    if not results: return results
+    
+    metrics = ["RSI", "Volume Ratio", "Momentum", "Taker Rate", "Composite Score"]
+    stats = {}
+    
+    try:
+        # Calculate stats for valid numeric values
+        for m in metrics:
+            vals = []
+            for r in results:
+                try:
+                    v = float(str(r.get(m, 0)).replace("N/A", "0").replace("%", ""))
+                    vals.append(v)
+                except: pass
+            
+            if vals and len(vals) > 1:
+                stats[m] = {"mean": np.mean(vals), "std": np.std(vals)}
+        
+        # Assign scores
+        for r in results:
+            score = 0
+            for m in metrics:
+                if m in stats and stats[m]["std"] > 0:
+                    try:
+                        val = float(str(r.get(m, 0)).replace("N/A", "0").replace("%", ""))
+                        z = abs((val - stats[m]["mean"]) / stats[m]["std"])
+                        score += z
+                    except: pass
+            r["Outlier Score"] = round(score, 2)
+            
+    except Exception as e:
+        print(f"[WARN] Outlier calculation failed: {e}")
+        
+    return results
+
+
 def calculate_composite_score(coin):
     """
     Daha güvenilir composite skor hesaplama fonksiyonu.
@@ -8702,27 +8969,26 @@ def generate_detailed_analysis_message(results):
         # Safe access for Monthly Change tuple
         m_ch = coin.get('Monthly Change', ('N/A', 'N/A'))
         coin_report += f"• Monthly Close: {m_ch[0]} ({m_ch[1]})\n"
-        coin_report += f"• 24h Volume (USDT): {format_money(coin.get('24h Volume', 0))}\n"
+        coin_report += f"• 24h Volume (USDT): {format_money(extract_numeric(coin.get('24h Volume', 0)))}\n"
 
         # 2. Position & EMA Status
         coin_report += "<b>📈 Position & EMA Status:</b>\n"
         coin_report += f"• Open Interest: {coin.get('Open Interest', 'N/A')}\n"
-        coin_report += f"• Long/Short Ratio: {coin.get('Long/Short Ratio', 1.0):.4f}\n"
+        coin_report += f"• Long/Short Ratio: {extract_numeric(coin.get('Long/Short Ratio', 1.0)):.4f}\n"
         coin_report += f"• Above EMA 20: {'✅' if extract_numeric(coin.get('Price')) > extract_numeric(coin.get('EMA_20', 0)) else '❌'}\n"
         coin_report += f"• EMA20 Crossover: {coin.get('EMA20_Crossover', 'None')}\n"
         coin_report += f"• EMA Trend: {coin.get('EMA Trend', 'None')}\n"
         coin_report += f"• EMA Crossover: {coin.get('EMA_Crossover', 'None')}\n"
-        coin_report += f"• EMA Status: EMA 50: {format_money(coin.get('EMA_50'))} / EMA 100: {format_money(coin.get('EMA_100'))} / EMA 200: {format_money(coin.get('EMA_200'))}\n"
+        coin_report += f"• EMA Status: EMA 50: {format_money(extract_numeric(coin.get('EMA_50')))} / EMA 100: {format_money(extract_numeric(coin.get('EMA_100')))} / EMA 200: {format_money(extract_numeric(coin.get('EMA_200')))}\n"
 
         # 3. Technical Indicators
         coin_report += "\n<b>📈 Technical Indicators:</b>\n"
-        coin_report += f"• RSI: {fv(coin.get('RSI'))} (1h), {fv(coin.get('RSI_4h'))} (4h), {fv(coin.get('RSI_1d'))} (1d) - (Wide: {coin.get('RSI Extended', 'N/A')}) ({get_rsi_comment(coin.get('RSI'))})\n"
-        coin_report += f"• MACD: {fv(coin.get('MACD'), '{:.4f}')} (1h), {fv(coin.get('MACD_4h'), '{:.4f}')} (4h), {fv(coin.get('MACD_1d'), '{:.4f}')} (1d) - ({get_macd_comment(coin.get('MACD'))})\n"
-        coin_report += f"• ADX: {fv(coin.get('ADX'))} (1h), {fv(coin.get('ADX_4h'))} (4h), {fv(coin.get('ADX_1d'))} (1d) - ({get_adx_comment(coin.get('ADX'))})\n"
-        coin_report += f"• Momentum: {fv(coin.get('Momentum'))} | Adjusted: 0 (Medium level!)\n"
-        coin_report += f"• Price ROC (Last 5 Hours): {fv(coin.get('Price ROC'))}% (Price changed by this rate in the last 5 hours)\n"
-        coin_report += f"• Volume Ratio: {fv(coin.get('Volume Ratio'))} (Normal course, stable volume.)\n"
-        coin_report += f"• Bollinger Bands: {coin.get('Bollinger Bands', 'N/A')} (Lower: {coin.get('BB Lower Distance', '0%')}, Upper: {coin.get('BB Upper Distance', '0%')})\n"
+        coin_report += f"• RSI: {fv(coin.get('RSI'))} (1h), {fv(coin.get('RSI_4h'))} (4h), {fv(coin.get('RSI_1d'))} (1d) ({get_rsi_comment(coin.get('RSI'))})\n"
+        coin_report += f"• MACD: {fv(coin.get('MACD'), '{:.4f}')} (1h), {fv(coin.get('MACD_4h'), '{:.4f}')} (4h), {fv(coin.get('MACD_1d'), '{:.4f}')} (1d) ({get_macd_comment(coin.get('MACD'))})\n"
+        coin_report += f"• ADX: {fv(coin.get('ADX'))} (1h), {fv(coin.get('ADX_4h'))} (4h), {fv(coin.get('ADX_1d'))} (1d) ({get_adx_comment(coin.get('ADX'))})\n"
+        coin_report += f"• Momentum: {fv(coin.get('Momentum'))}\n"
+        coin_report += f"• Volume Ratio: {fv(coin.get('Volume Ratio'))}x\n"
+        coin_report += f"• Bollinger Bands: {coin.get('Bollinger Bands', 'N/A')}\n"
 
         # 4. Market Dynamics
         ob = coin.get("OrderBook", {})
@@ -8738,11 +9004,18 @@ def generate_detailed_analysis_message(results):
 
         # 5. Correlation & Other Data
         coin_report += "\n<b>📊 Correlation & Other Data:</b>\n"
-        coin_report += f"• BTC Correlation: {fv(coin.get('BTC Correlation'))} (1h), {fv(coin.get('BTC Corr 4h'))} (4h), {fv(coin.get('BTC Corr 1d'))} (1d)\n"
-        coin_report += f"• ETH Correlation: {fv(coin.get('ETH Correlation'))} (1h), {fv(coin.get('ETH Corr 4h'))} (4h), {fv(coin.get('ETH Corr 1d'))} (1d)\n"
+        coin_report += f"• BTC Correlation: {fv(coin.get('BTC Correlation'))} (1h), {fv(coin.get('BTC Correlation_4h'))} (4h), {fv(coin.get('BTC Correlation_1d'))} (1d)\n"
+        coin_report += f"• ETH Correlation: {fv(coin.get('ETH Correlation'))} (1h), {fv(coin.get('ETH Correlation_4h'))} (4h), {fv(coin.get('ETH Correlation_1d'))} (1d)\n"
         coin_report += f"• ATR: {format_money(coin.get('ATR', 0))}$\n"
         coin_report += f"• Support/Resistance: {coin.get('Support_Resistance', 'N/A')}\n"
         coin_report += f"• Bull/Bear Trap: {coin.get('Trap Status', 'None')}\n"
+
+        # 5.5 Global Market Data
+        coin_report += "\n<b>🌐 Global Market Data:</b>\n"
+        coin_report += f"• Global Price: ${fv(coin.get('Global Price'))}\n"
+        coin_report += f"• Global Volume: {format_money(coin.get('Global Volume', 0))}\n"
+        coin_report += f"• Price Spread: {fv(coin.get('Price Spread'))}%\n"
+        coin_report += f"• Dominant Exchange: {coin.get('Dominant Exchange', 'N/A')}\n"
 
         # 6. Coin Summary Section
         coin_report += f"\n<b>💬 Coin Summary:</b>\n{get_strategy_comment(coin)}\n"
@@ -8825,13 +9098,18 @@ def generate_metric_report(metric, results):
         "ETH Correlation": "ETH Correlation",
         "SOL Correlation": "SOL Correlation",
         "Net Accum": "Net Accumulation",
-        "RSI": "RSI (1h)", "RSI_4h": "RSI (4h)", "RSI_1d": "RSI (1d)",
+        "RSI": "RSI (1h)", "RSI 4h": "RSI (4h)", "RSI 1d": "RSI (1d)",
         "EMA": "EMA Trend Status", "SMA Trend": "EMA Trend Status",
-        "ADX": "ADX (1h)", "ADX_4h": "ADX (4h)", "ADX_1d": "ADX (1d)",
-        "MACD": "MACD (1h)", "MACD_4h": "MACD (4h)", "MACD_1d": "MACD (1d)",
-        "MFI": "MFI (1h)", "MFI_4h": "MFI (4h)", "MFI_1d": "MFI (1d)",
+        "ADX": "ADX (1h)", "ADX 4h": "ADX (4h)", "ADX 1d": "ADX (1d)",
+        "MACD": "MACD (1h)", "MACD 4h": "MACD (4h)", "MACD 1d": "MACD (1d)",
+        "MFI": "MFI (1h)", "MFI 4h": "MFI (4h)", "MFI 1d": "MFI (1d)",
         "Taker Rate": "Taker Rate", "Z-Score": "Z-Score (1h)",
-        "Volume Ratio": "Volume Ratio", "Momentum": "Momentum (1h)"
+        "Volume Ratio": "Volume Ratio", "Momentum": "Momentum (1h)",
+        "Outlier Score": "Outlier Score", "Price Spread": "Price Spread (Arbitrage)",
+        "OI Change": "OI Change (1h)", "Open Interest": "Open Interest",
+        "4H Change": "4H Price Change", "Weekly Change": "Weekly Price Change",
+        "Monthly Change": "Monthly Price Change", "24h Volume": "24h Volume ($)",
+        "1H Change": "1H Price Change", "15m Change": "15m Price Change"
     }
     
     display_name = metric_map.get(metric, metric_map.get(lookup_key, metric))
@@ -8839,10 +9117,40 @@ def generate_metric_report(metric, results):
     # Determine which key to use for data extraction from the results dict
     data_key = metric
     if metric in ["EMA", "EMA 1H", "EMA Report", "EMA Crossings"]: data_key = "SMA Trend"
-    elif lookup_key in ["ADX", "RSI", "MACD", "MFI", "Z-Score", "Momentum", "Composite Score"]: data_key = lookup_key
-    elif lookup_key == "Net Accum": data_key = "NetAccum_raw"
+    elif lookup_key in ["ADX", "RSI", "MACD", "MFI", "Z-Score", "Momentum", "Composite Score"]:
+        # Handle 4h/1d modifiers
+        if "4h" in metric.lower(): data_key = f"{lookup_key}_4h"
+        elif "1d" in metric.lower(): data_key = f"{lookup_key}_1d"
+        else: data_key = lookup_key
+    elif lookup_key == "Net Accum":
+        if "4h" in metric.lower(): data_key = "net_accum_4h"
+        elif "1d" in metric.lower(): data_key = "net_accum_1d"
+        else: data_key = "net_accum_1d"
     elif metric in ["Support/Resistance", "S/R", "Levels"]: data_key = "Support_Resistance"
     elif metric in ["Whale Ranking", "Whale Analysis", "Whale Movement"]: data_key = "Whale Activity"
+    elif "OI Change" in metric: data_key = "OI Change %"
+    elif "Open Interest" in metric: data_key = "Open Interest"
+    elif "4H Change" in metric: data_key = "4H Change"
+    elif "1H Change" in metric: data_key = "1H Change"
+    elif "15m Change" in metric: data_key = "15m Change"
+    elif "Weekly Change" in metric: data_key = "Weekly Change"
+    elif "Monthly Change" in metric: data_key = "Monthly Change"
+    elif "24h Volume" in metric: data_key = "24h Volume"
+    elif "Correlation" in metric:
+        # Map Correlation report types to the correct lowercase result keys
+        m_lower = metric.lower()
+        if "btc" in m_lower:
+            if "4h" in m_lower: data_key = "btc_corr_4h"
+            elif "1d" in m_lower: data_key = "btc_corr_1d"
+            else: data_key = "btc_corr_1h"
+        elif "eth" in m_lower:
+            if "4h" in m_lower: data_key = "eth_corr_4h"
+            elif "1d" in m_lower: data_key = "eth_corr_1d"
+            else: data_key = "eth_corr_1h"
+        elif "sol" in m_lower:
+            if "4h" in m_lower: data_key = "sol_corr_4h"
+            elif "1d" in m_lower: data_key = "sol_corr_1d"
+            else: data_key = "sol_corr_1h"
 
     report = f"📊 <b>{display_name} Analysis Report</b>\n"
     report += f"<i>Total analyzed coins: {len(results)}</i>\n"
@@ -8863,7 +9171,11 @@ def generate_metric_report(metric, results):
             if "Correlation" in display_name: val_str = f"{val:.2f}"
             elif "Taker" in display_name: val_str = f"{val:.4f}"
             elif "Accum" in display_name: val_str = format_money(val)
+            elif "Volume" in display_name: val_str = format_money(val)
             else: val_str = f"{val:.2f}"
+        elif isinstance(val, tuple):
+            # For 4H/Weekly/Monthly tuples: (old_price_str, change_pct_str)
+            val_str = val[1]
         else:
             val_str = str(val)
             
@@ -11130,6 +11442,28 @@ def handle_market_alerts(results):
             if not final_alert_type: final_alert_type = "whale_rot"
             final_insight += "Capital moving from BTC into this asset during market weakness. "
 
+        # === 10. [ULTRA V3] PREDICTIVE LEAD SIGNALS ===
+        # 10.1 OI-PRICE DIVERGENCE (Lead Accumulation)
+        if abs(change_24h) < 2.0 and oi_change > 15 and whale_buying:
+            signals.append("🔭 LEAD PREDICTION: HIDDEN ACCUMULATION")
+            confidence += 45
+            if not final_alert_type: final_alert_type = "lead_accum"
+            final_insight += "Price is compressed but OI and Whale flow are surging. Institutional front-running suspected. "
+        
+        # 10.2 SQUEEZE BREAKOUT PREDICTION
+        if bb_squeeze and oi_change > 10:
+            signals.append("🔭 LEAD PREDICTION: VOLATILITY EXPANSION")
+            confidence += 40
+            if not final_alert_type: final_alert_type = "lead_squeeze"
+            final_insight += "Bollinger squeeze + OI spike suggests an imminent directional expansion. "
+
+        # 10.3 EXHAUSTION DIVERGENCE (Top/Bottom Prediction)
+        if (extreme_oversold and "Bullish Divergence" in rsi_div) or (extreme_overbought and "Bearish Divergence" in rsi_div):
+            signals.append("🔭 LEAD PREDICTION: MAJOR REVERSAL")
+            confidence += 50
+            if not final_alert_type: final_alert_type = "lead_reversal"
+            final_insight += "Extreme confluence of exhaustion and divergence. Predictive bottom/top forming. "
+
         # SEND COMBINED ALERT IF SIGNALS DETECTED
         if signals:
             # If we have contradictory signals (Bullish and Bearish in same coin)
@@ -11163,8 +11497,8 @@ def _send_confluence_alert(symbol, title, emoji, insight, price_str, vol_ratio, 
     """Helper to send confluence-based alerts with signal breakdown."""
     global SENT_ALERTS
     
-    alert_key = f"{symbol}_{alert_type}"
-    last_sent = SENT_ALERTS[symbol].get(alert_key, 0)
+    # FIX: Correct lookup key. We store by alert_type inside the symbol's dict.
+    last_sent = SENT_ALERTS[symbol].get(alert_type, 0)
     
     if now - last_sent > cooldown:
         # Build signal strength bar
@@ -11189,6 +11523,8 @@ def _send_confluence_alert(symbol, title, emoji, insight, price_str, vol_ratio, 
         
         send_telegram_message_long(msg)
         SENT_ALERTS[symbol][alert_type] = now
+        global LAST_SIGNAL_TIME
+        LAST_SIGNAL_TIME = now
         return True
     
     return False
@@ -11232,17 +11568,19 @@ def get_market_alerts_report_string():
     # Sort by newest first
     flat_alerts.sort(key=lambda x: x["timestamp"], reverse=True)
 
-    for alert in flat_alerts[:20]: # Show last 20 alerts
+    for alert in flat_alerts[:25]: # Show last 25 alerts
         dt_str = datetime.fromtimestamp(alert["timestamp"]).strftime('%H:%M:%S')
         icon = "🔔"
-        if "bull" in alert["type"]: icon = "🟢"
-        if "bear" in alert["type"]: icon = "🔴"
-        if "climax" in alert["type"]: icon = "🔥"
-        if "div" in alert["type"]: icon = "🎭"
-        if "smart_money" in alert["type"]: icon = "🐋"
-        if "elite" in alert["type"]: icon = "💎"
+        if "lead" in alert["type"]: icon = "🔭"
+        elif "bull" in alert["type"]: icon = "🟢"
+        elif "bear" in alert["type"]: icon = "🔴"
+        elif "climax" in alert["type"]: icon = "🔥"
+        elif "div" in alert["type"]: icon = "🎭"
+        elif "smart_money" in alert["type"]: icon = "🐋"
+        elif "elite" in alert["type"]: icon = "💎"
         
         desc = alert["type"].replace("_", " ").title()
+        if "Lead" in desc: desc = f"<b>{desc}</b>"
         report += f"[{dt_str}] {icon} <b>{alert['symbol']}</b>: {desc}\n"
 
     report += "\n<b>ℹ️ Info:</b> Elite alerts are kept for 4 hours. Check structural charts for confirmation."
@@ -11872,6 +12210,11 @@ async def analyze_market():
     while True:
         try:
             # Heartbeat Log
+            # -----------------------------------------------------------
+            # GLOBAL DATA ENGINE INIT
+            # -----------------------------------------------------------
+            global_aggregator = exchange_aggregator.ExchangeAggregator()
+            
             print(f"\n[HEARTBEAT] Loop #{loop_count + 1} Starting at {get_turkey_time().strftime('%H:%M:%S')}")
             
             # Her 5 döngüde bir bellek optimizasyonu yap
@@ -11900,6 +12243,22 @@ async def analyze_market():
                     data = await binance_client.fetch_binance_data_async(session, coin_symbol, ref_returns=ref_rets)
                     if not data: return None
 
+                    if not data: return None
+                    
+                    # [NEW] GLOBAL METRICS ENRICHMENT
+                    # We fetch this in parallel or immediately to ensure "Real Data" sanity check
+                    try:
+                        global_metrics = await global_aggregator.get_global_metrics(coin_symbol, binance_data=data)
+                        if global_metrics:
+                            data["Global_Price"] = global_metrics["Global_Price"]
+                            data["Global_Volume"] = global_metrics["Global_Volume_24h"]
+                            data["Price_Spread"] = global_metrics["Price_Spread_Pct"]
+                            data["Dominant_Exchange"] = global_metrics["Dominant_Exchange"]
+                            data["Source_Count"] = global_metrics["Source_Count"]
+                    except Exception as g_err:
+                        # print(f"[WARN] Global fetch failed for {coin_symbol}: {g_err}") # Silence to reduce noise
+                        pass
+                        
                     # 2. Extract DataFrames
                     df_all = pd.DataFrame(data.get("df", []))
                     if df_all.empty: return None
@@ -11943,6 +12302,17 @@ async def analyze_market():
                     rsi_div = detect_rsi_divergence(df_all)
                     vol_climax = detect_volume_climax(df_all)
                     sfp_pattern = detect_sfp(df_all)
+                    
+                    # Correlations (use async version)
+                    btc_corr_1h = await async_get_correlation(session, coin_symbol, base_symbol="BTCUSDT", interval="1h", limit=100) or 0
+                    btc_corr_4h = await async_get_correlation(session, coin_symbol, base_symbol="BTCUSDT", interval="4h", limit=100) or 0
+                    btc_corr_1d = await async_get_correlation(session, coin_symbol, base_symbol="BTCUSDT", interval="1d", limit=50) or 0
+                    eth_corr_1h = await async_get_correlation(session, coin_symbol, base_symbol="ETHUSDT", interval="1h", limit=100) or 0
+                    eth_corr_4h = await async_get_correlation(session, coin_symbol, base_symbol="ETHUSDT", interval="4h", limit=100) or 0
+                    eth_corr_1d = await async_get_correlation(session, coin_symbol, base_symbol="ETHUSDT", interval="1d", limit=50) or 0
+                    sol_corr_1h = await async_get_correlation(session, coin_symbol, base_symbol="SOLUSDT", interval="1h", limit=100) or 0
+                    sol_corr_4h = await async_get_correlation(session, coin_symbol, base_symbol="SOLUSDT", interval="4h", limit=100) or 0
+                    sol_corr_1d = await async_get_correlation(session, coin_symbol, base_symbol="SOLUSDT", interval="1d", limit=50) or 0
 
                     # 4.5. Bollinger Squeeze Detection
                     try:
@@ -11958,11 +12328,18 @@ async def analyze_market():
                         bb_squeeze_val = "N/A"
 
                     # 5. Build Result Dictionary
-                     # New fields: Weekly/Monthly/4H Change
+                     # New fields: Weekly/Monthly/4H/1H/15M Change
                     def calc_ch_tuple(curr, old):
                         if old is None or old == 0: return ("N/A", "0.00%")
                         diff = ((curr - old) / old) * 100
                         return (format_money(old), f"{diff:+.2f}%")
+
+                    # Extract old prices for change calculation
+                    price_1h_ago = df_all["open"].iloc[-1] if not df_all.empty else price
+                    price_15m_ago = df_15m["open"].iloc[-1] if not df_15m.empty else price
+                    price_4h_ago = df_4h_data["open"].iloc[-1] if not df_4h_data.empty else price
+                    price_weekly_ago = df_1d["open"].iloc[-7] if len(df_1d) >= 7 else df_1d["open"].iloc[0] if not df_1d.empty else price
+                    price_monthly_ago = df_1d["open"].iloc[-30] if len(df_1d) >= 30 else df_1d["open"].iloc[0] if not df_1d.empty else price
 
                     # 5. Build Result Dictionary
                     res = {
@@ -11972,17 +12349,57 @@ async def analyze_market():
                         "Price_Display": format_money(price),
                         "24h Change": f"{data['price_change_percent']:.2f}%",
                         "24h Change Raw": data['price_change_percent'],
-                        "Weekly Change": calc_ch_tuple(price, data.get("weekly_close")),
-                        "4H Change": calc_ch_tuple(price, data.get("fourh_close")),
-                        "Monthly Change": calc_ch_tuple(price, data.get("monthly_close")),
+                        "15m Change": calc_ch_tuple(price, price_15m_ago),
+                        "1H Change": calc_ch_tuple(price, price_1h_ago),
+                        "4H Change": calc_ch_tuple(price, price_4h_ago),
+                        "Weekly Change": calc_ch_tuple(price, price_weekly_ago),
+                        "Monthly Change": calc_ch_tuple(price, price_monthly_ago),
                         "Composite Score": comp_score,
+                        
+                        # Indicators H1 (Matches dashboard keys)
                         "RSI": data.get('rsi', 50),
-                        "RSI_4h": data.get('rsi_4h', 50),
-                        "RSI_1d": data.get('rsi_1d', 50),
                         "MACD": data.get('macd', 0),
                         "ADX": data.get('adx', 0),
-                        "Volume Ratio": data.get('volume_ratio', 1.0),
+                        "MFI": data.get('mfi', 0),
+                        "Z-Score": data.get('z_score', 0),
+                        "Momentum": data.get('momentum', 0),
+                        "ATR_raw": data.get('atr', 0),
+                        
+                        # Indicators H4
+                        "RSI_4h": data.get('rsi_4h', 50),
+                        "MACD_4h": data.get('macd_4h', 0),
+                        "ADX_4h": data.get('adx_4h', 0),
+                        "mfi_4h": data.get('mfi_4h', 0),
+                        "z_score_4h": data.get('z_score_4h', 0),
+                        "net_accum_4h": data.get("net_accum_4h", 0),
+                        "quote_vol_4h": data.get("quote_vol_4h", 0),
+                        
+                        # Indicators H12
+                        "rsi_12h": data.get('rsi_12h', 50),
+                        "macd_12h": data.get('macd_12h', 0),
+                        "adx_12h": data.get('adx_12h', 0),
+                        "mfi_12h": data.get('mfi_12h', 0),
+                        "z_score_12h": data.get('z_score_12h', 0),
+                        "net_accum_12h": data.get("net_accum_12h", 0),
+                        
+                        # Indicators D1
+                        "RSI_1d": data.get('rsi_1d', 50),
+                        "MACD_1d": data.get('macd_1d', 0),
+                        "ADX_1d": data.get('adx_1d', 0),
+                        "mfi_1d": data.get('mfi_1d', 0),
+                        "z_score_1d": data.get('z_score_1d', 0),
+                        "net_accum_1d": data.get("net_accum_1d", 0),
+                        "quote_vol_1d": data.get("quote_vol_1d", 0),
+
+                        # Global & Multi-Exchange
+                        "Global Price": data.get('Global_Price', 'N/A'),
+                        "Global Volume": data.get('Global_Volume', 0),
+                        "Price Spread": data.get('Price_Spread', 0),
+                        "Dominant Exchange": data.get('Dominant_Exchange', 'N/A'),
+                        
+                        # Trend & Structure
                         "SMA Trend": ema_trend_val,
+                        "EMA Trend": ema_trend_val, # For Regime Detector
                         "EMA Crossover": ema_crossover_val,
                         "EMA20 Cross": ema20_cross,
                         "Support": format_money(sup_val),
@@ -11991,32 +12408,44 @@ async def analyze_market():
                         "Trap Status": trap_val,
                         "Whale Activity": f"{trades_count} (Avg: ${format_money(avg_vol)})",
                         "WhaleActivity": trades_count,
-                        "Whale_Buy_M": data.get('buy', 0),
-                        "Whale_Sell_M": data.get('sell', 0),
                         "NetAccum_raw": data.get('net_accumulation', 0),
+                        "Volume Ratio": data.get('volume_ratio', 1.0),
                         "Taker Rate": data.get("taker_buy_quote", 0) / data.get("quote_volume", 1) if data.get("quote_volume", 1) > 0 else 0,
                         "Funding Rate": f"{data.get('funding_rate', 0) * 100:.4f}%",
                         "Long/Short Ratio": data.get('long_short_ratio', 1.0),
+                        "OI Change %": data.get("oi_change_pct", 0),
+                        "Open Interest": data.get("open_interest", 0),
                         "Antigravity Strategy": antigravity_pa_report,
                         "Liq Heatmap": liq_map,
                         "BB Squeeze": bb_squeeze_val,
                         "bullish_ob": pa_results.get("bullish_ob", False),
                         "bearish_ob": pa_results.get("bearish_ob", False),
                         "pa_structure": pa_results.get("structure", "Neutral"),
-                        "fvg_bullish": pa_results.get("fvg_bullish"),
-                        "fvg_bearish": pa_results.get("fvg_bearish"),
-                        "net_accum_4h": data.get("net_accum_4h", 0),
-                        "net_accum_12h": data.get("net_accum_12h", 0),
                         "RSI_Div": rsi_div,
                         "Vol_Climax": vol_climax,
                         "SFP_Pattern": sfp_pattern,
-                        "net_accum_1d": data.get("net_accum_1d", 0),
-                        "BTC Correlation": data.get("btc_corr_1h", 0),
-                        "BTC Correlation_4h": data.get("btc_corr_4h", "N/A"),
-                        "BTC Correlation_1d": data.get("btc_corr_1d", "N/A"),
-                        "quote_vol_4h": data.get("quote_vol_4h", 0),
-                        "quote_vol_1d": data.get("quote_vol_1d", 0),
+                        
+                        # Correlations (using locally calculated values)
+                        "btc_corr_1h": btc_corr_1h,
+                        "btc_corr_4h": btc_corr_4h,
+                        "btc_corr_1d": btc_corr_1d,
+                        "eth_corr_1h": eth_corr_1h,
+                        "eth_corr_4h": eth_corr_4h,
+                        "eth_corr_1d": eth_corr_1d,
+                        "sol_corr_1h": sol_corr_1h,
+                        "sol_corr_4h": sol_corr_4h,
+                        "sol_corr_1d": sol_corr_1d,
+                        
+                        # Legacy compatibility
+                        "24h Volume": data.get("quote_volume", 0),
                     }
+                    
+                    # Pre-calculate Manipulation Results to avoid event loop conflicts in reporting
+                    res["Manipulation_Results"] = detect_whale_strategies_enhanced(res, 
+                        klines_15m=df_15m.values.tolist() if not df_15m.empty else None,
+                        klines_1h=df_all.values.tolist() if not df_all.empty else None, # df_all is 1h klines in this context
+                        klines_4h=df_4h_data.values.tolist() if not df_4h_data.empty else None
+                    )
                     
                     res["Advice"] = generate_trade_recommendation(res)
                     
@@ -12070,30 +12499,31 @@ async def analyze_market():
                         return (sym, iv, [])
 
                     for sym in ref_symbols:
-                        for iv in ["1h", "4h", "12h", "1d"]:
+                        for iv in ["1h", "4h", "1d"]:
                             # Use robust fetcher from binance_client
                             tasks.append(binance_client.fetch_kline_with_fallback(session, sym, iv, limit=100))
                     
                     results = await asyncio.gather(*tasks)
                     
-                    # Process results into DataFrames
-                    # results is just a flat list of klines now, need to map back to keys
                     dfs = {}
                     idx = 0
                     for sym in ref_symbols:
-                        for iv in ["1h", "4h", "12h", "1d"]:
+                        for iv in ["1h", "4h", "1d"]:
                             data = results[idx]
                             idx += 1
                             if data and len(data) > 20:
                                 df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume", "close_time", "quote_volume", "trades", "taker_buy_base", "taker_buy_quote", "ignore"])
-                                df = df.apply(pd.to_numeric, errors='coerce').dropna(subset=["close"])
+                                df = df.apply(pd.to_numeric, errors='coerce')
+                                # FIX: Set datetime index for alignment
+                                df["close_time"] = pd.to_datetime(df["close_time"], unit='ms')
+                                df.set_index("close_time", inplace=True)
                                 dfs[f"{sym}_{iv}"] = df
                             else:
                                  dfs[f"{sym}_{iv}"] = None
                                  
                     return dfs
 
-             # Execute batch fetch with safety timeout
+            # Execute batch fetch with safety timeout
             print("[INFO] Fetching reference data (BTC, ETH, SOL) async...")
             try:
                 ref_dfs = await asyncio.wait_for(fetch_ref_data_batch(), timeout=60)
@@ -12101,28 +12531,27 @@ async def analyze_market():
                 print(f"[ERROR] Ref Data Fetch STALLED or Failed: {e}")
                 ref_dfs = {}
             
-            # Helper to get returns safely
-            def get_ret(sym, iv):
-                key = f"{sym}_{iv}"
-                if ref_dfs.get(key) is not None:
-                    return ref_dfs[key]["close"].pct_change().dropna()
-                return pd.Series(dtype=float)
+            # Prepare Reference Returns Bundle
+            ref_returns_bundle = {}
+            for sym_prefix, sym_display in [("BTCUSDT", "btc"), ("ETHUSDT", "eth"), ("SOLUSDT", "sol")]:
+                for interval in ["1h", "4h", "1d"]:
+                    key = f"{sym_prefix}_{interval}"
+                    if key in ref_dfs and ref_dfs[key] is not None:
+                        # Index is now datetime, safe for alignment
+                        ref_returns_bundle[f"{sym_display}_{interval}_ret"] = ref_dfs[key]["close"].pct_change().dropna()
+                    else:
+                        ref_returns_bundle[f"{sym_display}_{interval}_ret"] = pd.Series(dtype=float)
 
-            # Construct ref_returns dictionary
-            ref_returns = {
-                "btc_1h_ret": get_ret("BTCUSDT", "1h"),
-                "btc_4h_ret": get_ret("BTCUSDT", "4h"),
-                "btc_1d_ret": get_ret("BTCUSDT", "1d"),
-                "eth_1h_ret": get_ret("ETHUSDT", "1h"),
-                "eth_4h_ret": get_ret("ETHUSDT", "4h"),
-                "eth_1d_ret": get_ret("ETHUSDT", "1d"),
-                "sol_1h_ret": get_ret("SOLUSDT", "1h"),
-                "sol_4h_ret": get_ret("SOLUSDT", "4h"),
-                "sol_1d_ret": get_ret("SOLUSDT", "1d"),
-                "btc_12h_ret": get_ret("BTCUSDT", "12h"),
-                "eth_12h_ret": get_ret("ETHUSDT", "12h"),
-                "sol_12h_ret": get_ret("SOLUSDT", "12h"),
-            }
+            print(f"[INFO] Reference data ready. Keys: {list(ref_returns_bundle.keys())}")
+            
+            # 3. Parallel Execution with Concurrency Limit
+            tasks = []
+            semaphore = asyncio.Semaphore(15) 
+            
+            async def bound_fetch(symbol):
+                async with semaphore:
+                    async with aiohttp.ClientSession() as session:
+                         return await async_process_single_coin(session, symbol, ref_returns_bundle)
 
             async def fetch_and_process_batch(coin_list, ref_rets):
                 sem = asyncio.Semaphore(5)
@@ -12146,7 +12575,10 @@ async def analyze_market():
             # Optimized batch analysis with safety timeout
             try:
                 print(f"[INFO] Processing batch for {len(coins)} coins...")
-                results = await asyncio.wait_for(fetch_and_process_batch(coins, ref_returns), timeout=480)
+                results = await asyncio.wait_for(fetch_and_process_batch(coins, ref_returns_bundle), timeout=480)
+                
+                # ENRICH DATA: Calculate Outlier Scores
+                results = calculate_outliers(results)
                 print(f"[HEARTBEAT] Batch processed. Received {len(results)} valid results.")
             except Exception as e:
                 print(f"[ERROR] Batch Processing STALLED or Failed: {e}")
@@ -12175,14 +12607,17 @@ async def analyze_market():
                             cc = c.copy()
                             for k, v in cc.items():
                                 if isinstance(v, float):
-                                    cc[k] = round(v, 4)
+                                    if math.isnan(v) or math.isinf(v):
+                                        cc[k] = None
+                                    else:
+                                        cc[k] = round(v, 4)
                             clean_results.append(cc)
                             
                         with open("web_results.json", "w") as f:
                             json.dump(clean_results, f, default=str)
                             f.flush()
                             os.fsync(f.fileno())
-                        print(f"[WEB-SYNC] Final results saved safely.")
+                        print(f"[WEB-SYNC] Final results saved safely with NaN sanitization.")
                     except Exception as e:
                         print(f"[ERROR] Failed to save web data: {e}")
                     
@@ -12211,12 +12646,14 @@ async def analyze_market():
                 
                 # Update signal tracker with current prices
                 try:
-                    current_prices = {coin['Coin']: coin['Price'] for coin in ALL_RESULTS}
+                    current_prices = {coin['Coin']: extract_numeric(coin['Price']) for coin in ALL_RESULTS}
                     SIGNAL_TRACKER.update_signal_outcome(current_prices)
                 except Exception as e:
                     print(f"[WARN] Signal tracker update failed: {e}")
                 
                 # Analyze money flow
+                money_flow_report = "Analysis in progress..."
+                money_flow_viz = {"nodes": [], "links": []}
                 try:
                     global PREV_ALL_RESULTS
                     money_flows = MONEY_FLOW_ANALYZER.analyze_flow(ALL_RESULTS, PREV_ALL_RESULTS)
@@ -12233,22 +12670,29 @@ async def analyze_market():
                         
                 except Exception as e:
                     print(f"[WARN] Money flow analysis failed: {e}")
-                    money_flow_report = "Money flow data gathering..."
-                    money_flow_viz = {"nodes": [], "links": []}
                 
                 # Detect market regime
+                regime_banner = "Analyzing market regime..."
+                market_regime = {}
                 try:
                     market_regime = MARKET_REGIME_DETECTOR.detect_regime(ALL_RESULTS)
                     regime_banner = MARKET_REGIME_DETECTOR.format_regime_banner(market_regime)
                 except Exception as e:
                     print(f"[WARN] Market regime detection failed: {e}")
-                    regime_banner = "Market regime analyzing..."
-                    market_regime = {}
 
                 # Web Raporlarını Senkronize Et (Burada 'analysis_message' artık mevcut)
                 web_reports = {}
+                analysis_message = "Current market analysis data is being generated..."
                 try:
+                    try:
+                        analysis_message, coin_details, _ = generate_detailed_analysis_message(ALL_RESULTS)
+                        with global_lock:
+                            COIN_DETAILS = coin_details
+                    except Exception as e:
+                        print(f"[ERROR] Detailed analysis message generation failed: {e}")
+                    
                     web_reports["Current Analysis"] = analysis_message
+                    
                     try: web_reports["Summary"] = get_summary_report_string()
                     except Exception as e: print(f"[WARN] Summary report failed: {e}")
                     
@@ -12316,11 +12760,36 @@ async def analyze_market():
                     except: pass
                     try: web_reports["Market Regime Data"] = json.dumps(market_regime)
                     except: pass
-                    try: web_reports[" Signal Performance"] = SIGNAL_TRACKER.get_performance_report()
+                    try: web_reports["Signal Performance"] = SIGNAL_TRACKER.get_performance_report()
+                    except: pass
+                    
+                    # EXTRA REPORTS (Missing Buttons)
+                    try: web_reports["Manipulation Detector"] = generate_enhanced_manipulation_report()
+                    except: pass
+                    try: web_reports["Arbitrage Report"] = generate_metric_report("Price Spread", ALL_RESULTS)
+                    except: pass
+                    try: web_reports["Smart Score"] = generate_smart_score_report()
+                    except: pass
+                    try:
+                        # Global Analysis report construction
+                        g_report = "🌐 <b>GLOBAL MARKET MONITOR</b>\n"
+                        g_report += "--------------------------------\n"
+                        sorted_global = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("Global Price", 0)), reverse=True)
+                        for coin in sorted_global[:30]:
+                            sym = coin.get("DisplaySymbol", coin.get("Coin"))
+                            gp = coin.get("Global Price", "N/A")
+                            gs = coin.get("Price Spread", 0)
+                            de = coin.get("Dominant Exchange", "N/A")
+                            g_report += f"🔹 {sym}: Global ${gp} (Spread: {gs}%)\n"
+                            g_report += f"   Exch: {de}\n"
+                        web_reports["Global Analysis"] = g_report
                     except: pass
                     
                     # SMART MONEY INDICATORS (Deep Analysis)
-                    try: web_reports["Smart Money Indicators"] = generate_smart_money_indicators_report(ALL_RESULTS)
+                    try: 
+                        sm_rep = generate_smart_money_indicators_report(ALL_RESULTS)
+                        web_reports["Smart Money Indicators"] = sm_rep
+                        web_reports["Smart Money"] = sm_rep
                     except Exception as e: 
                         print(f"[WARN] Smart Money Indicators report failed: {e}")
                         pass
@@ -12333,19 +12802,19 @@ async def analyze_market():
                     except: pass
                     
                     indicators = [
-                        "RSI", "RSI 1H", "RSI_4h", "RSI_1d", 
-                        "MACD", "MACD 1H", "MACD_4h", "MACD_1d",
-                        "ADX", "ADX 1H", "ADX_4h", "ADX_1d", 
-                        "MFI", "MFI 1H", "MFI_4h", "MFI_1d",
-                        "Momentum", "Momentum 1H", "Momentum_4h", "Momentum_1d", 
-                        "Net Accum", "Net Accum 1H", "Net Accum_4h", "Net Accum_1d",
-                        "Composite Score", "Composite Score 1H", "Composite Score_4h", "Composite Score_1d", 
-                        "Outlier Score",
-                        "Funding Rate", "Long/Short Ratio", "Taker Rate", "EMA", "EMA 1H", "Z-Score", "Z-Score 1H",
-                        "BTC Correlation", "BTC Correlation_4h", "BTC Correlation_1d",
-                        "ETH Correlation", "ETH Correlation_4h", "ETH Correlation_1d",
-                        "SOL Correlation", "SOL Correlation_4h", "SOL Correlation_1d",
-                        "BB Squeeze"
+                        "RSI", "RSI 4h", "RSI 1d", "MACD", "MACD 4h", "MACD 1d",
+                        "ADX", "ADX 4h", "ADX 1d", "MFI", "MFI 4h", "MFI 1d",
+                        "Momentum", "Momentum 4h", "Momentum 1d", 
+                        "Net Accum", "Net Accum 4h", "Net Accum 1d",
+                        "Composite Score", "Composite Score 4h", "Composite Score 1d", 
+                        "Smart Score", "Outlier Score",
+                        "Funding Rate", "Long/Short Ratio", "Taker Rate", "EMA", "EMA Report", "Z-Score",
+                        "BTC Correlation", "BTC Correlation 4h", "BTC Correlation 1d",
+                        "ETH Correlation", "ETH Correlation 4h", "ETH Correlation 1d",
+                        "SOL Correlation", "SOL Correlation 4h", "SOL Correlation 1d",
+                        "4H Change", "CH 1H", "CH 15M", "Weekly Change", "Monthly Change", "24h Volume",
+                        "BB Squeeze", "Support/Resistance", "OI Change", "Open Interest",
+                        "1H Change", "15m Change"
                     ]
                     for ind in indicators:
                         try: web_reports[ind] = generate_metric_report(ind, ALL_RESULTS)
@@ -12366,9 +12835,10 @@ async def analyze_market():
                         
                         ag_report_text += "\n<i>⚡ Powered by Radar Ultra AI • Multi-Timeframe Price Action Analysis</i>"
                         web_reports["Antigravity Strategy"] = ag_report_text
-                    except Exception as ag_err:
-                        print(f"[ERROR] Antigravity report consolidation failed: {ag_err}")
-
+                    except: pass
+                    
+                    web_reports["Latest Signal Time"] = LAST_SIGNAL_TIME
+                    
                     with open("web_reports.json", "w") as f:
                         json.dump(web_reports, f, default=str)
                         os.fsync(f.fileno()) # Ensure write to disk for Render
@@ -12419,6 +12889,25 @@ if __name__ == "__main__":
     #     print(f"[ERROR] Failed to send main menu: {e}")
 
     print("[INFO] Starting Market Analysis Engine...")
+    
+    # ---------------------------------------------------------
+    # 🌍 Start Web Dashboard (Threaded)
+    # ---------------------------------------------------------
+    def run_web_server():
+        try:
+            print("[INFO] Starting Flask Web Dashboard on port 8050...")
+            # Import here to avoid circular dependencies if any
+            from web_dashboard import app
+            # Run on 0.0.0.0 to be accessible externally
+            app.run(host='0.0.0.0', port=8050, debug=False, use_reloader=False)
+        except Exception as e:
+            print(f"[ERROR] Failed to start web server: {e}")
+
+    import threading
+    server_thread = threading.Thread(target=run_web_server, daemon=True)
+    server_thread.start()
+    # ---------------------------------------------------------
+
     asyncio.run(analyze_market()) 
 
 

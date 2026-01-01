@@ -32,16 +32,26 @@ class MarketRegimeDetector:
         # Analyze top 20 coins
         top_coins = results[:20]
         
+        def safe_num(v):
+            if v is None or isinstance(v, str):
+                try: 
+                    # Attempt to extract number from string like "1.25x" or "0.05%"
+                    import re
+                    match = re.search(r"[-+]?\d*\.\d+|\d+", str(v))
+                    return float(match.group()) if match else 0.0
+                except: return 0.0
+            return float(v)
+
         # 1. EMA Trend Analysis
         bullish_count = 0
         bearish_count = 0
         neutral_count = 0
         
         for coin in top_coins:
-            trend = coin.get('EMA Trend', '')
-            if 'Bullish' in trend or 'X-Over' in trend and '🚀' in trend:
+            trend = coin.get('EMA Trend', coin.get('SMA Trend', ''))
+            if 'Bullish' in trend or (isinstance(trend, str) and '🚀' in trend):
                 bullish_count += 1
-            elif 'Bearish' in trend or ('X-Over' in trend and '📉' in trend):
+            elif 'Bearish' in trend or (isinstance(trend, str) and '📉' in trend):
                 bearish_count += 1
             else:
                 neutral_count += 1
@@ -49,21 +59,21 @@ class MarketRegimeDetector:
         trend_score = (bullish_count - bearish_count) / len(top_coins)
         
         # 2. Momentum Analysis
-        avg_momentum = np.mean([coin.get('Momentum', 0) for coin in top_coins])
+        avg_momentum = np.mean([safe_num(coin.get('Momentum', 0)) for coin in top_coins])
         
         # 3. ADX Analysis (trend strength)
-        avg_adx = np.mean([coin.get('ADX', 0) for coin in top_coins])
+        avg_adx = np.mean([safe_num(coin.get('ADX', 0)) for coin in top_coins])
         
         # 4. Volatility Analysis (ATR)
-        avg_atr = np.mean([coin.get('ATR_raw', 0) for coin in top_coins])
-        avg_price = np.mean([coin.get('Price', 1) for coin in top_coins])
+        avg_atr = np.mean([safe_num(coin.get('ATR_raw', 0)) for coin in top_coins])
+        avg_price = np.mean([safe_num(coin.get('Price', 1)) for coin in top_coins])
         volatility_ratio = (avg_atr / avg_price * 100) if avg_price > 0 else 0
         
         # 5. Volume Analysis
-        avg_vol_ratio = np.mean([coin.get('Volume Ratio', 1) for coin in top_coins])
+        avg_vol_ratio = np.mean([safe_num(coin.get('Volume Ratio', 1)) for coin in top_coins])
         
         # 6. Net Accumulation (whale buying/selling)
-        total_net_accum = sum([coin.get('net_accum_1d', 0) for coin in top_coins])
+        total_net_accum = sum([safe_num(coin.get('net_accum_1d', 0)) for coin in top_coins])
         net_accum_score = total_net_accum / 1000000  # in millions
         
         # Decision Logic
@@ -106,9 +116,9 @@ class MarketRegimeDetector:
                 "description": "🚀 Strong uptrend confirmed. Momentum strategies favored.",
                 "strategy": "Buy dips, ride trends, use momentum indicators, bullish positions",
                 "indicators": {
-                    "trend_score": f"+{trend_score:.2f}",
-                    "momentum": f"{momentum:.1f}",
-                    "adx": f"{adx:.1f}",
+                    "trend_score": f"+{trend_score:.2f} (Bullish)",
+                    "momentum": f"{momentum:.1f} (Strong)",
+                    "adx": f"{adx:.1f} (Strong Trend)",
                     "whale_flow": f"${net_accum:.1f}M"
                 }
             }
@@ -125,9 +135,9 @@ class MarketRegimeDetector:
                 "description": "📉 Strong downtrend detected. Capital preservation mode.",
                 "strategy": "Preserve capital, short positions, wait for reversal signals",
                 "indicators": {
-                    "trend_score": f"{trend_score:.2f}",
-                    "momentum": f"{momentum:.1f}",
-                    "adx": f"{adx:.1f}",
+                    "trend_score": f"{trend_score:.2f} (Bearish)",
+                    "momentum": f"{momentum:.1f} (Weak)",
+                    "adx": f"{adx:.1f} (Strong Trend)",
                     "whale_flow": f"${net_accum:.1f}M"
                 }
             }
@@ -161,7 +171,8 @@ class MarketRegimeDetector:
             "indicators": {
                 "trend_score": f"{trend_score:.2f}",
                 "momentum": f"{momentum:.1f}",
-                "status": "Transitioning"
+                "adx": f"{adx:.1f}",
+                "status": "Mixed/Transitioning"
             }
         }
     
