@@ -10664,8 +10664,8 @@ def get_summary_report_string():
     report += f"• Market Status: {market_status}\n"
 
     # Top Gainers and Losers
-    top_gainers = sorted(ALL_RESULTS, key=lambda x: float(x["24h Change"]), reverse=True)[:3]
-    top_losers = sorted(ALL_RESULTS, key=lambda x: float(x["24h Change"]))[:3]
+    top_gainers = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("24h Change", "0")), reverse=True)[:3]
+    top_losers = sorted(ALL_RESULTS, key=lambda x: extract_numeric(x.get("24h Change", "0")))[:3]
 
     report += "\n<b>Top Gainers:</b>\n"
     for coin in top_gainers:
