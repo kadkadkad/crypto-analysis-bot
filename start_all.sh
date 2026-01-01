@@ -1,7 +1,7 @@
 #!/bin/bash
 # Bot ve Web Dashboard Başlatma Scripti
 
-cd /Users/abdulkadirkarkinli/PycharmProjects/PythonProject
+cd "$(dirname "$0")"
 
 echo "🚀 Bot ve Web Dashboard başlatılıyor..."
 
@@ -16,7 +16,7 @@ sleep 2
 
 # Bot'u başlat
 echo "📊 Bot başlatılıyor..."
-.venv/bin/python main.py >> bot.log 2>&1 &
+venv/bin/python main.py >> bot.log 2>&1 &
 BOT_PID=$!
 echo "   ✅ Bot başlatıldı (PID: $BOT_PID)"
 
@@ -24,7 +24,7 @@ sleep 3
 
 # Web Dashboard'u başlat  
 echo "🌐 Web Dashboard başlatılıyor..."
-.venv/bin/python web_dashboard.py >> web.log 2>&1 &
+venv/bin/python web_dashboard.py >> web.log 2>&1 &
 WEB_PID=$!
 echo "   ✅ Web Dashboard başlatıldı (PID: $WEB_PID)"
 
