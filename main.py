@@ -10670,12 +10670,12 @@ def get_summary_report_string():
     report += "\n<b>Top Gainers:</b>\n"
     for coin in top_gainers:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin['24h Change']} (Net Accum: {coin['Net Accum']})\n"
+        report += f"• {symbol}: {coin.get('24h Change', 'N/A')} (Net Accum: {coin.get('Net Accum', 'N/A')})\n"
 
     report += "\n<b>Top Losers:</b>\n"
     for coin in top_losers:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin['24h Change']} (Net Accum: {coin['Net Accum']})\n"
+        report += f"• {symbol}: {coin.get('24h Change', 'N/A')} (Net Accum: {coin.get('Net Accum', 'N/A')})\n"
 
     # Smart Money & Manipulation Summary
     try:
