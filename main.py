@@ -10670,12 +10670,12 @@ def get_summary_report_string():
     report += "\n<b>Top Gainers:</b>\n"
     for coin in top_gainers:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin.get('24h Change', 'N/A')} (Net Accum: {coin.get('Net Accum', 'N/A')})\n"
+        report += f"• {symbol}: {coin.get('24h Change', 'N/A')} (Net Accum: {format_money(coin.get('NetAccum_raw', 0))})\n"
 
     report += "\n<b>Top Losers:</b>\n"
     for coin in top_losers:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin.get('24h Change', 'N/A')} (Net Accum: {coin.get('Net Accum', 'N/A')})\n"
+        report += f"• {symbol}: {coin.get('24h Change', 'N/A')} (Net Accum: {format_money(coin.get('NetAccum_raw', 0))})\n"
 
     # Smart Money & Manipulation Summary
     try:
@@ -10814,12 +10814,12 @@ def get_summary_report_string():
         report += "\n<b>🚀 TOP GAINERS:</b>\n"
         for coin in gainers:
             symbol = "$" + coin['Coin'].replace("USDT", "")
-            report += f"• {symbol}: {coin['Price']} ({coin.get('Price ROC', 'N/A')})\n"
+            report += f"• {symbol}: {coin['Price']} ({coin.get('24h Change', 'N/A')})\n"
 
         report += "\n<b>📉 TOP LOSERS:</b>\n"
         for coin in losers:
             symbol = "$" + coin['Coin'].replace("USDT", "")
-            report += f"• {symbol}: {coin['Price']} ({coin.get('Price ROC', 'N/A')})\n"
+            report += f"• {symbol}: {coin['Price']} ({coin.get('24h Change', 'N/A')})\n"
 
         # Performance of analysis
         report += "\n<b>🕵️ Smart Money & Manipulation Summary:</b>\n"
@@ -10850,7 +10850,7 @@ def get_summary_report_string():
     report += "\n<b>Top Net Accumulation:</b>\n"
     for coin in top_accum:
         symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"• {symbol}: {coin.get('Net Accum', 'N/A')} (ROC: {coin.get('24h Change', 'N/A')})\n"
+        report += f"• {symbol}: {format_money(coin.get('NetAccum_raw', 0))} (ROC: {coin.get('24h Change', 'N/A')})\n"
 
     # RSI based opportunities
     oversold = [coin for coin in ALL_RESULTS if extract_numeric(coin["RSI"]) < 30]
@@ -12696,9 +12696,7 @@ async def analyze_market():
                     try:
                         web_reports["Summary"] = get_summary_report_string()
                     except Exception as e:
-                        import traceback
                         print(f"[WARN] Summary report failed: {e}")
-                        traceback.print_exc()
                     
                     try: web_reports["Significant Changes"] = get_significant_changes_report_string()
                     except Exception as e: print(f"[WARN] Significant Changes report failed: {e}")
