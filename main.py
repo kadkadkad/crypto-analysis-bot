@@ -86,6 +86,8 @@ SENT_ALERTS = {}
 LAST_SIGNAL_TIME = 0  # Global tracker for web dashboard
 COIN_DETAILS = {}
 PREV_ALL_RESULTS = []  # For flow analysis
+BASELINE_RANKS = {}    # For long-term rank change tracking
+last_baseline_update = 0
 
 # Load previous results for Money Flow Persistence
 try:
@@ -6264,33 +6266,113 @@ def analyze_whale_movement(coin_data):
         return "Whale movement analysis failed."
 
 def detect_significant_changes(results):
+    """
+    Detects significant market movements, including:
+    1. Long-term rank shifts (vs BASELINE_RANKS updated hourly)
+    2. Significant Price ROC (>5% in current cycle)
+    3. Volume Spikes (>2.5x normal)
+    4. RSI Extremes (<25 or >75)
+    5. Trend Shifts (Bullish <-> Bearish)
+    """
     significant_changes = []
+    
     for coin in results:
+        symbol = coin["Coin"]
         current_rank = results.index(coin) + 1
+        
+        # 1. Rank shifts (vs Baseline)
         with global_lock:
-            prev_rank = PREV_RANKS.get(coin["Coin"])
-        if prev_rank is not None:
-            rank_change = prev_rank - current_rank
-            if abs(rank_change) >= 5:
-                net_accum = coin["NetAccum_raw"]
-                volume_ratio = extract_numeric(coin["Volume Ratio"])
-                momentum = extract_numeric(coin["Momentum"])
-                rsi = extract_numeric(coin["RSI"])
-                if (abs(net_accum) > 3 or volume_ratio > 1.2 or abs(momentum) > 20):
-                    significant_changes.append({
-                        "Coin": coin["Coin"],
-                        "RankChange": rank_change,
-                        "CurrentRank": current_rank,
-                        "PrevRank": prev_rank,
-                        "NetAccum": net_accum,
-                        "VolumeRatio": volume_ratio,
-                        "Momentum": momentum,
-                        "RSI": rsi,
-                        "Details": coin
-                    })
+            baseline_rank = BASELINE_RANKS.get(symbol)
+            prev_data = PREV_STATS.get(symbol, {})
+        
+        if baseline_rank is not None:
+            rank_change = baseline_rank - current_rank
+            if abs(rank_change) >= 10: # More lenient baseline check
+                significant_changes.append({
+                    "Coin": symbol,
+                    "Type": "Rank Shift",
+                    "RankChange": rank_change,
+                    "CurrentRank": current_rank,
+                    "PrevRank": baseline_rank,
+                    "Details": f"Rank moved from {baseline_rank} to {current_rank}",
+                    "VolumeRatio": extract_numeric(coin.get("Volume Ratio", 1)),
+                    "RSI": extract_numeric(coin.get("RSI", 50)),
+                    "Extra": coin
+                })
+        
+        # 2. Price Spikes
+        price_roc = extract_numeric(coin.get("24h Change Raw", 0))
+        # If we have previous price, we can check immediate change
         with global_lock:
-            PREV_RANKS[coin["Coin"]] = current_rank
-    return sorted(significant_changes, key=lambda x: abs(x["RankChange"]), reverse=True)
+            prev_price = prev_data.get("price", 0)
+        
+        curr_price = extract_numeric(coin.get("Price", 0))
+        if prev_price > 0:
+            immediate_change = ((curr_price - prev_price) / prev_price) * 100
+            if abs(immediate_change) > 5:
+                significant_changes.append({
+                    "Coin": symbol,
+                    "Type": "Price Spike",
+                    "Change": immediate_change,
+                    "Details": f"Price changed by {immediate_change:+.2f}% in one cycle!",
+                    "VolumeRatio": extract_numeric(coin.get("Volume Ratio", 1)),
+                    "RSI": extract_numeric(coin.get("RSI", 50)),
+                    "Extra": coin
+                })
+
+        # 3. Volume Spikes
+        vol_ratio = extract_numeric(coin.get("Volume Ratio", 0))
+        if vol_ratio > 3.0:
+            significant_changes.append({
+                "Coin": symbol,
+                "Type": "Volume Spike",
+                "Details": f"Extreme volume increase: {vol_ratio:.1f}x normal",
+                "VolumeRatio": vol_ratio,
+                "RSI": extract_numeric(coin.get("RSI", 50)),
+                "Extra": coin
+            })
+
+        # 4. RSI Extremes
+        rsi = extract_numeric(coin.get("RSI", 50))
+        if rsi > 80:
+            significant_changes.append({
+                "Coin": symbol,
+                "Type": "RSI Extreme",
+                "Details": f"Critically Overbought (RSI: {rsi:.1f})",
+                "RSI": rsi,
+                "VolumeRatio": vol_ratio,
+                "Extra": coin
+            })
+        elif rsi < 20:
+            significant_changes.append({
+                "Coin": symbol,
+                "Type": "RSI Extreme",
+                "Details": f"Critically Oversold (RSI: {rsi:.1f})",
+                "RSI": rsi,
+                "VolumeRatio": vol_ratio,
+                "Extra": coin
+            })
+
+        # 5. Trend Shifts
+        current_trend = coin.get("EMA Trend", "")
+        with global_lock:
+            prev_trend = prev_data.get("ema_trend", "")
+        
+        if prev_trend and current_trend and prev_trend != current_trend:
+            if ("Bullish" in current_trend and "Bearish" in prev_trend) or \
+               ("Up" in current_trend and "Down" in prev_trend):
+                significant_changes.append({
+                    "Coin": symbol,
+                    "Type": "Trend Shift",
+                    "Details": f"Trend flipped: {prev_trend} → {current_trend} 🚀",
+                    "RSI": rsi,
+                    "VolumeRatio": vol_ratio,
+                    "Extra": coin
+                })
+    
+    # Sort by significance (spikes first, then rank shifts)
+    type_priority = {"Price Spike": 0, "Trend Shift": 1, "Volume Spike": 2, "RSI Extreme": 3, "Rank Shift": 4}
+    return sorted(significant_changes, key=lambda x: type_priority.get(x["Type"], 5))
 
 
 def check_displacement(df, index, lookback=20):
@@ -11202,17 +11284,25 @@ def get_significant_changes_report_string():
         report += "\n".join(events) + "\n\n"
 
     # 2. Ranking & Momentum Changes
-    report += "📈 <b>MOMENTUM & RANKING SHIFTS:</b>\n"
+    report += "📈 <b>SIGNIFICANT MARKET EVENTS:</b>\n"
     if not significant_changes:
-        report += "No major ranking shifts detected in this cycle.\n"
+        report += "No major market shifts detected in this cycle.\n"
     else:
-        for change in significant_changes[:15]:
-            direction = "🟢 Rising" if change["RankChange"] > 0 else "🔴 Falling"
+        for change in significant_changes[:20]:
             symbol = "$" + change["Coin"].replace("USDT", "")
-            report += f"<b>{symbol}</b> ({direction}):\n"
-            report += f"   • Rank: {change['PrevRank']} → {change['CurrentRank']} ({change['RankChange']:+d})\n"
-            report += f"   • EMA Status: {change['Details'].get('EMA Trend', 'N/A')}\n"
-            report += f"   • Vol Ratio: {change['VolumeRatio']}x | RSI: {change['RSI']}\n\n"
+            event_type = change["Type"]
+            details = change["Details"]
+            
+            emoji = "📊"
+            if event_type == "Price Spike": emoji = "⚡"
+            elif event_type == "Volume Spike": emoji = "🔊"
+            elif event_type == "RSI Extreme": emoji = "🌡️"
+            elif event_type == "Trend Shift": emoji = "🔄"
+            elif event_type == "Rank Shift": emoji = "📈"
+
+            report += f"{emoji} <b>{symbol}</b> ({event_type}):\n"
+            report += f"   • {details}\n"
+            report += f"   • Vol Ratio: {change.get('VolumeRatio', 'N/A')}x | RSI: {change.get('RSI', 'N/A')}\n\n"
 
     return report
 
@@ -12165,12 +12255,14 @@ def process_telegram_updates():
 
 
 def save_prev_stats():
-    global PREV_STATS, PREV_RANKS, SENT_ALERTS
+    global PREV_STATS, PREV_RANKS, SENT_ALERTS, BASELINE_RANKS, last_baseline_update
     try:
         data = {
             "PREV_STATS": PREV_STATS,
             "PREV_RANKS": PREV_RANKS,
             "SENT_ALERTS": SENT_ALERTS,
+            "BASELINE_RANKS": BASELINE_RANKS,
+            "LAST_BASELINE_UPDATE": last_baseline_update,
             "LAST_SAVE": get_turkey_time().timestamp()
         }
         with open("prev_stats.json", "w") as f:
@@ -12182,7 +12274,7 @@ def save_prev_stats():
         print(f"[ERROR] Persistence failed: {e}")
 
 def load_prev_stats():
-    global PREV_STATS, PREV_RANKS, SENT_ALERTS
+    global PREV_STATS, PREV_RANKS, SENT_ALERTS, BASELINE_RANKS, last_baseline_update
     try:
         if os.path.exists("prev_stats.json"):
             with open("prev_stats.json", "r") as f:
@@ -12190,7 +12282,9 @@ def load_prev_stats():
                 PREV_STATS = data.get("PREV_STATS", {})
                 PREV_RANKS = data.get("PREV_RANKS", {})
                 SENT_ALERTS = data.get("SENT_ALERTS", {})
-                print(f"[INFO] Application state loaded ({len(PREV_STATS)} stats, {len(PREV_RANKS)} ranks, {len(SENT_ALERTS)} alerts)")
+                BASELINE_RANKS = data.get("BASELINE_RANKS", {})
+                last_baseline_update = data.get("LAST_BASELINE_UPDATE", 0)
+                print(f"[INFO] Application state loaded ({len(PREV_STATS)} stats, {len(PREV_RANKS)} ranks, {len(BASELINE_RANKS)} baselines, {len(SENT_ALERTS)} alerts)")
         else:
             print("[INFO] No prev_stats.json found, starting fresh")
     except Exception as e:
@@ -12861,6 +12955,14 @@ async def analyze_market():
                 if (get_turkey_time() - last_hourly_report_time).total_seconds() >= 3600:
                     generate_hourly_report()
                     last_hourly_report_time = get_turkey_time()
+
+                # Update BASELINE_RANKS every hour (3600 seconds)
+                global last_baseline_update
+                now_ts = get_turkey_time().timestamp()
+                if not BASELINE_RANKS or (now_ts - last_baseline_update) >= 3600:
+                    BASELINE_RANKS = {coin["Coin"]: i + 1 for i, coin in enumerate(ALL_RESULTS)}
+                    last_baseline_update = now_ts
+                    print(f"[INFO] BASELINE_RANKS updated at {get_turkey_time().strftime('%H:%M:%S')}")
 
                 # Save stats for future use
                 save_prev_stats()
