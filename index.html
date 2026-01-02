@@ -1396,6 +1396,29 @@
         </div>
     </div>
 
+    <!-- RSI Heatmap Modal -->
+    <div id="rsiHeatmapModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+                <h2>📊 RSI Heatmap (Top 50)</h2>
+                <span class="close" onclick="closeRsiHeatmap()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="rsiHeatmapGrid" class="rsi-heatmap-container">
+                    <!-- Dynamic Content -->
+                </div>
+                <div class="rsi-legend">
+                    <span class="legend-item"><span class="dot" style="background:#ef4444"></span>Overbought
+                        (>70)</span>
+                    <span class="legend-item"><span class="dot" style="background:#f97316"></span>Strong (60-70)</span>
+                    <span class="legend-item"><span class="dot" style="background:#eab308"></span>Neutral (40-60)</span>
+                    <span class="legend-item"><span class="dot" style="background:#3b82f6"></span>Weak (30-40)</span>
+                    <span class="legend-item"><span class="dot" style="background:#10b981"></span>Oversold (<30)< /span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="modal" class="modal">
         <div class="modal-inner">
             <div class="modal-h">
