@@ -527,14 +527,23 @@
         }
 
         /* Market Regime Banner */
+        .top-stats-container {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+            align-items: stretch;
+        }
+
         .regime-banner {
+            flex: 1;
             background: linear-gradient(135deg, var(--regime-color, #6b7280) 0%, rgba(0, 0, 0, 0.3) 100%);
             border: 2px solid var(--regime-color, #6b7280);
             border-radius: 12px;
             padding: 20px 30px;
-            margin: 20px 0;
+            margin: 0 !important;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             animation: regimePulse 2s ease-in-out infinite;
+            min-width: 0;
         }
 
         @keyframes regimePulse {
@@ -642,10 +651,11 @@
 
         /* Market Cash Flow Grid */
         .cash-flow-dashboard {
+            flex: 1.5;
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 12px;
-            margin: 15px 0;
+            margin: 0 !important;
         }
 
         .cash-item {
@@ -774,9 +784,14 @@
                 gap: 15px;
             }
 
+            .top-stats-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
             .regime-banner {
                 padding: 15px 20px;
-                margin: 15px 0;
+                margin: 0 !important;
             }
 
             .regime-title {
@@ -1249,52 +1264,54 @@
         </div>
 
         <div class="content">
-            <div id="regimeBanner" class="regime-banner" style="display: none;">
-                <div class="regime-title">
-                    <span id="regimeEmoji">🔄</span> <span id="regimeDisplay">ANALYZING MARKET...</span>
+            <div class="top-stats-container">
+                <div id="regimeBanner" class="regime-banner" style="display: none;">
+                    <div class="regime-title">
+                        <span id="regimeEmoji">🔄</span> <span id="regimeDisplay">ANALYZING MARKET...</span>
+                    </div>
+                    <div id="regimeDesc" class="regime-desc">Gathering real-time market data and processing AI signals.
+                    </div>
+                    <div id="regimeStrategy" class="regime-strategy">Wait for signal...</div>
+                    <div class="confidence-bar">
+                        <div id="confidenceFill" class="confidence-fill" style="width: 0%"></div>
+                    </div>
                 </div>
-                <div id="regimeDesc" class="regime-desc">Gathering real-time market data and processing AI signals.
-                </div>
-                <div id="regimeStrategy" class="regime-strategy">Wait for signal...</div>
-                <div class="confidence-bar">
-                    <div id="confidenceFill" class="confidence-fill" style="width: 0%"></div>
-                </div>
-            </div>
 
-            <div id="cashFlowDashboard" class="cash-flow-dashboard" style="display: none;">
-                <div class="cash-item">
-                    <div class="cash-tf">15m FLOW</div>
-                    <div id="flow-15m-val" class="cash-val">--%</div>
-                    <div class="cash-bar">
-                        <div id="flow-15m-fill" class="cash-fill" style="width: 0%"></div>
+                <div id="cashFlowDashboard" class="cash-flow-dashboard" style="display: none;">
+                    <div class="cash-item">
+                        <div class="cash-tf">15m FLOW</div>
+                        <div id="flow-15m-val" class="cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-15m-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
                     </div>
-                </div>
-                <div class="cash-item">
-                    <div class="cash-tf">1h FLOW</div>
-                    <div id="flow-1h-val" class="cash-val">--%</div>
-                    <div class="cash-bar">
-                        <div id="flow-1h-fill" class="cash-fill" style="width: 0%"></div>
+                    <div class="cash-item">
+                        <div class="cash-tf">1h FLOW</div>
+                        <div id="flow-1h-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-1h-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
                     </div>
-                </div>
-                <div class="cash-item">
-                    <div class="cash-tf">4h FLOW</div>
-                    <div id="flow-4h-val" class="cash-val">--%</div>
-                    <div class="cash-bar">
-                        <div id="flow-4h-fill" class="cash-fill" style="width: 0%"></div>
+                    <div class="cash-item">
+                        <div class="cash-tf">4h FLOW</div>
+                        <div id="flow-4h-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-4h-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
                     </div>
-                </div>
-                <div class="cash-item">
-                    <div class="cash-tf">12h FLOW</div>
-                    <div id="flow-12h-val" class="cash-val">--%</div>
-                    <div class="cash-bar">
-                        <div id="flow-12h-fill" class="cash-fill" style="width: 0%"></div>
+                    <div class="cash-item">
+                        <div class="cash-tf">12h FLOW</div>
+                        <div id="flow-12h-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-12h-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
                     </div>
-                </div>
-                <div class="cash-item">
-                    <div class="cash-tf">1d FLOW</div>
-                    <div id="flow-1d-val" class="cash-val">--%</div>
-                    <div class="cash-bar">
-                        <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
+                    <div class="cash-item">
+                        <div class="cash-tf">1d FLOW</div>
+                        <div id="flow-1d-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
                     </div>
                 </div>
             </div>
