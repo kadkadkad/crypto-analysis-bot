@@ -1265,7 +1265,7 @@
 
         <div class="content">
             <div class="top-stats-container">
-                <div id="regimeBanner" class="regime-banner" style="display: none;">
+                <div id="regimeBanner" class="regime-banner">
                     <div class="regime-title">
                         <span id="regimeEmoji">🔄</span> <span id="regimeDisplay">ANALYZING MARKET...</span>
                     </div>
@@ -1698,7 +1698,11 @@
                         if (fill) fill.style.width = `${(regime.confidence || 0) * 100}%`;
                     }
                 }
-            } catch (e) { console.error('Regime update error:', e); }
+            } catch (e) {
+                console.error('Regime update error:', e);
+                const desc = document.getElementById('regimeDesc');
+                if (desc) desc.innerText = "Error loading data: " + e.message;
+            }
         }
 
         // Update Money Flow
