@@ -1689,7 +1689,7 @@
                     const flowGrid = document.getElementById('flowGrid');
                     const section = document.getElementById('moneyFlowSection');
 
-                    if (flowData.nodes && flowData.nodes.length > 1) {
+                    if (flowData.nodes && flowData.nodes.length > 1 && section && flowGrid) {
                         section.style.display = 'block';
                         flowGrid.innerHTML = '';
 
