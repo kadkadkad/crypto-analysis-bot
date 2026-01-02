@@ -88,6 +88,7 @@ COIN_DETAILS = {}
 PREV_ALL_RESULTS = []  # For flow analysis
 BASELINE_RANKS = {}    # For long-term rank change tracking
 last_baseline_update = 0
+MARKET_CASH_FLOW_DATA = {} # For dashboard widget
 
 # Load previous results for Money Flow Persistence
 try:
@@ -3138,6 +3139,10 @@ def generate_dynamic_cash_flow_report():
                 executor.map(lambda s: calculate_buyer_ratio(sync_fetch_kline_data(s, interval, limit=20)), symbols))
         valid_ratios = [r for r in ratios if r != "N/A"]
         buyer_ratios[interval_name] = round(sum(valid_ratios) / len(valid_ratios), 1) if valid_ratios else 50.0
+
+    # Update global for dashboard
+    global MARKET_CASH_FLOW_DATA
+    MARKET_CASH_FLOW_DATA = buyer_ratios
 
     top_cash_ins = []
     valid_symbols = set(t["symbol"] for t in ticker_data)
@@ -12855,6 +12860,8 @@ async def analyze_market():
                     try: web_reports["Market Regime"] = regime_banner
                     except: pass
                     try: web_reports["Market Regime Data"] = json.dumps(market_regime)
+                    except: pass
+                    try: web_reports["Market Cash Flow Data"] = json.dumps(MARKET_CASH_FLOW_DATA)
                     except: pass
                     try: web_reports["Signal Performance"] = SIGNAL_TRACKER.get_performance_report()
                     except: pass

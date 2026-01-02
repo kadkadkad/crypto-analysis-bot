@@ -640,6 +640,58 @@
             opacity: 0.7;
         }
 
+        /* Market Cash Flow Grid */
+        .cash-flow-dashboard {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 15px 0;
+        }
+
+        .cash-item {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            transition: 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cash-item:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .cash-tf {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .cash-val {
+            font-size: 18px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+
+        .cash-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .cash-fill {
+            height: 100%;
+            transition: width 1s ease, background 0.5s ease;
+        }
+
         /* Signal Badge */
         .signal-badge {
             display: inline-block;
@@ -1209,6 +1261,44 @@
                 </div>
             </div>
 
+            <div id="cashFlowDashboard" class="cash-flow-dashboard" style="display: none;">
+                <div class="cash-item">
+                    <div class="cash-tf">15m FLOW</div>
+                    <div id="flow-15m-val" class="cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-15m-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">1h FLOW</div>
+                    <div id="flow-1h-val" class="cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-1h-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">4h FLOW</div>
+                    <div id="flow-4h-val" class="cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-4h-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">12h FLOW</div>
+                    <div id="flow-12h-val" class="cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-12h-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">1d FLOW</div>
+                    <div id="flow-1d-val" class="cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="grid" class="grid"></div>
         </div>
     </div>
@@ -1623,13 +1713,43 @@
             } catch (e) { console.error('Money flow update error:', e); }
         }
 
+        async function updateMarketCashFlow() {
+            try {
+                const res = await fetch('/api/report/Market%20Cash%20Flow%20Data');
+                const data = await res.json();
+                if (data.content) {
+                    const ratios = JSON.parse(data.content);
+                    const dash = document.getElementById('cashFlowDashboard');
+                    if (dash) {
+                        dash.style.display = 'grid';
+                        Object.keys(ratios).forEach(tf => {
+                            const val = ratios[tf];
+                            const valEl = document.getElementById(`flow-${tf}-val`);
+                            const fillEl = document.getElementById(`flow-${tf}-fill`);
+
+                            if (valEl) {
+                                valEl.innerText = `${val}%`;
+                                valEl.style.color = val >= 50 ? '#3fb950' : '#f85149';
+                            }
+                            if (fillEl) {
+                                fillEl.style.width = `${val}%`;
+                                fillEl.style.background = val >= 50 ? '#3fb950' : '#f85149';
+                            }
+                        });
+                    }
+                }
+            } catch (e) { console.error('Cash flow dashboard update error:', e); }
+        }
+
         setInterval(updateRegime, 30000);
         setInterval(updateMoneyFlow, 30000);
+        setInterval(updateMarketCashFlow, 45000);
 
         pull();
         checkAlerts();
         updateRegime();
         updateMoneyFlow();
+        updateMarketCashFlow();
     </script>
 </body>
 
