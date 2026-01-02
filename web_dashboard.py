@@ -37,7 +37,7 @@ def verify_password(username, password):
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["500 per day", "100 per hour"],
+    default_limits=["2000 per day", "500 per hour"],
     storage_uri="memory://"
 )
 
@@ -63,7 +63,7 @@ def index():
 
 # 📊 API: Veri çekme (rate limited)
 @app.route('/api/data')
-@limiter.limit("30 per minute")
+@limiter.limit("120 per minute")
 @auth.login_required
 def get_data():
     results = []
@@ -90,7 +90,7 @@ def get_data():
 
 # 📈 API: Rapor çekme (rate limited)
 @app.route('/api/report/<path:report_type>')
-@limiter.limit("20 per minute")
+@limiter.limit("100 per minute")
 @auth.login_required
 def get_report(report_type):
     try:
@@ -155,7 +155,8 @@ def get_report(report_type):
                 "Monthly Change": "Monthly Change",
                 "24h Volume": "24h Volume",
                 "S/R Levels": "Support/Resistance",
-                "Support/Resistance": "Support/Resistance"
+                "Support/Resistance": "Support/Resistance",
+                "Market Cash Flow Data": "Market Cash Flow Data"
             }
             
             key = mapping.get(report_type, report_type)
@@ -171,7 +172,7 @@ def get_report(report_type):
 
 # 🔔 API: Alert durumu (public - rate limited)
 @app.route('/api/alerts/status')
-@limiter.limit("60 per minute")
+@limiter.limit("120 per minute")
 def get_alerts_status():
     """Public endpoint for checking updates based on actual signal time"""
     try:

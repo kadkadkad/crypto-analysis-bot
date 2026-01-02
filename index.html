@@ -1654,7 +1654,7 @@
                 const data = await res.json();
                 if (data.content) document.getElementById('liveTicker').innerText = data.content;
             } catch (e) { }
-        }, 15000);
+        }, 20000);
 
         // Update Market Regime
         async function updateRegime() {
@@ -1746,9 +1746,9 @@
             } catch (e) { console.error('Cash flow dashboard update error:', e); }
         }
 
-        setInterval(updateRegime, 30000);
-        setInterval(updateMoneyFlow, 30000);
-        setInterval(updateMarketCashFlow, 45000);
+        setInterval(updateRegime, 45000);
+        setInterval(updateMoneyFlow, 45000);
+        setInterval(updateMarketCashFlow, 60000);
 
         pull();
         checkAlerts();
