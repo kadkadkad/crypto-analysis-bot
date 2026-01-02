@@ -1051,6 +1051,63 @@
                 transform: scale(0.99);
             }
         }
+
+        /* RSI Heatmap Styles */
+        .rsi-heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .rsi-card {
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s;
+        }
+
+        .rsi-card:hover {
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .rsi-val {
+            font-size: 18px;
+            font-weight: bold;
+            display: block;
+            margin: 5px 0;
+        }
+
+        .rsi-coin {
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .rsi-legend {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 15px;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
     </style>
 </head>
 
@@ -1265,11 +1322,9 @@
                     <button class="filter-btn" id="favFilter" onclick="toggleFilter('fav')">⭐ FAVORITES</button>
                     <button class="filter-btn" id="futureFilter" onclick="toggleFilter('future')">🔮 WATCH
                         SIGNALS</button>
-                    <a href="https://www.coinglass.com/pro/i/RsiHeatMap" target="_blank" style="text-decoration: none;">
-                        <button class="filter-btn"
-                            style="background: linear-gradient(135deg, #8b5cf6, #6366f1); border-color: #8b5cf6;">📊 RSI
-                            HEATMAP</button>
-                    </a>
+                    <button class="filter-btn" onclick="openRsiHeatmap()"
+                        style="background: linear-gradient(135deg, #8b5cf6, #6366f1); border-color: #8b5cf6;">📊 RSI
+                        HEATMAP</button>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -1792,6 +1847,64 @@
         updateRegime();
         updateMoneyFlow();
         updateMarketCashFlow();
+        // RSI Heatmap Logic
+        const rsiModal = document.getElementById('rsiHeatmapModal');
+
+        function openRsiHeatmap() {
+            rsiModal.style.display = 'block';
+            renderHeatmap();
+        }
+
+        function closeRsiHeatmap() {
+            rsiModal.style.display = 'none';
+        }
+
+        window.onclick = function (event) {
+            if (event.target == rsiModal) {
+                rsiModal.style.display = 'none';
+            }
+        }
+
+        async function renderHeatmap() {
+            const grid = document.getElementById('rsiHeatmapGrid');
+            grid.innerHTML = '<div style="color:white; text-align:center;">Loading RSI data...</div>';
+
+            try {
+                const res = await fetch('/api/data');
+                const coins = await res.json();
+
+                if (!coins || coins.length === 0) {
+                    grid.innerHTML = '<div style="color:white;">No data available</div>';
+                    return;
+                }
+
+                // Sort by RSI descending
+                coins.sort((a, b) => (b.RSI || 50) - (a.RSI || 50));
+
+                grid.innerHTML = '';
+                coins.forEach(coin => {
+                    const rsi = coin.RSI || 50;
+                    let color = '#eab308'; // Neutral
+                    if (rsi > 70) color = '#ef4444'; // Overbought
+                    else if (rsi >= 60) color = '#f97316'; // Strong
+                    else if (rsi <= 30) color = '#10b981'; // Oversold
+                    else if (rsi <= 40) color = '#3b82f6'; // Weak
+
+                    const div = document.createElement('div');
+                    div.className = 'rsi-card';
+                    div.style.borderTop = `3px solid ${color}`;
+                    div.innerHTML = `
+                        <span class="rsi-coin">$${coin.Coin.replace('USDT', '')}</span>
+                        <span class="rsi-val" style="color:${color}">${Math.round(rsi)}</span>
+                        <span style="font-size:10px; opacity:0.7">${rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral'}</span>
+                    `;
+                    grid.appendChild(div);
+                });
+            } catch (e) {
+                console.error("Heatmap Error:", e);
+                grid.innerHTML = '<div style="color:red;">Error loading heatmap</div>';
+            }
+        }
     </script>
 </body>
 
