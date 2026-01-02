@@ -659,7 +659,7 @@
         }
 
         .cash-item {
-            background: var(--card);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(0, 0, 0, 0.3));
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 12px;
@@ -669,9 +669,19 @@
             overflow: hidden;
         }
 
+        .cash-item::before {
+            content: '💰';
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            font-size: 14px;
+            opacity: 0.3;
+        }
+
         .cash-item:hover {
             border-color: var(--accent);
             transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
         }
 
         .cash-tf {
@@ -1255,6 +1265,11 @@
                     <button class="filter-btn" id="favFilter" onclick="toggleFilter('fav')">⭐ FAVORITES</button>
                     <button class="filter-btn" id="futureFilter" onclick="toggleFilter('future')">🔮 WATCH
                         SIGNALS</button>
+                    <a href="https://www.coinglass.com/pro/i/RsiHeatMap" target="_blank" style="text-decoration: none;">
+                        <button class="filter-btn"
+                            style="background: linear-gradient(135deg, #8b5cf6, #6366f1); border-color: #8b5cf6;">📊 RSI
+                            HEATMAP</button>
+                    </a>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -1277,7 +1292,8 @@
                     </div>
                 </div>
 
-                <div id="cashFlowDashboard" class="cash-flow-dashboard">
+                <div id="cashFlowDashboard" class="cash-flow-dashboard"
+                    title="Market Cash Flow: Buyer Ratio (Taker Buy Volume / Total Volume). >50% = Buyer Pressure, <50% = Seller Pressure">
                     <div class="cash-item">
                         <div class="cash-tf">15m FLOW</div>
                         <div id="flow-15m-val" class="cash-val">--%</div>
