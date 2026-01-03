@@ -40,41 +40,41 @@ class PumpPredictionEngine:
 
         # 2. Futures Score (25%)
         futures_score = 0
-        oi_chg = float(coin_data.get('OI Change %', 0) or 0)
-        funding = float(coin_data.get('Funding Rate', '0%').replace('%', '') or 0)
+        oi_chg = float(coin_data.get('oi_change_pct', 0) or 0)
+        funding = float(coin_data.get('funding_rate', 0) or 0)
         
-        if oi_chg > 10 and funding < 0.02: futures_score += 60 # Bullish OI build
-        elif oi_chg > 5: futures_score += 30
+        # Aggressive OI build in the last hour is a huge early lead
+        if oi_chg > 15: futures_score += 70
+        elif oi_chg > 5: futures_score += 40
         
-        if funding < 0: futures_score += 40 # Short squeeze potential
-        elif funding < 0.01: futures_score += 20
+        if funding < 0: futures_score += 30 # Short squeeze
         scores['futures'] = min(futures_score, 100)
 
         # 3. Structure Score (20%)
         struct_score = 0
         advice = coin_data.get('Advice', '').upper()
-        if "BULLISH" in advice or "ACCUMULATION" in advice: struct_score += 40
-        if "MSB" in advice or "BREAKOUT" in advice or "REVERSAL" in advice: struct_score += 60
+        # Early reversal/breakout detection
+        if "REVERSAL" in advice or "MSB" in advice: struct_score += 70
+        elif "BULLISH" in advice: struct_score += 40
         scores['structure'] = min(struct_score, 100)
 
         # 4. Whale Score (15%)
         whale_score = 0
-        net_accum = float(coin_data.get('NetAccum_raw', 0) or 0)
-        # More sensitive whale scoring
+        net_accum = float(coin_data.get('net_accumulation', 0) or 0)
         if net_accum > 50000: whale_score = 100
-        elif net_accum > 20000: whale_score = 70
-        elif net_accum > 0: whale_score = 40
+        elif net_accum > 10000: whale_score = 60
         scores['whales'] = whale_score
 
         # 5. Technical Score (10%)
         tech_score = 0
-        rsi = float(coin_data.get('RSI', 50) or 50)
-        vol_ratio = float(coin_data.get('Volume Ratio', 1) or 1)
-        chg_24h = float(coin_data.get('24h Change', 0) or 0)
-
-        if 40 < rsi < 65: tech_score += 30 # Momentum check
-        if vol_ratio > 1.5: tech_score += 40 # Volume surge
-        if chg_24h > 5: tech_score += 30 # Immediate strength
+        rsi = float(coin_data.get('rsi', 50) or 50) # 1H RSI
+        vol_ratio = float(coin_data.get('volume_ratio', 1) or 1)
+        
+        # RSI Reclaiming 50 (The "Bullish Pivot")
+        if 50 < rsi < 60: tech_score += 60 # Fresh momentum
+        elif 30 < rsi < 50: tech_score += 30 # Accumulation
+        
+        if vol_ratio > 1.2: tech_score += 40
         scores['technicals'] = min(tech_score, 100)
 
         # Weighted Total
@@ -82,11 +82,10 @@ class PumpPredictionEngine:
         
         # Confluence Analysis (Actionable Intel)
         confluences = []
-        if scores['tvl'] >= 50: confluences.append("TVL Inflow")
-        if oi_chg > 7: confluences.append("Futures Building")
-        if net_accum > 20000: confluences.append("Whale Buying")
-        if chg_24h > 5: confluences.append("Bullish Momentum")
-        if "REVERSAL" in advice or "BREAKOUT" in advice: confluences.append("Chart Breakout")
+        if oi_chg > 10: confluences.append("🚀 Fresh OI Spike (1H)")
+        if 50 < rsi < 55: confluences.append("📈 Bullish RSI Pivot")
+        if net_accum > 20000: confluences.append("🐋 Whale Front-run")
+        if scores['tvl'] >= 50: confluences.append("💧 TVL Lead")
         
         return {
             'symbol': symbol,
