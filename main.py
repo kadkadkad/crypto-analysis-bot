@@ -51,7 +51,8 @@ from candlestick_patterns import (
 )
 from technical_pattern_analyzer import TechnicalPatternAnalyzer
 from money_flow_analyzer import MoneyFlowAnalyzer
-from tvl_tracker import get_tvl_alpha_report, get_tvl_anomalies
+from tvl_tracker import get_tvl_alpha_report, get_tvl_anomalies, TVL_TRACKER
+from prediction_engine import PumpPredictionEngine
 from market_regime import MarketRegimeDetector
 from signal_tracker import SignalWinRateTracker
 from smart_money_report import generate_smart_money_indicators_report
@@ -84,7 +85,9 @@ PREV_HOURLY_REPORTS = config.PREV_HOURLY_REPORTS
 MONEY_FLOW_ANALYZER = MoneyFlowAnalyzer()
 MARKET_REGIME_DETECTOR = MarketRegimeDetector()
 SIGNAL_TRACKER = SignalWinRateTracker()
-SENT_ALERTS = {}
+PREDICTION_ENGINE = PumpPredictionEngine(TVL_TRACKER)
+# Shared results cache to be populated from the loop
+ALL_RESULTS = []
 LAST_SIGNAL_TIME = 0  # Global tracker for web dashboard
 COIN_DETAILS = {}
 PREV_ALL_RESULTS = []  # For flow analysis
@@ -12987,6 +12990,10 @@ async def analyze_market():
                     except: pass
                     try: web_reports["TVL Alpha"] = get_tvl_alpha_report(ALL_RESULTS)
                     except Exception as e: print(f"[WARN] TVL Alpha report failed: {e}")
+                    try:
+                        tvl_anoms = get_tvl_anomalies()
+                        web_reports["Pump Predictions"] = PREDICTION_ENGINE.generate_prediction_report(ALL_RESULTS, tvl_anoms)
+                    except Exception as e: print(f"[WARN] Pump Predictions report failed: {e}")
                     try:
                         # Global Analysis report construction
                         g_report = "🌐 <b>GLOBAL MARKET MONITOR</b>\n"
