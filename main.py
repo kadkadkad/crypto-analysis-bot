@@ -3154,10 +3154,31 @@ def generate_dynamic_cash_flow_report():
 
     for interval_name, interval in intervals.items():
         with ThreadPoolExecutor(max_workers=10) as executor:
-            ratios = list(
-                executor.map(lambda s: calculate_buyer_ratio(sync_fetch_kline_data(s, interval, limit=20)), symbols))
-        valid_ratios = [r for r in ratios if r != "N/A"]
-        buyer_ratios[interval_name] = round(sum(valid_ratios) / len(valid_ratios), 1) if valid_ratios else 50.0
+            # Fetch klines for all symbols
+            kline_results = list(executor.map(lambda s: sync_fetch_kline_data(s, interval, limit=10), symbols))
+            
+            total_buy_v = 0
+            total_mkt_v = 0
+            
+            for k_data in kline_results:
+                if not k_data or len(k_data) < 2: continue
+                try:
+                    df = pd.DataFrame(k_data, columns=["timestamp", "open", "high", "low", "close", "volume",
+                                                       "close_time", "quote_volume", "trades", "taker_buy_base",
+                                                       "taker_buy_quote", "ignore"])
+                    df["quote_volume"] = pd.to_numeric(df["quote_volume"], errors="coerce").fillna(0)
+                    df["taker_buy_quote"] = pd.to_numeric(df["taker_buy_quote"], errors="coerce").fillna(0)
+                    
+                    # Take the last 5 candles for high-frequency sentiment
+                    recent = df.tail(5)
+                    total_buy_v += recent["taker_buy_quote"].sum()
+                    total_mkt_v += recent["quote_volume"].sum()
+                except: continue
+            
+            if total_mkt_v > 0:
+                buyer_ratios[interval_name] = round((total_buy_v / total_mkt_v) * 100, 1)
+            else:
+                buyer_ratios[interval_name] = 50.0
 
     # Update global for dashboard
     global MARKET_CASH_FLOW_DATA
