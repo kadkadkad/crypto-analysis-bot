@@ -53,38 +53,40 @@ class PumpPredictionEngine:
         # 3. Structure Score (20%)
         struct_score = 0
         advice = coin_data.get('Advice', '').upper()
-        if "BULLISH" in advice or "ACCUMULATION" in advice: struct_score += 50
-        if "MSB" in advice or "BREAKOUT" in advice: struct_score += 50
-        scores['structure'] = struct_score
+        if "BULLISH" in advice or "ACCUMULATION" in advice: struct_score += 40
+        if "MSB" in advice or "BREAKOUT" in advice or "REVERSAL" in advice: struct_score += 60
+        scores['structure'] = min(struct_score, 100)
 
         # 4. Whale Score (15%)
         whale_score = 0
         net_accum = float(coin_data.get('NetAccum_raw', 0) or 0)
-        if net_accum > 100000: whale_score = 100
-        elif net_accum > 50000: whale_score = 70
-        elif net_accum > 0: whale_score = 30
+        # More sensitive whale scoring
+        if net_accum > 50000: whale_score = 100
+        elif net_accum > 20000: whale_score = 70
+        elif net_accum > 0: whale_score = 40
         scores['whales'] = whale_score
 
         # 5. Technical Score (10%)
         tech_score = 0
         rsi = float(coin_data.get('RSI', 50) or 50)
         vol_ratio = float(coin_data.get('Volume Ratio', 1) or 1)
-        squeeze = coin_data.get('BB_Squeeze', '')
+        chg_24h = float(coin_data.get('24h Change', 0) or 0)
 
-        if 30 < rsi < 55: tech_score += 40 # Room to run
-        if vol_ratio > 2: tech_score += 40 # Volume surge
-        if "Squeeze" in squeeze: tech_score += 20
-        scores['technicals'] = tech_score
+        if 40 < rsi < 65: tech_score += 30 # Momentum check
+        if vol_ratio > 1.5: tech_score += 40 # Volume surge
+        if chg_24h > 5: tech_score += 30 # Immediate strength
+        scores['technicals'] = min(tech_score, 100)
 
         # Weighted Total
         total_score = sum(scores[k] * self.weights[k] for k in self.weights)
         
         # Confluence Analysis (Actionable Intel)
         confluences = []
-        if scores['tvl'] >= 80: confluences.append("Strong TVL Inflow")
-        if oi_chg > 10: confluences.append("Aggressive OI Build")
-        if net_accum > 100000: confluences.append("Whale Accumulation")
-        if "Squeeze" in squeeze: confluences.append("Bollinger Squeeze")
+        if scores['tvl'] >= 50: confluences.append("TVL Inflow")
+        if oi_chg > 7: confluences.append("Futures Building")
+        if net_accum > 20000: confluences.append("Whale Buying")
+        if chg_24h > 5: confluences.append("Bullish Momentum")
+        if "REVERSAL" in advice or "BREAKOUT" in advice: confluences.append("Chart Breakout")
         
         return {
             'symbol': symbol,
