@@ -527,14 +527,23 @@
         }
 
         /* Market Regime Banner */
+        .top-stats-container {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+            align-items: stretch;
+        }
+
         .regime-banner {
+            flex: 1;
             background: linear-gradient(135deg, var(--regime-color, #6b7280) 0%, rgba(0, 0, 0, 0.3) 100%);
             border: 2px solid var(--regime-color, #6b7280);
             border-radius: 12px;
-            padding: 20px 30px;
-            margin: 20px 0;
+            padding: 12px 20px;
+            margin: 0 !important;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
             animation: regimePulse 2s ease-in-out infinite;
+            min-width: 0;
         }
 
         @keyframes regimePulse {
@@ -550,12 +559,12 @@
         }
 
         .regime-title {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 900;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .regime-desc {
@@ -640,6 +649,69 @@
             opacity: 0.7;
         }
 
+        /* Market Cash Flow Grid */
+        .cash-flow-dashboard {
+            flex: 1.5;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin: 0 !important;
+        }
+
+        .cash-item {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.05), rgba(0, 0, 0, 0.3));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            transition: 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cash-item::before {
+            content: '💰';
+            position: absolute;
+            top: 4px;
+            right: 6px;
+            font-size: 14px;
+            opacity: 0.3;
+        }
+
+        .cash-item:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .cash-tf {
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .cash-val {
+            font-size: 18px;
+            font-weight: 900;
+            margin-bottom: 8px;
+        }
+
+        .cash-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .cash-fill {
+            height: 100%;
+            transition: width 1s ease, background 0.5s ease;
+        }
+
         /* Signal Badge */
         .signal-badge {
             display: inline-block;
@@ -722,9 +794,14 @@
                 gap: 15px;
             }
 
+            .top-stats-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
             .regime-banner {
                 padding: 15px 20px;
-                margin: 15px 0;
+                margin: 0 !important;
             }
 
             .regime-title {
@@ -974,13 +1051,70 @@
                 transform: scale(0.99);
             }
         }
+
+        /* RSI Heatmap Styles */
+        .rsi-heatmap-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .rsi-card {
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s;
+        }
+
+        .rsi-card:hover {
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .rsi-val {
+            font-size: 18px;
+            font-weight: bold;
+            display: block;
+            margin: 5px 0;
+        }
+
+        .rsi-coin {
+            font-size: 12px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .rsi-legend {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 15px;
+            font-size: 12px;
+            color: var(--text-dim);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .legend-item .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
     </style>
 </head>
 
 <body>
     <div id="toast-container"></div>
     <div class="sidebar">
-        <div class="side-head"><i class="fas fa-satellite-dish"></i> RADAR ULTRA V7</div>
+        <div class="side-head"><i class="fas fa-satellite-dish"></i> RADAR ULTRA V7 AI</div>
         <div class="side-scroll">
 
             <div class="cat">
@@ -1054,6 +1188,22 @@
                     <button class="btn-item" onclick="api('RSI 4H')"><i class="fas fa-history"></i> RSI (4H)</button>
                     <button class="btn-item" onclick="api('RSI 1D')"><i class="fas fa-calendar-day"></i> RSI
                         (1D)</button>
+                </div>
+            </div>
+
+            <!-- Volume & Support -->
+            <div class="cat">
+                <div class="cat-ttl">Volume & Support</div>
+                <div class="btn-list">
+                    <button class="btn-item" onclick="api('24h Volume')">
+                        <i class="fas fa-chart-bar"></i> 24H VOLUME
+                    </button>
+                    <button class="btn-item" onclick="api('Volume Ratio')">
+                        <i class="fas fa-layer-group"></i> VOLUME RATIO
+                    </button>
+                    <button class="btn-item" onclick="api('Taker Rate')">
+                        <i class="fas fa-hand-holding-usd"></i> TAKER RATE
+                    </button>
                 </div>
             </div>
 
@@ -1188,6 +1338,9 @@
                     <button class="filter-btn" id="favFilter" onclick="toggleFilter('fav')">⭐ FAVORITES</button>
                     <button class="filter-btn" id="futureFilter" onclick="toggleFilter('future')">🔮 WATCH
                         SIGNALS</button>
+                    <button class="filter-btn" onclick="openRsiHeatmap()"
+                        style="background: linear-gradient(135deg, #8b5cf6, #6366f1); border-color: #8b5cf6;">📊 RSI
+                        HEATMAP</button>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -1197,19 +1350,88 @@
         </div>
 
         <div class="content">
-            <div id="regimeBanner" class="regime-banner" style="display: none;">
-                <div class="regime-title">
-                    <span id="regimeEmoji">🔄</span> <span id="regimeDisplay">ANALYZING MARKET...</span>
+            <div class="top-stats-container">
+                <div id="regimeBanner" class="regime-banner">
+                    <div class="regime-title">
+                        <span id="regimeEmoji">🔄</span> <span id="regimeDisplay">ANALYZING MARKET...</span>
+                    </div>
+                    <div id="regimeDesc" class="regime-desc">Gathering real-time market data and processing AI signals.
+                    </div>
+                    <div id="regimeStrategy" class="regime-strategy">Wait for signal...</div>
+                    <div class="confidence-bar">
+                        <div id="confidenceFill" class="confidence-fill" style="width: 0%"></div>
+                    </div>
                 </div>
-                <div id="regimeDesc" class="regime-desc">Gathering real-time market data and processing AI signals.
-                </div>
-                <div id="regimeStrategy" class="regime-strategy">Wait for signal...</div>
-                <div class="confidence-bar">
-                    <div id="confidenceFill" class="confidence-fill" style="width: 0%"></div>
+
+                <div id="cashFlowDashboard" class="cash-flow-dashboard"
+                    title="Market Cash Flow: Buyer Ratio (Taker Buy Volume / Total Volume). >50% = Buyer Pressure, <50% = Seller Pressure">
+                    <div class="cash-item">
+                        <div class="cash-tf">15m FLOW</div>
+                        <div id="flow-15m-val" class="cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-15m-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="cash-item">
+                        <div class="cash-tf">1h FLOW</div>
+                        <div id="flow-1h-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-1h-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="cash-item">
+                        <div class="cash-tf">4h FLOW</div>
+                        <div id="flow-4h-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-4h-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="cash-item">
+                        <div class="cash-tf">12h FLOW</div>
+                        <div id="flow-12h-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-12h-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="cash-item">
+                        <div class="cash-tf">1d FLOW</div>
+                        <div id="flow-1d-val" class="internal-cash-val">--%</div>
+                        <div class="cash-bar">
+                            <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
+            <div id="moneyFlowSection" class="money-flow-container" style="display: none;">
+                <div class="flow-title">🌊 WHALE MONEY FLOW (RT)</div>
+                <div id="flowGrid" class="flow-grid"></div>
+            </div>
+
             <div id="grid" class="grid"></div>
+        </div>
+    </div>
+
+    <!-- RSI Heatmap Modal -->
+    <div id="rsiHeatmapModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px;">
+            <div class="modal-header">
+                <h2>📊 RSI Heatmap (Top 50)</h2>
+                <span class="close" onclick="closeRsiHeatmap()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="rsiHeatmapGrid" class="rsi-heatmap-container">
+                    <!-- Dynamic Content -->
+                </div>
+                <div class="rsi-legend">
+                    <span class="legend-item"><span class="dot" style="background:#ef4444"></span>Overbought
+                        (>70)</span>
+                    <span class="legend-item"><span class="dot" style="background:#f97316"></span>Strong (60-70)</span>
+                    <span class="legend-item"><span class="dot" style="background:#eab308"></span>Neutral (40-60)</span>
+                    <span class="legend-item"><span class="dot" style="background:#3b82f6"></span>Weak (30-40)</span>
+                    <span class="legend-item"><span class="dot" style="background:#10b981"></span>Oversold (<30)< /span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1559,7 +1781,7 @@
                 const data = await res.json();
                 if (data.content) document.getElementById('liveTicker').innerText = data.content;
             } catch (e) { }
-        }, 15000);
+        }, 20000);
 
         // Update Market Regime
         async function updateRegime() {
@@ -1586,7 +1808,11 @@
                         if (fill) fill.style.width = `${(regime.confidence || 0) * 100}%`;
                     }
                 }
-            } catch (e) { console.error('Regime update error:', e); }
+            } catch (e) {
+                console.error('Regime update error:', e);
+                const desc = document.getElementById('regimeDesc');
+                if (desc) desc.innerText = "Error loading data: " + e.message;
+            }
         }
 
         // Update Money Flow
@@ -1599,7 +1825,7 @@
                     const flowGrid = document.getElementById('flowGrid');
                     const section = document.getElementById('moneyFlowSection');
 
-                    if (flowData.nodes && flowData.nodes.length > 1) {
+                    if (flowData.nodes && flowData.nodes.length > 1 && section && flowGrid) {
                         section.style.display = 'block';
                         flowGrid.innerHTML = '';
 
@@ -1623,13 +1849,101 @@
             } catch (e) { console.error('Money flow update error:', e); }
         }
 
-        setInterval(updateRegime, 30000);
-        setInterval(updateMoneyFlow, 30000);
+        async function updateMarketCashFlow() {
+            try {
+                const res = await fetch('/api/report/Market%20Cash%20Flow%20Data');
+                const data = await res.json();
+                if (data.content) {
+                    const ratios = JSON.parse(data.content);
+                    const dash = document.getElementById('cashFlowDashboard');
+                    if (dash) {
+                        dash.style.display = 'grid';
+                        Object.keys(ratios).forEach(tf => {
+                            const val = ratios[tf];
+                            const valEl = document.getElementById(`flow-${tf}-val`);
+                            const fillEl = document.getElementById(`flow-${tf}-fill`);
+
+                            if (valEl) {
+                                valEl.innerText = `${val}%`;
+                                valEl.style.color = val >= 50 ? '#3fb950' : '#f85149';
+                            }
+                            if (fillEl) {
+                                fillEl.style.width = `${val}%`;
+                                fillEl.style.background = val >= 50 ? '#3fb950' : '#f85149';
+                            }
+                        });
+                    }
+                }
+            } catch (e) { console.error('Cash flow dashboard update error:', e); }
+        }
+
+        setInterval(updateRegime, 45000);
+        setInterval(updateMoneyFlow, 45000);
+        setInterval(updateMarketCashFlow, 60000);
 
         pull();
         checkAlerts();
         updateRegime();
         updateMoneyFlow();
+        updateMarketCashFlow();
+        // RSI Heatmap Logic
+        const rsiModal = document.getElementById('rsiHeatmapModal');
+
+        function openRsiHeatmap() {
+            rsiModal.style.display = 'block';
+            renderHeatmap();
+        }
+
+        function closeRsiHeatmap() {
+            rsiModal.style.display = 'none';
+        }
+
+        window.onclick = function (event) {
+            if (event.target == rsiModal) {
+                rsiModal.style.display = 'none';
+            }
+        }
+
+        async function renderHeatmap() {
+            const grid = document.getElementById('rsiHeatmapGrid');
+            grid.innerHTML = '<div style="color:white; text-align:center;">Loading RSI data...</div>';
+
+            try {
+                const res = await fetch('/api/data');
+                const coins = await res.json();
+
+                if (!coins || coins.length === 0) {
+                    grid.innerHTML = '<div style="color:white;">No data available</div>';
+                    return;
+                }
+
+                // Sort by RSI descending
+                coins.sort((a, b) => (b.RSI || 50) - (a.RSI || 50));
+
+                grid.innerHTML = '';
+                coins.forEach(coin => {
+                    const rsi = coin.RSI || 50;
+                    let color = '#eab308'; // Neutral
+                    if (rsi > 70) color = '#ef4444'; // Overbought
+                    else if (rsi >= 60) color = '#f97316'; // Strong
+                    else if (rsi <= 30) color = '#10b981'; // Oversold
+                    else if (rsi <= 40) color = '#3b82f6'; // Weak
+
+                    const div = document.createElement('div');
+                    div.className = 'rsi-card';
+                    div.style.borderTop = `3px solid ${color}`;
+                    div.innerHTML = `
+                        <span class="rsi-coin">$${coin.Coin.replace('USDT', '')}</span>
+                        <span class="rsi-val" style="color:${color}">${Math.round(rsi)}</span>
+                        <span style="font-size:10px; opacity:0.7">${rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral'}</span>
+                    `;
+                    grid.appendChild(div);
+                });
+            } catch (e) {
+                console.error("Heatmap Error:", e);
+                grid.innerHTML = '<div style="color:red;">Error loading heatmap</div>';
+            }
+        }
     </script>
 </body>
 

@@ -122,6 +122,11 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
             "price_change_percent": float(t_data["priceChangePercent"]),
             "volume": float(t_data["volume"]),
             "quote_volume": float(t_data["quoteVolume"]),
+            "trades": int(t_data.get("count", 0)),
+            "taker_buy_quote": 0.0,
+            "btc_corr_1h": 0.0, "eth_corr_1h": 0.0, "sol_corr_1h": 0.0,
+            "btc_corr_4h": 0.0, "eth_corr_4h": 0.0, "sol_corr_4h": 0.0,
+            "btc_corr_1d": 0.0, "eth_corr_1d": 0.0, "sol_corr_1d": 0.0,
             "symbol": symbol
         }
 
@@ -156,6 +161,10 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         for col in ["open", "high", "low", "close", "volume", "quote_volume", "taker_buy_quote"]:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna(subset=["close"])
+        
+        # FIX: Set datetime index for correlation alignment
+        df["close_time"] = pd.to_datetime(df["close_time"], unit='ms')
+        df.set_index("close_time", inplace=True)
 
         def safe_get(val):
             if val is None or pd.isna(val): return 0.0
@@ -165,6 +174,12 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         ticker_data["macd"] = safe_get(MACD(df["close"]).macd().iloc[-1])
         ticker_data["adx"] = safe_get(calculate_adx(df))
         ticker_data["momentum"] = (ticker_data["rsi"] * 0.3) + (ticker_data["macd"] * 100) + (ticker_data["adx"] * 0.2)
+        
+        # EMA Calculations
+        ticker_data["ema_20"] = safe_get(calculate_ema(df, 20))
+        ticker_data["ema_50"] = safe_get(calculate_ema(df, 50))
+        ticker_data["ema_100"] = safe_get(calculate_ema(df, 100))
+        ticker_data["ema_200"] = safe_get(calculate_ema(df, 200))
         
         # Z-Score 1H
         sma20 = df["close"].rolling(window=20).mean().iloc[-1]
@@ -178,7 +193,10 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
 
         # Volume Ratio Logic (Current 24h / Avg 24h)
         try:
-            if len(df) >= 48:
+            if len(df) >= 24:
+                # Calculate 24h Taker Volume from Klines (more reliable than ticker sometimes)
+                ticker_data["taker_buy_quote"] = df["taker_buy_quote"].tail(24).sum()
+                
                 # Rolling 24h volume sum
                 rolling_24h = df["quote_volume"].rolling(window=24).sum()
                 avg_24h_vol = rolling_24h.mean()
@@ -188,8 +206,10 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
                     ticker_data["volume_ratio"] = 1.0
             else:
                  ticker_data["volume_ratio"] = 1.0
+                 ticker_data["taker_buy_quote"] = df["taker_buy_quote"].sum() if not df.empty else 0
         except: 
             ticker_data["volume_ratio"] = 1.0
+            ticker_data["taker_buy_quote"] = 0.0
 
         ticker_data["df"] = df.to_dict('records')
         ticker_data["atr"] = AverageTrueRange(high=df["high"], low=df["low"], close=df["close"]).average_true_range().iloc[-1]
