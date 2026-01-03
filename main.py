@@ -12985,7 +12985,7 @@ async def analyze_market():
                     except: pass
                     try: web_reports["Smart Score"] = generate_smart_score_report()
                     except: pass
-                    try: web_reports["TVL Alpha"] = get_tvl_alpha_report()
+                    try: web_reports["TVL Alpha"] = get_tvl_alpha_report(ALL_RESULTS)
                     except Exception as e: print(f"[WARN] TVL Alpha report failed: {e}")
                     try:
                         # Global Analysis report construction

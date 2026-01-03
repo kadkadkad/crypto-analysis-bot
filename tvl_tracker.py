@@ -233,88 +233,77 @@ class TVLTracker:
         else:
             return f"${num:.2f}"
     
-    def generate_tvl_report(self):
-        """Generate a comprehensive TVL analysis report with Binance pairs"""
+    def generate_tvl_report(self, all_results=None):
+        """
+        Generate a comprehensive TVL analysis report with technical confluence
+        """
         anomalies = self.detect_tvl_anomalies()
         changes = self.get_top_tvl_changes(10)
         
-        report = f"📊 <b>TVL Alpha Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}</b>\n\n"
+        report = f"🛸 <b>RADAR TVL ALPHA REPORT - {datetime.now().strftime('%H:%M')}</b>\n"
+        report += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         
-        # Separate tradeable and non-tradeable anomalies
-        tradeable = []
-        non_tradeable = []
-        
+        # 1. Actionable Binance Alpha (The "Money" section)
+        tradeable_anomalies = []
         for a in anomalies:
             binance_info = self.protocol_to_binance.get(a['slug'])
             if binance_info and binance_info.get('pair'):
                 a['binance_pair'] = binance_info['pair']
                 a['token'] = binance_info['token']
-                tradeable.append(a)
-            else:
-                non_tradeable.append(a)
-        
-        # TRADEABLE SECTION (Priority!)
-        if tradeable:
-            report += "<b>🎯 TRADEABLE OPPORTUNITIES (Binance):</b>\n"
-            report += "<i>These protocols have tokens you can trade NOW!</i>\n\n"
+                
+                # Cross-reference with technicals if available
+                if all_results:
+                    coin_data = next((c for c in all_results if c.get('Coin') == a['token']), None)
+                    if coin_data:
+                        a['rsi'] = float(coin_data.get('RSI', 50))
+                        a['change_24h'] = float(coin_data.get('24h Change', 0))
+                        a['advice'] = coin_data.get('Advice', '')
+                
+                tradeable_anomalies.append(a)
+
+        if tradeable_anomalies:
+            report += "<b>🎯 BINANCE TRADING SIGNALS:</b>\n"
+            report += "<i>(TVL Inflow + Technical Confluence)</i>\n\n"
             
-            for i, a in enumerate(tradeable[:8], 1):
-                report += f"{i}. <b>{a['name']}</b>\n"
-                report += f"   {a['anomaly_type']}\n"
-                report += f"   TVL: {a['tvl_display']} | 1D: <b>{a['change_1d']:+.1f}%</b> | 7D: {a['change_7d']:+.1f}%\n"
-                report += f"   📍 <b>TRADE: {a['binance_pair']}</b> (${a['token']})\n"
-                report += f"   Signal: {'🟢' * (a['signal_strength'] // 25)}\n\n"
-        
-        # NON-TRADEABLE SECTION (Watch only)
-        if non_tradeable[:5]:
-            report += "\n<b>👀 WATCH LIST (No Direct Token):</b>\n"
-            report += "<i>High TVL inflows but no tradeable token yet</i>\n\n"
+            for i, a in enumerate(tradeable_anomalies[:5], 1):
+                # Logic: TVL up + RSI < 60 = Potential Pump Loading
+                pump_score = 0
+                if a['change_1d'] > 10: pump_score += 40
+                if a.get('rsi', 50) < 50: pump_score += 30 # Room to grow
+                if a.get('change_24h', 0) < a['change_1d']: pump_score += 30 # TVL leading price
+                
+                report += f"{i}. <b>{a['binance_pair']}</b> (${a['token']})\n"
+                report += f"   🔥 <b>PUMP PROBABILITY: {pump_score}%</b>\n"
+                report += f"   💧 TVL 1D: <b>{a['change_1d']:+.1f}%</b> | RSI: {a.get('rsi', 'N/A')}\n"
+                report += f"   📊 Trend: {a.get('advice', 'Analyzing...')[:100]}...\n\n"
             
-            for a in non_tradeable[:5]:
-                report += f"• <b>{a['name']}</b>: {a['anomaly_type']}\n"
-                report += f"  TVL {a['tvl_display']} | 1D: {a['change_1d']:+.1f}%\n\n"
-        
-        # Top Inflow (with Binance pairs)
-        report += "\n<b>💚 TOP TVL INFLOWS (24h):</b>\n"
-        for p in changes['top_inflow'][:5]:
-            binance_info = self.protocol_to_binance.get(p['slug'])
-            if binance_info and binance_info.get('pair'):
-                report += f"• {p['name']} → <b>{binance_info['pair']}</b>: +{p['change_1d']:.1f}%\n"
-            else:
-                report += f"• {p['name']} ({p['symbol']}): +{p['change_1d']:.1f}%\n"
-        
-        # Top Outflow
-        report += "\n<b>🔴 TOP TVL OUTFLOWS (24h):</b>\n"
-        for p in changes['top_outflow'][:5]:
-            binance_info = self.protocol_to_binance.get(p['slug'])
-            if binance_info and binance_info.get('pair'):
-                report += f"• {p['name']} → <b>{binance_info['pair']}</b>: {p['change_1d']:.1f}%\n"
-            else:
-                report += f"• {p['name']} ({p['symbol']}): {p['change_1d']:.1f}%\n"
-        
-        # BINANCE DEFI TRACKER - Always show tradeable protocols
+            report += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
+        # 2. Watchlist (DeFi Native Alpha)
+        non_tradeable = [a for a in anomalies if a['slug'] not in self.protocol_to_binance][:5]
+        if non_tradeable:
+            report += "<b>👀 ON-CHAIN WATCHLIST (Inflows):</b>\n"
+            for a in non_tradeable:
+                report += f"• <b>{a['name']}</b>: 1D {a['change_1d']:+.1f}% | TVL {a['tvl_display']}\n"
+            report += "\n"
+
+        # 3. Binance Asset Performance (Always show)
         tradeable_protocols = self.get_tradeable_tvl_changes()
         if tradeable_protocols:
-            report += "\n<b>📍 BINANCE DEFI TRACKER:</b>\n"
-            report += "<i>TVL changes for coins you can trade on Binance</i>\n\n"
-            
-            # Top gainers
-            gainers = [p for p in tradeable_protocols if p['change_1d'] > 0][:5]
-            losers = [p for p in reversed(tradeable_protocols) if p['change_1d'] < 0][:5]
-            
+            report += "<b>📍 BINANCE DEFI TRACKER:</b>\n"
+            gainers = [p for p in tradeable_protocols if p['change_1d'] > 2][:5]
             if gainers:
                 report += "💹 <b>Gainers:</b>\n"
                 for p in gainers:
-                    emoji = "🔥" if p['change_1d'] > 5 else "📈"
-                    report += f"{emoji} {p['pair']}: <b>{p['change_1d']:+.1f}%</b> | TVL {p['tvl_display']}\n"
+                    report += f"📈 {p['pair']}: <b>{p['change_1d']:+.1f}%</b> TVL\n"
             
+            losers = [p for p in reversed(tradeable_protocols) if p['change_1d'] < -2][:5]
             if losers:
-                report += "\n📉 <b>Losers:</b>\n"
+                report += "\n📉 <b>Outflows:</b>\n"
                 for p in losers:
-                    report += f"🔻 {p['pair']}: <b>{p['change_1d']:.1f}%</b> | TVL {p['tvl_display']}\n"
+                    report += f"🔻 {p['pair']}: <b>{p['change_1d']:+.1f}%</b> TVL\n"
         
-        report += "\n<i>⚡ Data: DeFiLlama | Powered by Radar Ultra AI</i>"
-        
+        report += "\n<i>⚡ Data: DeFiLlama | Radar Ultra AI Engine</i>"
         return report
     
     def get_tradeable_tvl_changes(self):
@@ -368,9 +357,9 @@ class TVLTracker:
 TVL_TRACKER = TVLTracker()
 
 
-def get_tvl_alpha_report():
+def get_tvl_alpha_report(all_results=None):
     """Get the TVL alpha report - call this from main.py"""
-    return TVL_TRACKER.generate_tvl_report()
+    return TVL_TRACKER.generate_tvl_report(all_results)
 
 
 def get_tvl_anomalies():
