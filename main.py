@@ -46,7 +46,8 @@ from candlestick_patterns import (
     handle_candlestick_patterns_report,
     handle_candlestick_pattern_menu,
     handle_specific_pattern_coins,
-    extract_candlestick_patterns
+    extract_candlestick_patterns,
+    get_candlestick_patterns_report_string
 )
 from technical_pattern_analyzer import TechnicalPatternAnalyzer
 from money_flow_analyzer import MoneyFlowAnalyzer
@@ -3098,12 +3099,26 @@ def analyze_market_maker_activity(taker_buy_volume, taker_sell_volume, time_buck
         return {"valid": False}
 
 def calculate_cash_flow_trend(kline_data):
-    if not kline_data or len(kline_data) < 2:
+    if kline_data is None:
         return 0
-    df = pd.DataFrame(kline_data, columns=["timestamp", "open", "high", "low", "close", "volume",
+    if isinstance(kline_data, pd.DataFrame):
+        df = kline_data
+        if df.empty: return 0
+    elif isinstance(kline_data, list):
+         if len(kline_data) < 2: return 0
+         df = pd.DataFrame(kline_data, columns=["timestamp", "open", "high", "low", "close", "volume",
                                            "close_time", "quote_volume", "trades", "taker_buy_base",
                                            "taker_buy_quote", "ignore"])
+    else:
+         return 0
+
+    if "close" not in df.columns: return 0 # Safety check
+    
+    # Ensure numeric
     df["close"] = pd.to_numeric(df["close"], errors="coerce").fillna(0)
+    
+    if len(df) < 2: return 0
+    
     first_close = df["close"].iloc[0]
     last_close = df["close"].iloc[-1]
     if first_close == 0:
@@ -3213,13 +3228,44 @@ def generate_dynamic_cash_flow_report():
         elif coin["buyer_ratio_15m"] < 50 and coin["price_change"] > 0:
             comment += f"${coin['symbol']}: Buyer ratio low ({coin['buyer_ratio_15m']}%) but price rising ({coin['price_change']:+.2f}%), potential hidden accumulation.\n"
         else:
-            comment += f"${coin['symbol']} 15m Trend: {trend}\n"
+            comment += f"${coin['symbol']}: Weak technicals despite some buying.\n"
+    comment += "\n"
     report += comment
 
     report += "\n<b>Footnote:</b>\n"
     report += "• 🔺 indicates strong buy, 🔻 indicates strong sell, ➖ indicates neutral status.\n"
     report += "• Outliers: Buyer ratios below 45% or above 55%.\n"
     report += "• Report dynamically generated based on the top 50 coins by volume.\n"
+    return report
+
+
+def generate_volume_ratio_report():
+    """
+    Generates a report for highest volume ratio coins in the simplified format: $COIN: 0.3x
+    """
+    if not ALL_RESULTS:
+        return "⚠️ No analysis data available yet, report could not be generated."
+
+    # Filter and sort by Volume Ratio
+    top_volume_coins = []
+    for coin in ALL_RESULTS:
+        vol_ratio = extract_numeric(coin.get("Volume Ratio", 0))
+        if vol_ratio > 0:
+            top_volume_coins.append(coin)
+    
+    top_volume_coins = sorted(top_volume_coins, key=lambda x: extract_numeric(x.get("Volume Ratio", 0)), reverse=True)[:50]
+    
+    if not top_volume_coins:
+        return "⚠️ No volume ratio data available."
+
+    report = f"📊 <b>Volume Ratio Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
+    report += f"<i>Market Avg: {round(sum(extract_numeric(c.get('Volume Ratio', 0)) for c in top_volume_coins) / len(top_volume_coins), 2)}x</i>\n\n"
+
+    for i, coin in enumerate(top_volume_coins[:50], 1):
+        symbol = "$" + coin["Coin"].replace("USDT", "")
+        vol_ratio = extract_numeric(coin.get("Volume Ratio", 0))
+        report += f"{symbol}: {vol_ratio}x\n"
+
     return report
 
 def generate_cash_flow_migration_report():
@@ -3332,13 +3378,38 @@ def generate_smart_score_report():
         price = coin.get("Price_Display", "N/A")
         net_accum = coin.get("Net Accum", "N/A")
         trend_string = ""
-        intervals = ["15m", "1h", "4h", "12h", "1d"]
-        for interval in intervals:
-            kline_data = sync_fetch_kline_data(coin["Coin"], interval, limit=20)
-            trend = calculate_cash_flow_trend(kline_data)
+        trend_string = ""
+        # intervals = ["15m", "1h", "4h", "12h", "1d"] # 12h might be missing in cache
+        
+        # Optimize: Use cached data where possible
+        for interval in ["15m", "1h", "4h", "1d"]:
+            kline_data = None
+            if interval == "1h":
+                 kline_data = coin.get("df")
+            elif interval == "15m":
+                 kline_data = coin.get("df_15m")
+            elif interval == "4h":
+                 kline_data = coin.get("df_4h")
+            elif interval == "1d":
+                 kline_data = coin.get("df_1d")
+            
+            if kline_data:
+                # Need to convert list of dicts to DataFrame for calculate_cash_flow_trend
+                try:
+                    df_trend = pd.DataFrame(kline_data)
+                    # numeric conversion not needed if already safe, but safety first
+                    for col in ["open", "high", "low", "close", "volume"]:
+                        if col in df_trend.columns: df_trend[col] = pd.to_numeric(df_trend[col], errors='coerce')
+                    
+                    trend = calculate_cash_flow_trend(df_trend)
+                except: trend = 0
+            else:
+                trend = 0
+                
             trend_string += "+" if trend > 0 else "-" if trend < 0 else "0"
         
         symbol = "$" + coin["Coin"].replace("USDT", "")
+        print(f"[DEBUG] {symbol} Smart Score: {smart_score} Change: {change}%")
         report += (f"<b>{symbol}</b> - Price: {price}, Net Accum: {net_accum}\n"
                    f"Smart Score: {round(smart_score, 4)} ({get_change_arrow(change)} {round(change, 2)}%)\n"
                    f"Trend Summary: {trend_string}\n\n")
@@ -7540,8 +7611,8 @@ def check_telegram_updates():
                             with global_lock:
                                 coin_data = next((c for c in ALL_RESULTS if c["Coin"] == symbol), None)
                             if coin_data:
-                                kline_data = sync_fetch_kline_data(symbol, "1h", limit=200)
-                                indicators = get_technical_indicators(symbol, kline_data)
+                                kline_data = sync_fetch_kline_data(symbol, "1h", limit=500)
+                                indicators = get_technical_indicators(symbol, coin_data, kline_data)
                                 analysis = analyze_whale_movement(indicators)
                                 send_telegram_message(chat_id, analysis)
                             else:
@@ -7726,7 +7797,8 @@ def analyze_coin(symbol):
     else:
         target = max(avg_pred_price, support, fib_levels["38.2%"])
     adjusted_pred_change = (target - curr_price) / curr_price * 100
-    coin_report = f"<b>${symbol}:</b>\n"
+    display_symbol = "$" + symbol.replace("USDT", "")
+    coin_report = f"<b>{display_symbol}:</b>\n"
     coin_report += f"   • <b>Price:</b> {format_money(curr_price)}$ (Prev: {format_money(prev_price)}$, {round(price_trend, 2)}%)\n"
     coin_report += f"   • <b>RSI:</b> {round(rsi_avg, 2)}\n"
     coin_report += f"   • <b>Volume:</b> {round(volume_trend, 2)}% (24h Avg: {latest_coin['Volume Ratio']}x)\n"
@@ -8263,7 +8335,7 @@ def record_five_min_report(current_results):
         if (get_turkey_time() - last_hourly_report_time).total_seconds() >= 3600:
             PREV_HOURLY_REPORTS.update({symbol: reports[-1] for symbol, reports in FIVE_MIN_REPORTS.items()})
 
-def get_technical_indicators(symbol, kline_data=None):
+def get_technical_indicators(symbol, coin_data, kline_data=None):
     if kline_data is None:
         url = BINANCE_API_URL + f"klines?symbol={symbol}&interval=1h&limit=200"
         try:
@@ -8781,7 +8853,8 @@ def get_strategy_comment(coin_data):
     weekly, weekly_diff = coin_data.get("Weekly Change", ("N/A", "N/A"))
     fourh, fourh_diff = coin_data.get("4H Change", ("N/A", "N/A"))
     monthly, monthly_diff = coin_data.get("Monthly Change", ("N/A", "N/A"))
-    volume_24h = coin_data.get("24s volume (USDT)", "N/A")
+    volume_val = coin_data.get("24h Volume", 0)
+    volume_24h = format_money(volume_val) if isinstance(volume_val, (int, float)) else str(volume_val)
 
     # Teknik göstergeleri çıkar
     rsi = coin_data.get("RSI", "N/A")
@@ -8796,8 +8869,8 @@ def get_strategy_comment(coin_data):
     ls = coin_data.get("Long/Short Ratio", "N/A")
 
     # Korelasyon verileri
-    btc_corr = coin_data.get("BTC Correlation", "N/A")
-    eth_corr = coin_data.get("ETH Correlation", "N/A")
+    btc_corr = coin_data.get("btc_corr_1h", "N/A")
+    eth_corr = coin_data.get("eth_corr_1h", "N/A")
 
     # Balina verisi
     whale_activity = coin_data.get("Whale Activity", "N/A")
@@ -8824,6 +8897,19 @@ def get_strategy_comment(coin_data):
     comment += "<b>🌐 Market Data:</b>\n"
     comment += f"• Open Interest: {oi}\n"
     comment += f"• Long/Short Ratio: {ls}\n"
+    # Taker Rate Calculation
+    tk_rate = coin_data.get('Taker Rate', 0)
+    if tk_rate == 0:
+        tbq = coin_data.get("taker_buy_quote", 0)
+        qv = coin_data.get("quote_volume", 0)
+        # Handle possible string values or floats
+        try:
+             tbq = float(tbq)
+             qv = float(qv)
+             if qv > 0: tk_rate = tbq / qv
+        except: pass
+        
+    comment += f"• Taker Rate: {tk_rate:.2f}\n"
     comment += f"• BTC Correlation: {btc_corr}\n"
     comment += f"• ETH Correlation: {eth_corr}\n\n"
 
@@ -9024,7 +9110,7 @@ def generate_detailed_analysis_message(results):
     aggregated_msg += f"{market_comment}\n\n"
 
     for idx, coin in enumerate(sorted_results[:50], start=1):
-        symbol = coin["Coin"]
+        symbol = "$" + coin["Coin"].replace("USDT", "")
         with global_lock:
             prev_rank = PREV_RANKS.get(symbol)
         rank_change = (prev_rank - idx) if prev_rank is not None else 0
@@ -12193,8 +12279,8 @@ def process_telegram_updates():
                                 coin_data = next((c for c in ALL_RESULTS if c["Coin"] == symbol), None)
                             if coin_data:
                                 # Sync kline fetch and analysis
-                                kline_data = sync_fetch_kline_data(symbol, "1h", limit=200)
-                                indicators = get_technical_indicators(symbol, kline_data)
+                                kline_data = sync_fetch_kline_data(symbol, "1h", limit=500)
+                                indicators = get_technical_indicators(symbol, coin_data, kline_data)
                                 analysis = analyze_whale_movement(indicators)
                                 send_telegram_message(chat_id, analysis)
                             else:
@@ -12402,16 +12488,16 @@ async def analyze_market():
                     vol_climax = detect_volume_climax(df_all)
                     sfp_pattern = detect_sfp(df_all)
                     
-                    # Correlations (use async version)
-                    btc_corr_1h = await async_get_correlation(session, coin_symbol, base_symbol="BTCUSDT", interval="1h", limit=100) or 0
-                    btc_corr_4h = await async_get_correlation(session, coin_symbol, base_symbol="BTCUSDT", interval="4h", limit=100) or 0
-                    btc_corr_1d = await async_get_correlation(session, coin_symbol, base_symbol="BTCUSDT", interval="1d", limit=50) or 0
-                    eth_corr_1h = await async_get_correlation(session, coin_symbol, base_symbol="ETHUSDT", interval="1h", limit=100) or 0
-                    eth_corr_4h = await async_get_correlation(session, coin_symbol, base_symbol="ETHUSDT", interval="4h", limit=100) or 0
-                    eth_corr_1d = await async_get_correlation(session, coin_symbol, base_symbol="ETHUSDT", interval="1d", limit=50) or 0
-                    sol_corr_1h = await async_get_correlation(session, coin_symbol, base_symbol="SOLUSDT", interval="1h", limit=100) or 0
-                    sol_corr_4h = await async_get_correlation(session, coin_symbol, base_symbol="SOLUSDT", interval="4h", limit=100) or 0
-                    sol_corr_1d = await async_get_correlation(session, coin_symbol, base_symbol="SOLUSDT", interval="1d", limit=50) or 0
+                    # Correlations (use pre-calculated from data)
+                    btc_corr_1h = data.get("btc_corr_1h", 0)
+                    btc_corr_4h = data.get("btc_corr_4h", 0)
+                    btc_corr_1d = data.get("btc_corr_1d", 0)
+                    eth_corr_1h = data.get("eth_corr_1h", 0)
+                    eth_corr_4h = data.get("eth_corr_4h", 0)
+                    eth_corr_1d = data.get("eth_corr_1d", 0)
+                    sol_corr_1h = data.get("sol_corr_1h", 0)
+                    sol_corr_4h = data.get("sol_corr_4h", 0)
+                    sol_corr_1d = data.get("sol_corr_1d", 0)
 
                     # 4.5. Bollinger Squeeze Detection
                     try:
@@ -12514,9 +12600,14 @@ async def analyze_market():
                         "Long/Short Ratio": data.get('long_short_ratio', 1.0),
                         "OI Change %": data.get("oi_change_pct", 0),
                         "Open Interest": data.get("open_interest", 0),
+                        "EMA_20": data.get('ema_20', 0),
+                        "EMA_50": data.get('ema_50', 0),
+                        "EMA_100": data.get('ema_100', 0),
+                        "EMA_200": data.get('ema_200', 0),
                         "Antigravity Strategy": antigravity_pa_report,
                         "Liq Heatmap": liq_map,
                         "BB Squeeze": bb_squeeze_val,
+                        "Bollinger Bands": bb_squeeze_val,
                         "bullish_ob": pa_results.get("bullish_ob", False),
                         "bearish_ob": pa_results.get("bearish_ob", False),
                         "pa_structure": pa_results.get("structure", "Neutral"),
@@ -12534,6 +12625,20 @@ async def analyze_market():
                         "sol_corr_1h": sol_corr_1h,
                         "sol_corr_4h": sol_corr_4h,
                         "sol_corr_1d": sol_corr_1d,
+                        
+                        # Display-friendly correlation keys for dashboard
+                        "BTC Correlation 1h": btc_corr_1h,
+                        "BTC Correlation 4h": btc_corr_4h,
+                        "BTC Correlation 1d": btc_corr_1d,
+                        "ETH Correlation 1h": eth_corr_1h,
+                        "ETH Correlation 4h": eth_corr_4h,
+                        "ETH Correlation 1d": eth_corr_1d,
+                        "SOL Correlation 1h": sol_corr_1h,
+                        "SOL Correlation 4h": sol_corr_4h,
+                        "SOL Correlation 1d": sol_corr_1d,
+                        
+                        # Smart Score for dashboard
+                        "Smart Score": comp_score,
                         
                         # Legacy compatibility
                         "24h Volume": data.get("quote_volume", 0),
@@ -12802,6 +12907,9 @@ async def analyze_market():
                     
                     try: web_reports["Cash Flow Report"] = generate_dynamic_cash_flow_report()
                     except Exception as e: print(f"[WARN] Cash Flow Report failed: {e}")
+                    
+                    try: web_reports["Volume Ratio"] = generate_volume_ratio_report()
+                    except Exception as e: print(f"[WARN] Volume Ratio report failed: {e}")
                     
                     try: web_reports["Hourly Analysis"] = generate_hourly_report_string()
                     except Exception as e: print(f"[WARN] Hourly Analysis report failed: {e}")
