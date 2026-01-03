@@ -12747,6 +12747,9 @@ async def analyze_market():
                         ref_returns_bundle[f"{sym_display}_{interval}_ret"] = pd.Series(dtype=float)
 
             print(f"[INFO] Reference data ready. Keys: {list(ref_returns_bundle.keys())}")
+            # Debug: Print lengths to see if 1H data is actually fetched
+            for key, val in ref_returns_bundle.items():
+                print(f"[DEBUG] {key}: length={len(val)}")
             
             # 3. Parallel Execution with Concurrency Limit
             tasks = []
