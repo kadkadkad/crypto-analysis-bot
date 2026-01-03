@@ -13,35 +13,74 @@ class TVLTracker:
         self.protocols_cache = {}
         self.last_fetch = None
         
-        # Token to protocol mapping (protocols with tradeable tokens)
-        self.token_protocol_map = {
-            "CVX": "convex-finance",
-            "CRV": "curve-dex",
-            "AAVE": "aave-v3",
-            "COMP": "compound-v3",
-            "MKR": "sky-lending",
-            "LDO": "lido",
-            "RPL": "rocket-pool",
-            "PENDLE": "pendle",
-            "GMX": "gmx",
-            "UNI": "uniswap-v3",
-            "SUSHI": "sushiswap",
-            "SNX": "synthetix",
-            "DYDX": "dydx",
-            "JTO": "jito-liquid-staking",
-            "RAY": "raydium-amm",
-            "ORCA": "orca",
-            "JUP": "jupiter-perpetual-exchange",
-            "KMNO": "kamino-lend",
-            "MORPHO": "morpho-v1",
-            "ENA": "ethena-usde",
-            "EIGEN": "eigencloud",
-            "ETHFI": "ether.fi-stake",
-            "REZ": "renzo",
-            "SD": "stader",
-            "LISTA": "lista-liquid-staking",
-            "CAKE": "pancakeswap-amm",
-            "XVS": "venus-core-pool",
+        # Protocol slug → Binance trading pair (for actionable trades)
+        self.protocol_to_binance = {
+            # Major DeFi
+            "convex-finance": {"token": "CVX", "pair": "CVXUSDT"},
+            "curve-dex": {"token": "CRV", "pair": "CRVUSDT"},
+            "curve-finance": {"token": "CRV", "pair": "CRVUSDT"},
+            "aave-v3": {"token": "AAVE", "pair": "AAVEUSDT"},
+            "aave": {"token": "AAVE", "pair": "AAVEUSDT"},
+            "compound-v3": {"token": "COMP", "pair": "COMPUSDT"},
+            "compound-finance": {"token": "COMP", "pair": "COMPUSDT"},
+            "sky-lending": {"token": "MKR", "pair": "MKRUSDT"},
+            "makerdao": {"token": "MKR", "pair": "MKRUSDT"},
+            "lido": {"token": "LDO", "pair": "LDOUSDT"},
+            "rocket-pool": {"token": "RPL", "pair": "RPLUSDT"},
+            "pendle": {"token": "PENDLE", "pair": "PENDLEUSDT"},
+            
+            # DEXs
+            "uniswap-v3": {"token": "UNI", "pair": "UNIUSDT"},
+            "uniswap-v2": {"token": "UNI", "pair": "UNIUSDT"},
+            "sushiswap": {"token": "SUSHI", "pair": "SUSHIUSDT"},
+            "pancakeswap-amm": {"token": "CAKE", "pair": "CAKEUSDT"},
+            "pancakeswap-amm-v3": {"token": "CAKE", "pair": "CAKEUSDT"},
+            
+            # Perpetuals
+            "gmx": {"token": "GMX", "pair": "GMXUSDT"},
+            "dydx": {"token": "DYDX", "pair": "DYDXUSDT"},
+            "synthetix": {"token": "SNX", "pair": "SNXUSDT"},
+            
+            # Solana DeFi
+            "jito-liquid-staking": {"token": "JTO", "pair": "JTOUSDT"},
+            "raydium-amm": {"token": "RAY", "pair": "RAYUSDT"},
+            "orca": {"token": "ORCA", "pair": "ORCAUSDT"},
+            "jupiter-perpetual-exchange": {"token": "JUP", "pair": "JUPUSDT"},
+            "jupiter-staked-sol": {"token": "JUP", "pair": "JUPUSDT"},
+            "kamino-lend": {"token": "KMNO", "pair": "KMNOUSDT"},
+            "marinade-finance": {"token": "MNDE", "pair": "MNDEUSDT"},
+            
+            # Lending
+            "morpho-v1": {"token": "MORPHO", "pair": "MORPHOUSDT"},
+            "venus-core-pool": {"token": "XVS", "pair": "XVSUSDT"},
+            
+            # Staking/Restaking
+            "ethena-usde": {"token": "ENA", "pair": "ENAUSDT"},
+            "eigencloud": {"token": "EIGEN", "pair": "EIGENUSDT"},
+            "eigenlayer": {"token": "EIGEN", "pair": "EIGENUSDT"},
+            "ether.fi-stake": {"token": "ETHFI", "pair": "ETHFIUSDT"},
+            "renzo": {"token": "REZ", "pair": "REZUSDT"},
+            "stader": {"token": "SD", "pair": "SDUSDT"},
+            "lista-liquid-staking": {"token": "LISTA", "pair": "LISTAUSDT"},
+            "kelp": {"token": "RSETH", "pair": None},  # No direct pair
+            
+            # Layer 2 / Bridges
+            "arbitrum-bridge": {"token": "ARB", "pair": "ARBUSDT"},
+            "optimism-bridge": {"token": "OP", "pair": "OPUSDT"},
+            "starknet-bridge": {"token": "STRK", "pair": "STRKUSDT"},
+            "polygon-bridge-&-staking": {"token": "POL", "pair": "POLUSDT"},
+            
+            # Hot protocols (might not have token)
+            "hyperliquid-bridge": {"token": "HYPE", "pair": "HYPEUSDT"},
+            "infrared-finance": {"token": "IRED", "pair": None},
+            "berachain": {"token": "BERA", "pair": "BERAUSDT"},
+            
+            # Others
+            "threshold-network": {"token": "T", "pair": "TUSDT"},
+            "tornado-cash": {"token": "TORN", "pair": "TORNUSDT"},
+            "1inch-network": {"token": "1INCH", "pair": "1INCHUSDT"},
+            "balancer-v2": {"token": "BAL", "pair": "BALUSDT"},
+            "yearn-finance": {"token": "YFI", "pair": "YFIUSDT"},
         }
     
     def fetch_all_protocols(self):
@@ -195,46 +234,133 @@ class TVLTracker:
             return f"${num:.2f}"
     
     def generate_tvl_report(self):
-        """Generate a comprehensive TVL analysis report"""
+        """Generate a comprehensive TVL analysis report with Binance pairs"""
         anomalies = self.detect_tvl_anomalies()
         changes = self.get_top_tvl_changes(10)
         
         report = f"📊 <b>TVL Alpha Report - {datetime.now().strftime('%Y-%m-%d %H:%M')}</b>\n\n"
         
-        # Anomalies Section
-        if anomalies:
-            report += "<b>🚨 TVL ANOMALIES DETECTED:</b>\n"
-            report += "<i>High TVL change = Money flowing in = Potential pump</i>\n\n"
+        # Separate tradeable and non-tradeable anomalies
+        tradeable = []
+        non_tradeable = []
+        
+        for a in anomalies:
+            binance_info = self.protocol_to_binance.get(a['slug'])
+            if binance_info and binance_info.get('pair'):
+                a['binance_pair'] = binance_info['pair']
+                a['token'] = binance_info['token']
+                tradeable.append(a)
+            else:
+                non_tradeable.append(a)
+        
+        # TRADEABLE SECTION (Priority!)
+        if tradeable:
+            report += "<b>🎯 TRADEABLE OPPORTUNITIES (Binance):</b>\n"
+            report += "<i>These protocols have tokens you can trade NOW!</i>\n\n"
             
-            for i, a in enumerate(anomalies[:10], 1):
-                token_info = f" (${a['symbol']})" if a['has_tradeable_token'] else ""
-                report += f"{i}. <b>{a['name']}{token_info}</b>\n"
+            for i, a in enumerate(tradeable[:8], 1):
+                report += f"{i}. <b>{a['name']}</b>\n"
                 report += f"   {a['anomaly_type']}\n"
                 report += f"   TVL: {a['tvl_display']} | 1D: <b>{a['change_1d']:+.1f}%</b> | 7D: {a['change_7d']:+.1f}%\n"
+                report += f"   📍 <b>TRADE: {a['binance_pair']}</b> (${a['token']})\n"
                 report += f"   Signal: {'🟢' * (a['signal_strength'] // 25)}\n\n"
         
-        # Top Inflow
+        # NON-TRADEABLE SECTION (Watch only)
+        if non_tradeable[:5]:
+            report += "\n<b>👀 WATCH LIST (No Direct Token):</b>\n"
+            report += "<i>High TVL inflows but no tradeable token yet</i>\n\n"
+            
+            for a in non_tradeable[:5]:
+                report += f"• <b>{a['name']}</b>: {a['anomaly_type']}\n"
+                report += f"  TVL {a['tvl_display']} | 1D: {a['change_1d']:+.1f}%\n\n"
+        
+        # Top Inflow (with Binance pairs)
         report += "\n<b>💚 TOP TVL INFLOWS (24h):</b>\n"
         for p in changes['top_inflow'][:5]:
-            report += f"• {p['name']} ({p['symbol']}): +{p['change_1d']:.1f}%\n"
+            binance_info = self.protocol_to_binance.get(p['slug'])
+            if binance_info and binance_info.get('pair'):
+                report += f"• {p['name']} → <b>{binance_info['pair']}</b>: +{p['change_1d']:.1f}%\n"
+            else:
+                report += f"• {p['name']} ({p['symbol']}): +{p['change_1d']:.1f}%\n"
         
         # Top Outflow
         report += "\n<b>🔴 TOP TVL OUTFLOWS (24h):</b>\n"
         for p in changes['top_outflow'][:5]:
-            report += f"• {p['name']} ({p['symbol']}): {p['change_1d']:.1f}%\n"
+            binance_info = self.protocol_to_binance.get(p['slug'])
+            if binance_info and binance_info.get('pair'):
+                report += f"• {p['name']} → <b>{binance_info['pair']}</b>: {p['change_1d']:.1f}%\n"
+            else:
+                report += f"• {p['name']} ({p['symbol']}): {p['change_1d']:.1f}%\n"
+        
+        # BINANCE DEFI TRACKER - Always show tradeable protocols
+        tradeable_protocols = self.get_tradeable_tvl_changes()
+        if tradeable_protocols:
+            report += "\n<b>📍 BINANCE DEFI TRACKER:</b>\n"
+            report += "<i>TVL changes for coins you can trade on Binance</i>\n\n"
+            
+            # Top gainers
+            gainers = [p for p in tradeable_protocols if p['change_1d'] > 0][:5]
+            losers = [p for p in reversed(tradeable_protocols) if p['change_1d'] < 0][:5]
+            
+            if gainers:
+                report += "💹 <b>Gainers:</b>\n"
+                for p in gainers:
+                    emoji = "🔥" if p['change_1d'] > 5 else "📈"
+                    report += f"{emoji} {p['pair']}: <b>{p['change_1d']:+.1f}%</b> | TVL {p['tvl_display']}\n"
+            
+            if losers:
+                report += "\n📉 <b>Losers:</b>\n"
+                for p in losers:
+                    report += f"🔻 {p['pair']}: <b>{p['change_1d']:.1f}%</b> | TVL {p['tvl_display']}\n"
         
         report += "\n<i>⚡ Data: DeFiLlama | Powered by Radar Ultra AI</i>"
         
         return report
     
+    def get_tradeable_tvl_changes(self):
+        """Get TVL changes for all Binance-tradeable protocols"""
+        if not self.protocols_cache:
+            self.fetch_all_protocols()
+        
+        results = []
+        for slug, binance_info in self.protocol_to_binance.items():
+            if not binance_info.get('pair'):
+                continue
+                
+            protocol = self.protocols_cache.get(slug)
+            if not protocol:
+                continue
+            
+            tvl = protocol.get('tvl', 0) or 0
+            change_1d = protocol.get('change_1d', 0) or 0
+            change_7d = protocol.get('change_7d', 0) or 0
+            
+            if tvl < 1_000_000:  # Skip very small
+                continue
+                
+            results.append({
+                'name': protocol.get('name', slug),
+                'slug': slug,
+                'token': binance_info['token'],
+                'pair': binance_info['pair'],
+                'tvl': tvl,
+                'tvl_display': self._format_number(tvl),
+                'change_1d': change_1d,
+                'change_7d': change_7d
+            })
+        
+        # Sort by 1d change
+        results.sort(key=lambda x: x['change_1d'], reverse=True)
+        return results
+    
     def get_protocol_by_token(self, token_symbol):
         """Get protocol info by its token symbol"""
-        token_upper = token_symbol.upper()
-        if token_upper in self.token_protocol_map:
-            slug = self.token_protocol_map[token_upper]
-            if not self.protocols_cache:
-                self.fetch_all_protocols()
-            return self.protocols_cache.get(slug)
+        # Build reverse mapping
+        for slug, info in self.protocol_to_binance.items():
+            if info.get('token', '').upper() == token_symbol.upper():
+                if not self.protocols_cache:
+                    self.fetch_all_protocols()
+                return self.protocols_cache.get(slug)
         return None
 
 
