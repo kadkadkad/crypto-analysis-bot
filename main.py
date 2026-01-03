@@ -51,6 +51,7 @@ from candlestick_patterns import (
 )
 from technical_pattern_analyzer import TechnicalPatternAnalyzer
 from money_flow_analyzer import MoneyFlowAnalyzer
+from tvl_tracker import get_tvl_alpha_report, get_tvl_anomalies
 from market_regime import MarketRegimeDetector
 from signal_tracker import SignalWinRateTracker
 from smart_money_report import generate_smart_money_indicators_report
@@ -12984,6 +12985,8 @@ async def analyze_market():
                     except: pass
                     try: web_reports["Smart Score"] = generate_smart_score_report()
                     except: pass
+                    try: web_reports["TVL Alpha"] = get_tvl_alpha_report()
+                    except Exception as e: print(f"[WARN] TVL Alpha report failed: {e}")
                     try:
                         # Global Analysis report construction
                         g_report = "🌐 <b>GLOBAL MARKET MONITOR</b>\n"
