@@ -19,17 +19,32 @@ class PumpPredictionEngine:
 
     def calculate_pump_score(self, coin_data, tvl_anomalies):
         """
-        Calculates a 0-100 score for a given asset.
+        Calculates a 0-100 score for a given asset. Handles both lowercase and dashboard-style keys.
         """
-        symbol = coin_data.get('Coin', '').upper()
-        display_symbol = coin_data.get('DisplaySymbol', symbol)
+        raw_symbol = coin_data.get('Coin', coin_data.get('symbol', '')).upper()
+        # Ensure symbol is clean for indexing (no $ or USDT)
+        clean_symbol = raw_symbol.replace("USDT", "").replace("$", "")
+        # Display symbol with $ prefix
+        display_symbol = "$" + clean_symbol
         
         scores = {}
         
+        # Helper to extract numeric values safely from various key styles
+        def get_val(keys, default=0):
+            for k in keys:
+                if k in coin_data:
+                    val = coin_data[k]
+                    if isinstance(val, str):
+                        try:
+                            # Handle percent strings like "0.05%"
+                            return float(val.replace('%', '').replace('$', '').replace('x', ''))
+                        except: continue
+                    return float(val or 0)
+            return default
+
         # 1. TVL Score (30%)
         tvl_score = 0
-        # Find if this coin has a protocol anomaly
-        anomaly = next((a for a in tvl_anomalies if a.get('symbol', '').upper() == symbol or a.get('token', '').upper() == symbol), None)
+        anomaly = next((a for a in tvl_anomalies if a.get('symbol', '').upper() == clean_symbol or a.get('token', '').upper() == clean_symbol), None)
         if anomaly:
             inflow = anomaly.get('change_1d', 0)
             if inflow > 25: tvl_score = 100
@@ -40,47 +55,42 @@ class PumpPredictionEngine:
 
         # 2. Futures Score (25%)
         futures_score = 0
-        oi_chg = float(coin_data.get('oi_change_pct', 0) or 0)
-        funding = float(coin_data.get('funding_rate', 0) or 0)
+        oi_chg = get_val(['OI Change %', 'oi_change_pct', 'oi_change'])
+        funding = get_val(['Funding Rate', 'funding_rate'])
         
-        # Aggressive OI build in the last hour is a huge early lead
         if oi_chg > 15: futures_score += 70
         elif oi_chg > 5: futures_score += 40
-        
-        if funding < 0: futures_score += 30 # Short squeeze
+        if funding < 0: futures_score += 30 
         scores['futures'] = min(futures_score, 100)
 
         # 3. Structure Score (20%)
         struct_score = 0
-        advice = coin_data.get('Advice', '').upper()
-        # Early reversal/breakout detection
+        advice = str(coin_data.get('Advice', coin_data.get('advice', ''))).upper()
         if "REVERSAL" in advice or "MSB" in advice: struct_score += 70
         elif "BULLISH" in advice: struct_score += 40
         scores['structure'] = min(struct_score, 100)
 
         # 4. Whale Score (15%)
         whale_score = 0
-        net_accum = float(coin_data.get('net_accumulation', 0) or 0)
+        net_accum = get_val(['NetAccum_raw', 'net_accumulation', 'net_accum'])
         if net_accum > 50000: whale_score = 100
         elif net_accum > 10000: whale_score = 60
         scores['whales'] = whale_score
 
         # 5. Technical Score (10%)
         tech_score = 0
-        rsi = float(coin_data.get('rsi', 50) or 50) # 1H RSI
-        vol_ratio = float(coin_data.get('volume_ratio', 1) or 1)
+        rsi = get_val(['RSI', 'rsi'], 50)
+        vol_ratio = get_val(['Volume Ratio', 'volume_ratio'], 1)
         
-        # RSI Reclaiming 50 (The "Bullish Pivot")
-        if 50 < rsi < 60: tech_score += 60 # Fresh momentum
-        elif 30 < rsi < 50: tech_score += 30 # Accumulation
-        
+        if 50 < rsi < 60: tech_score += 60 
+        elif 30 < rsi < 50: tech_score += 30 
         if vol_ratio > 1.2: tech_score += 40
         scores['technicals'] = min(tech_score, 100)
 
         # Weighted Total
         total_score = sum(scores[k] * self.weights[k] for k in self.weights)
         
-        # Confluence Analysis (Actionable Intel)
+        # Confluence Analysis
         confluences = []
         if oi_chg > 10: confluences.append("🚀 Fresh OI Spike (1H)")
         if 50 < rsi < 55: confluences.append("📈 Bullish RSI Pivot")
@@ -88,12 +98,12 @@ class PumpPredictionEngine:
         if scores['tvl'] >= 50: confluences.append("💧 TVL Lead")
         
         return {
-            'symbol': symbol,
+            'symbol': raw_symbol,
             'display': display_symbol,
             'score': round(total_score, 1),
             'confluences': confluences,
             'breakdown': scores,
-            'price': coin_data.get('Price_Display', 'N/A')
+            'price': coin_data.get('Price_Display', coin_data.get('price', 'N/A'))
         }
 
     def generate_prediction_report(self, all_results, tvl_anomalies):

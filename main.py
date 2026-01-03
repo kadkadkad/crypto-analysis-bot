@@ -3298,15 +3298,22 @@ def generate_cash_flow_migration_report():
     if not symbols:
         return "⚠️ Could not fetch coin data, report could not be generated."
 
+    ticker_data = fetch_24hr_ticker_data(symbols)
+    if not ticker_data:
+        ticker_data = []
+
+    # 1. First Pass: Calculate Total Volume
+    total_quote_volume = 0
+    for symbol in symbols[:50]:
+        ticker = next((t for t in ticker_data if t["symbol"] == symbol), None)
+        if ticker:
+            total_quote_volume += float(ticker.get("quoteVolume", 0))
+
+    # 2. Second Pass: Build Report Lines
     lines = []
     header = "Pair          BuyPower  CashIn%  MinorTrend%  BuyPressure"
     lines.append(header)
     lines.append("-" * len(header))
-
-    total_quote_volume = 0
-    ticker_data = fetch_24hr_ticker_data(symbols)
-    if not ticker_data:
-        print("⚠️ Could not fetch ticker data, falling back to kline data...")
 
     for symbol in symbols[:50]:
         quote_vol = 0
@@ -3319,10 +3326,7 @@ def generate_cash_flow_migration_report():
             if taker_buy_vol == 0:
                 taker_buy_base = float(ticker.get("takerBuyBaseAssetVolume", 0))
                 avg_price = float(ticker.get("weightedAvgPrice", 0)) or 1
-                if taker_buy_base > 0 and avg_price > 0:
-                    taker_buy_vol = taker_buy_base * avg_price
-                else:
-                    print(f"[WARN] {symbol} - Ticker Taker Buy Base veya Avg Price sıfır: {taker_buy_base}, {avg_price}")
+                taker_buy_vol = taker_buy_base * avg_price
 
         if quote_vol <= 0 or taker_buy_vol == 0:
             taker_buy_quote, quote_vol_from_klines = fetch_taker_volumes_from_klines(symbol, "1h", 24)
@@ -3330,26 +3334,11 @@ def generate_cash_flow_migration_report():
                 quote_vol = quote_vol_from_klines
                 taker_buy_vol = taker_buy_quote
             else:
-                print(f"[WARN] {symbol} - Kline verileri de yetersiz: Quote Vol: {quote_vol_from_klines}, Taker Buy Vol: {taker_buy_quote}")
-                taker_buy_vol = quote_vol * 0.5  # Varsayılan %50 alıcı hacmi tahmini
                 quote_vol = quote_vol or 1
+                taker_buy_vol = quote_vol * 0.5 
 
-        if quote_vol <= 0:
-            print(f"[DEBUG] {symbol} - Quote Volume sıfır veya negatif: {quote_vol}")
-            continue
-
-        total_quote_volume += quote_vol
-
-        buy_power = 0.0
-        if quote_vol > 0 and taker_buy_vol >= 0:
-            buy_power = taker_buy_vol / quote_vol if taker_buy_vol < quote_vol else 1.0
-            buy_power = round(min(max(buy_power, 0), 10), 2)
-        else:
-            print(f"[WARN] {symbol} - Quote Vol veya Taker Buy Vol geçersiz: {quote_vol}, {taker_buy_vol}")
-
-        print(f"[DEBUG] {symbol} - Quote Vol: {quote_vol}, Taker Buy Vol: {taker_buy_vol}, Buy Power: {buy_power}")
-
-        cash_percent = 0.0  # Toplam quote volume hesaplandıktan sonra güncellenecek
+        buy_power = round(min(taker_buy_vol / quote_vol if quote_vol > 0 else 0, 10), 2)
+        cash_percent = round((quote_vol / total_quote_volume) * 100, 1) if total_quote_volume > 0 else 0.0
 
         kline_15m = sync_fetch_kline_data(symbol, "15m", limit=20)
         minor_trend_score = 0.0
@@ -3359,34 +3348,21 @@ def generate_cash_flow_migration_report():
                 last_close = float(kline_15m[-1][4])
                 if first_close > 0:
                     minor_trend_score = round(((last_close - first_close) / first_close) * 100, 2)
-            except Exception as e:
-                print(f"[ERROR] {symbol} için minor trend hesaplanamadı: {e}")
-                minor_trend_score = 0.0
+            except: pass
 
         intervals = ["15m", "1h", "4h", "12h", "1d"]
         arrow_list = []
         for inter in intervals:
-            kline = sync_fetch_kline_data(symbol, inter, limit=20)
+            kline = sync_fetch_kline_data(symbol, inter, limit=10)
             trend = calculate_cash_flow_trend(kline)
             arrow = "▲" if trend > 0 else "▼" if trend < 0 else "="
             arrow_list.append(arrow)
-        alis_baskisi_ozeti = "".join(arrow_list)
-
-        line = f"{symbol:<12} {buy_power:>6}x {cash_percent:>6}% {minor_trend_score:>7}% {alis_baskisi_ozeti}"
+        
+        display_symbol = "$" + symbol.replace("USDT", "")
+        line = f"{display_symbol:<12} {buy_power:>6}x {cash_percent:>7}% {minor_trend_score:>7}% {"".join(arrow_list)}"
         lines.append(line)
 
-    for i, line in enumerate(lines[2:]):
-        symbol = lines[i + 2]
-        ticker = next((t for t in ticker_data if t["symbol"] == symbol), None)
-        if ticker:
-            quote_vol = float(ticker.get("quoteVolume", 0))
-            cash_percent = round((quote_vol / total_quote_volume) * 100, 1) if total_quote_volume > 0 else 0.0
-            parts = lines[i + 2].split()
-            parts[2] = f"{cash_percent:>6}%"
-            lines[i + 2] = " ".join(parts)
-
-    report = "\n".join(lines)
-    return report
+    return "\n".join(lines)
 
 def generate_smart_score_report():
     if not ALL_RESULTS:
