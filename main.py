@@ -5578,6 +5578,63 @@ def train_prophet_model(df):
     except:
         return 0.0
 
+def train_rf_model(df):
+    """
+    Simple Random Forest-based prediction model.
+    Returns predicted percentage change and the model.
+    """
+    try:
+        from sklearn.ensemble import RandomForestRegressor
+        
+        # Ensure we have enough data
+        if len(df) < 20:
+            return 0.0, None
+            
+        # Prepare features
+        feature_cols = []
+        for col in ['rsi', 'volume_ratio', 'net_accum']:
+            if col in df.columns:
+                feature_cols.append(col)
+        
+        if not feature_cols:
+            return 0.0, None
+            
+        # Use price or close for target
+        price_col = 'price' if 'price' in df.columns else 'close' if 'close' in df.columns else None
+        if not price_col:
+            return 0.0, None
+            
+        # Calculate target: next period percentage change
+        df = df.copy()
+        df[price_col] = pd.to_numeric(df[price_col], errors='coerce')
+        df['target'] = df[price_col].pct_change().shift(-1) * 100
+        
+        # Drop NaN rows
+        df = df.dropna()
+        
+        if len(df) < 10:
+            return 0.0, None
+            
+        X = df[feature_cols].values
+        y = df['target'].values
+        
+        # Train model
+        model = RandomForestRegressor(n_estimators=50, max_depth=5, random_state=42)
+        model.fit(X[:-1], y[:-1])
+        
+        # Predict next change
+        last_features = X[-1].reshape(1, -1)
+        pred_change = model.predict(last_features)[0]
+        
+        # Clip to reasonable range
+        pred_change = max(min(pred_change, 20), -20)
+        
+        return pred_change, model
+        
+    except Exception as e:
+        print(f"[WARN] train_rf_model error: {e}")
+        return 0.0, None
+
 
 def predict_with_cached_model(symbol, df):
     """
@@ -10910,6 +10967,9 @@ def get_summary_report_string():
         for coin in ALL_RESULTS:
             try:
                 symbol = coin["Coin"]
+                # Check if df exists before accessing
+                if "df" not in coin or not coin["df"]:
+                    continue
                 df = pd.DataFrame(coin["df"])
                 if len(df) >= 20:
                     # Normalize columns
