@@ -1309,6 +1309,9 @@
                     <button class="btn-item" onclick="api('Pump Predictions')" style="border-left: 3px solid #f59e0b;">
                         <i class="fas fa-bullseye"></i> Master Pump Predictions (AI)
                     </button>
+                    <button class="btn-item" onclick="loadCalendar()" style="border-left: 3px solid #3b82f6;">
+                        <i class="fas fa-calendar-alt"></i> 📅 Market Calendar
+                    </button>
                 </div>
             </div>
 
@@ -1626,6 +1629,89 @@
                 `;
                 grid.appendChild(card);
             });
+        }
+
+        // Market Calendar function
+        async function loadCalendar() {
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "📅 MARKET CALENDAR & IMPACT ANALYSIS";
+            document.getElementById('popupSearch').value = '';
+            m.style.display = 'flex';
+            b.innerHTML = "<i>Loading economic calendar, token unlocks, and news sentiment... Please wait.</i>";
+
+            try {
+                const res = await fetch('/api/calendar');
+                const data = await res.json();
+
+                if (data.error) {
+                    b.innerHTML = `<span style="color: #ef4444;">Error: ${data.error}</span>`;
+                    return;
+                }
+
+                let html = '';
+
+                // Overall Status
+                const outlookEmoji = data.overall_outlook === 'bullish' ? '🟢' : data.overall_outlook === 'bearish' ? '🔴' : '🟡';
+                const riskEmoji = data.risk_level === 'high' ? '🔴' : data.risk_level === 'medium' ? '🟡' : '🟢';
+
+                html += `<div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">`;
+                html += `<h3 style="margin: 0 0 10px 0; color: #3b82f6;">📊 Overall Market Status</h3>`;
+                html += `<p><b>Outlook:</b> ${outlookEmoji} ${(data.overall_outlook || 'neutral').toUpperCase()}</p>`;
+                html += `<p><b>Risk Level:</b> ${riskEmoji} ${(data.risk_level || 'medium').toUpperCase()}</p>`;
+                html += `<p style="font-size: 11px; color: #8b949e;">Generated: ${data.generated_at || 'N/A'}</p>`;
+                html += `</div>`;
+
+                // Economic Events
+                html += `<div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #10b981;">`;
+                html += `<h3 style="margin: 0 0 10px 0; color: #10b981;">🏛️ Economic Events (Next 7 Days)</h3>`;
+                if (data.economic_events && data.economic_events.length > 0) {
+                    data.economic_events.slice(0, 10).forEach(ev => {
+                        const impactIcon = ev.impact === 'high' ? '🔴' : ev.impact === 'medium' ? '🟡' : '⚪';
+                        const cryptoImpact = Math.round((ev.crypto_relevance || 0) * 100);
+                        html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.2); border-radius: 6px;">`;
+                        html += `<b>${impactIcon} [${ev.currency || 'N/A'}] ${ev.event || 'Unknown Event'}</b><br>`;
+                        html += `<span style="font-size: 12px; color: #8b949e;">📍 Time: ${ev.time || 'TBA'} | Crypto Impact: ${cryptoImpact}%</span>`;
+                        html += `</div>`;
+                    });
+                } else {
+                    html += `<p style="color: #8b949e;">No major events scheduled</p>`;
+                }
+                html += `</div>`;
+
+                // Token Unlocks
+                html += `<div style="background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #ef4444;">`;
+                html += `<h3 style="margin: 0 0 10px 0; color: #ef4444;">🔓 Token Unlocks (Next 30 Days)</h3>`;
+                if (data.token_unlocks && data.token_unlocks.length > 0) {
+                    data.token_unlocks.forEach(unlock => {
+                        const daysText = unlock.days_until === 0 ? '⚠️ TODAY' : `in ${unlock.days_until} days`;
+                        html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.2); border-radius: 6px;">`;
+                        html += `<b>$${unlock.symbol}</b> - ~${unlock.unlock_pct}% unlock ${daysText}<br>`;
+                        html += `<span style="font-size: 12px; color: #8b949e;">Date: ${unlock.date} | Expected: ${unlock.expected_effect || 'bearish'}</span>`;
+                        html += `</div>`;
+                    });
+                } else {
+                    html += `<p style="color: #8b949e;">No major unlocks in the next 30 days</p>`;
+                }
+                html += `</div>`;
+
+                // News Sentiment
+                html += `<div style="background: rgba(139, 92, 246, 0.1); padding: 15px; border-radius: 10px; border-left: 4px solid #8b5cf6;">`;
+                html += `<h3 style="margin: 0 0 10px 0; color: #8b5cf6;">📰 News Sentiment</h3>`;
+                if (data.news_sentiment) {
+                    const ns = data.news_sentiment;
+                    html += `<p>🟢 Bullish: <b>${ns.bullish || 0}</b> | 🔴 Bearish: <b>${ns.bearish || 0}</b> | ⚪ Neutral: <b>${ns.neutral || 0}</b></p>`;
+                    html += `<p><b>Overall:</b> ${(ns.overall || 'neutral').toUpperCase()}</p>`;
+                } else {
+                    html += `<p style="color: #8b949e;">News sentiment data not available</p>`;
+                }
+                html += `</div>`;
+
+                b.innerHTML = html;
+
+            } catch (e) {
+                b.innerHTML = `<span style="color: #ef4444;">Error loading calendar: ${e.message}</span>`;
+            }
         }
 
         async function api(type, e) {
