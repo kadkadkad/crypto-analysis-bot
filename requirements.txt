@@ -18,6 +18,7 @@ tenacity==8.2.3
 cachetools==5.3.2
 matplotlib==3.8.2
 plotly==5.18.0
+beautifulsoup4==4.12.3
 
 # Security & Production
 flask-httpauth==4.8.0
