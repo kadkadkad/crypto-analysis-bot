@@ -188,6 +188,23 @@ def get_alerts_status():
     except Exception as e:
         return jsonify({"last_update": 0})
 
+# 📅 API: Market Calendar (economic events, token unlocks, news)
+@app.route('/api/calendar')
+@limiter.limit("30 per minute")
+@auth.login_required
+def get_market_calendar():
+    """Returns economic calendar, token unlocks, and news sentiment"""
+    try:
+        from market_calendar import MarketImpactAnalyzer
+        
+        analyzer = MarketImpactAnalyzer()
+        data = analyzer.get_daily_impact_report()
+        
+        return jsonify(data)
+    except Exception as e:
+        print(f"[API] Market Calendar error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # 📥 API: Export (şifre korumalı, rate limited)
 @app.route('/api/export/<export_type>')
 @limiter.limit("5 per minute")
