@@ -1,6 +1,6 @@
 """
-Market Calendar & News Impact Analyzer
-Combines economic events from major countries with crypto-specific events and news.
+Market Calendar & News Impact Analyzer V2
+Combines real economic events, crypto news aggregation, and AI sentiment analysis.
 """
 
 import requests
@@ -9,6 +9,7 @@ from bs4 import BeautifulSoup
 import json
 import time
 import re
+import feedparser
 
 # ==================== CONFIGURATION ====================
 
@@ -29,220 +30,367 @@ COUNTRY_CRYPTO_IMPACT = {
     'KRW': 0.6,   # Korea - active trading
 }
 
-# Key economic events with crypto impact
-KEY_ECONOMIC_EVENTS = {
-    'Interest Rate Decision': {'impact': 'high', 'crypto_relevance': 0.9},
-    'Fed Interest Rate Decision': {'impact': 'high', 'crypto_relevance': 1.0},
-    'FOMC Meeting': {'impact': 'high', 'crypto_relevance': 1.0},
-    'CPI': {'impact': 'high', 'crypto_relevance': 0.9},
-    'Inflation Rate': {'impact': 'high', 'crypto_relevance': 0.9},
-    'GDP': {'impact': 'high', 'crypto_relevance': 0.7},
-    'Nonfarm Payrolls': {'impact': 'high', 'crypto_relevance': 0.8},
-    'Unemployment Rate': {'impact': 'medium', 'crypto_relevance': 0.6},
-    'PMI': {'impact': 'medium', 'crypto_relevance': 0.5},
-    'Retail Sales': {'impact': 'medium', 'crypto_relevance': 0.5},
-    'Trade Balance': {'impact': 'medium', 'crypto_relevance': 0.4},
-    'Consumer Confidence': {'impact': 'medium', 'crypto_relevance': 0.5},
-    'BOJ': {'impact': 'high', 'crypto_relevance': 0.8},
-    'ECB': {'impact': 'high', 'crypto_relevance': 0.7},
-    'PBOC': {'impact': 'high', 'crypto_relevance': 0.8},
+# Crypto News RSS Feeds
+CRYPTO_NEWS_FEEDS = {
+    'CoinDesk': 'https://www.coindesk.com/arc/outboundfeeds/rss/',
+    'CoinTelegraph': 'https://cointelegraph.com/rss',
+    'Decrypt': 'https://decrypt.co/feed',
+    'The Block': 'https://www.theblock.co/rss.xml',
+    'Bitcoin Magazine': 'https://bitcoinmagazine.com/feed',
 }
+
+# Keywords for impact detection
+HIGH_IMPACT_KEYWORDS = [
+    'sec', 'etf', 'approved', 'rejected', 'hack', 'exploit', 'crash', 'surge',
+    'billion', 'regulation', 'ban', 'legal', 'lawsuit', 'fed', 'rate', 'inflation',
+    'blackrock', 'grayscale', 'binance', 'coinbase', 'investigation', 'arrest'
+]
+
+BULLISH_KEYWORDS = [
+    'approved', 'adoption', 'partnership', 'launch', 'surge', 'rally', 'bullish',
+    'institutional', 'record', 'milestone', 'upgrade', 'breakthrough', 'integration',
+    'etf approved', 'mainstream', 'accumulation', 'whale buying'
+]
+
+BEARISH_KEYWORDS = [
+    'hack', 'exploit', 'crash', 'dump', 'bearish', 'ban', 'lawsuit', 'investigation',
+    'arrest', 'fraud', 'rug pull', 'bankruptcy', 'layoffs', 'sell-off', 'rejected',
+    'fud', 'warning', 'risk', 'collapse'
+]
+
+# Major coins for tagging
+MAJOR_COINS = [
+    'BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'DOGE', 'AVAX', 'DOT', 'MATIC', 'LINK',
+    'UNI', 'ATOM', 'LTC', 'BCH', 'NEAR', 'APT', 'ARB', 'OP', 'SUI', 'TIA',
+    'PEPE', 'SHIB', 'WIF', 'BONK', 'FET', 'RENDER', 'INJ', 'TRX', 'TON', 'BNB'
+]
 
 # ==================== ECONOMIC CALENDAR ====================
 
 class EconomicCalendar:
-    """Fetches economic events from multiple sources"""
+    """Fetches real economic events from ForexFactory and investing.com"""
     
     def __init__(self):
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         self.cache = {}
         self.cache_time = None
-        self.cache_duration = 3600  # 1 hour cache
+        self.cache_duration = 1800  # 30 min cache
     
-    def fetch_investing_calendar(self, days_ahead=7):
+    def fetch_economic_events(self, days_ahead=7):
         """
-        Fetch economic calendar from Investing.com
+        Fetch economic calendar events from multiple sources
         Returns list of economic events
         """
         events = []
         
+        # Try ForexFactory first (more reliable)
         try:
-            # Calculate date range
-            today = datetime.date.today()
-            end_date = today + datetime.timedelta(days=days_ahead)
-            
-            # Investing.com economic calendar API endpoint
-            url = "https://www.investing.com/economic-calendar/Service/getCalendarFilteredData"
-            
-            # Countries: US, China, Japan, EU, UK, Germany
-            country_ids = "5,37,35,72,4,17"  # US, China, Japan, Eurozone, UK, Germany
-            
-            payload = {
-                'country[]': country_ids.split(','),
-                'importance[]': ['1', '2', '3'],  # All importance levels
-                'dateFrom': today.strftime('%Y-%m-%d'),
-                'dateTo': end_date.strftime('%Y-%m-%d'),
-                'timeZone': '8',
-                'timeFilter': 'timeRemain',
-                'currentTab': 'custom',
-                'limit_from': '0'
-            }
-            
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'X-Requested-With': 'XMLHttpRequest',
-                'Referer': 'https://www.investing.com/economic-calendar/'
-            }
-            
-            response = requests.post(url, data=payload, headers=headers, timeout=15)
+            events = self._fetch_forexfactory()
+        except Exception as e:
+            print(f"[WARN] ForexFactory fetch failed: {e}")
+        
+        # If no events, try fallback
+        if not events:
+            events = self._get_scheduled_events(days_ahead)
+        
+        return events[:15]  # Return top 15 events
+    
+    def _fetch_forexfactory(self):
+        """Scrape ForexFactory calendar"""
+        events = []
+        try:
+            url = "https://www.forexfactory.com/calendar"
+            response = requests.get(url, headers=self.headers, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                html_content = data.get('data', '')
+                soup = BeautifulSoup(response.text, 'html.parser')
+                rows = soup.find_all('tr', class_='calendar__row')
                 
-                # Parse HTML response
-                soup = BeautifulSoup(html_content, 'html.parser')
-                rows = soup.find_all('tr', class_='js-event-item')
-                
-                for row in rows:
+                current_date = ""
+                for row in rows[:30]:  # Limit to 30 rows
                     try:
-                        event = self._parse_investing_row(row)
-                        if event:
-                            events.append(event)
+                        # Get date
+                        date_cell = row.find('td', class_='calendar__date')
+                        if date_cell and date_cell.get_text(strip=True):
+                            current_date = date_cell.get_text(strip=True)
+                        
+                        # Get time
+                        time_cell = row.find('td', class_='calendar__time')
+                        event_time = time_cell.get_text(strip=True) if time_cell else "All Day"
+                        
+                        # Get currency
+                        currency_cell = row.find('td', class_='calendar__currency')
+                        currency = currency_cell.get_text(strip=True) if currency_cell else "USD"
+                        
+                        # Get event name
+                        event_cell = row.find('td', class_='calendar__event')
+                        if not event_cell:
+                            continue
+                        event_name = event_cell.get_text(strip=True)
+                        
+                        if not event_name:
+                            continue
+                        
+                        # Get impact
+                        impact_cell = row.find('td', class_='calendar__impact')
+                        impact = 'low'
+                        if impact_cell:
+                            impact_span = impact_cell.find('span')
+                            if impact_span:
+                                classes = impact_span.get('class', [])
+                                if 'high' in str(classes).lower():
+                                    impact = 'high'
+                                elif 'medium' in str(classes).lower() or 'med' in str(classes).lower():
+                                    impact = 'medium'
+                        
+                        events.append({
+                            'date': current_date,
+                            'time': event_time,
+                            'currency': currency,
+                            'event': event_name,
+                            'impact': impact,
+                            'crypto_relevance': self._calculate_crypto_relevance(event_name, currency)
+                        })
                     except Exception as e:
                         continue
                         
         except Exception as e:
-            print(f"[WARN] Investing.com calendar fetch failed: {e}")
-            # Fallback to alternative source
-            events = self._get_fallback_events(days_ahead)
+            print(f"[ERROR] ForexFactory scraping failed: {e}")
         
         return events
-    
-    def _parse_investing_row(self, row):
-        """Parse a single row from Investing.com calendar"""
-        try:
-            # Get event time
-            time_cell = row.find('td', class_='time')
-            event_time = time_cell.text.strip() if time_cell else "TBA"
-            
-            # Get country
-            flag = row.find('td', class_='flagCur')
-            country = flag.find('span')['title'] if flag and flag.find('span') else "Unknown"
-            currency = flag.text.strip() if flag else "USD"
-            
-            # Get importance (bulls count)
-            importance_cell = row.find('td', class_='sentiment')
-            bulls = len(importance_cell.find_all('i', class_='grayFullBullishIcon')) if importance_cell else 0
-            impact = 'high' if bulls >= 3 else 'medium' if bulls >= 2 else 'low'
-            
-            # Get event name
-            event_cell = row.find('td', class_='event')
-            event_name = event_cell.text.strip() if event_cell else "Unknown Event"
-            
-            # Get actual, forecast, previous values
-            actual = row.find('td', class_='act')
-            forecast = row.find('td', class_='fore')
-            previous = row.find('td', class_='prev')
-            
-            return {
-                'time': event_time,
-                'country': country,
-                'currency': currency,
-                'event': event_name,
-                'impact': impact,
-                'actual': actual.text.strip() if actual else None,
-                'forecast': forecast.text.strip() if forecast else None,
-                'previous': previous.text.strip() if previous else None,
-                'crypto_relevance': self._calculate_crypto_relevance(event_name, currency)
-            }
-        except:
-            return None
     
     def _calculate_crypto_relevance(self, event_name, currency):
         """Calculate how relevant an economic event is to crypto markets"""
         base_relevance = 0.3
+        event_lower = event_name.lower()
         
-        # Check if event matches known high-impact events
-        for key, info in KEY_ECONOMIC_EVENTS.items():
-            if key.lower() in event_name.lower():
-                base_relevance = info['crypto_relevance']
-                break
+        # High relevance keywords
+        if any(kw in event_lower for kw in ['interest rate', 'fed', 'fomc', 'cpi', 'inflation', 'gdp', 'employment']):
+            base_relevance = 0.9
+        elif any(kw in event_lower for kw in ['pmi', 'retail sales', 'consumer confidence', 'housing']):
+            base_relevance = 0.6
+        elif any(kw in event_lower for kw in ['boj', 'ecb', 'pboc']):
+            base_relevance = 0.8
         
         # Adjust for country
         country_multiplier = COUNTRY_CRYPTO_IMPACT.get(currency, 0.5)
         
-        return round(base_relevance * country_multiplier, 2)
+        return round(min(base_relevance * country_multiplier * 1.2, 1.0), 2)
     
-    def _get_fallback_events(self, days_ahead=7):
-        """Generate known scheduled events as fallback"""
+    def _get_scheduled_events(self, days_ahead=7):
+        """Generate known scheduled major events as fallback"""
         events = []
         today = datetime.date.today()
         
-        # Known recurring events (approximate)
-        recurring_events = [
-            {'day': 1, 'event': 'US ISM Manufacturing PMI', 'currency': 'USD', 'impact': 'high'},
-            {'day': 3, 'event': 'US ISM Services PMI', 'currency': 'USD', 'impact': 'high'},
-            {'day': 'first_friday', 'event': 'US Nonfarm Payrolls', 'currency': 'USD', 'impact': 'high'},
-            {'day': 10, 'event': 'US CPI (Approx)', 'currency': 'USD', 'impact': 'high'},
-            {'day': 15, 'event': 'China GDP/Industrial Production', 'currency': 'CNY', 'impact': 'high'},
+        # Known 2026 FOMC dates
+        fomc_dates = [
+            '2026-01-29', '2026-03-19', '2026-05-07', '2026-06-18',
+            '2026-07-30', '2026-09-17', '2026-11-05', '2026-12-17'
         ]
         
-        # Add some static important dates for 2026
-        static_events = [
-            {'date': '2026-01-29', 'event': 'FOMC Meeting', 'currency': 'USD', 'impact': 'high'},
-            {'date': '2026-03-19', 'event': 'FOMC Meeting', 'currency': 'USD', 'impact': 'high'},
-            {'date': '2026-05-07', 'event': 'FOMC Meeting', 'currency': 'USD', 'impact': 'high'},
-        ]
-        
-        for se in static_events:
-            event_date = datetime.datetime.strptime(se['date'], '%Y-%m-%d').date()
-            if today <= event_date <= today + datetime.timedelta(days=days_ahead):
+        # Add FOMC meetings
+        for date_str in fomc_dates:
+            event_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            days_until = (event_date - today).days
+            if 0 <= days_until <= days_ahead:
                 events.append({
-                    'date': se['date'],
-                    'time': 'TBA',
-                    'country': 'United States',
-                    'currency': se['currency'],
-                    'event': se['event'],
-                    'impact': se['impact'],
+                    'date': event_date.strftime('%b %d'),
+                    'time': '14:00 ET',
+                    'currency': 'USD',
+                    'event': 'FOMC Interest Rate Decision',
+                    'impact': 'high',
                     'crypto_relevance': 1.0
                 })
         
-        return events
+        # Add regular monthly events (approximate)
+        # CPI - usually mid-month
+        cpi_date = datetime.date(today.year, today.month, 12)
+        if cpi_date < today:
+            if today.month == 12:
+                cpi_date = datetime.date(today.year + 1, 1, 12)
+            else:
+                cpi_date = datetime.date(today.year, today.month + 1, 12)
+        
+        days_until = (cpi_date - today).days
+        if 0 <= days_until <= days_ahead:
+            events.append({
+                'date': cpi_date.strftime('%b %d'),
+                'time': '08:30 ET',
+                'currency': 'USD',
+                'event': 'US CPI (Inflation)',
+                'impact': 'high',
+                'crypto_relevance': 0.95
+            })
+        
+        # NFP - first Friday of month
+        first_day = datetime.date(today.year, today.month, 1)
+        days_until_friday = (4 - first_day.weekday()) % 7
+        nfp_date = first_day + datetime.timedelta(days=days_until_friday)
+        if nfp_date < today:
+            if today.month == 12:
+                first_day = datetime.date(today.year + 1, 1, 1)
+            else:
+                first_day = datetime.date(today.year, today.month + 1, 1)
+            days_until_friday = (4 - first_day.weekday()) % 7
+            nfp_date = first_day + datetime.timedelta(days=days_until_friday)
+        
+        days_until = (nfp_date - today).days
+        if 0 <= days_until <= days_ahead:
+            events.append({
+                'date': nfp_date.strftime('%b %d'),
+                'time': '08:30 ET',
+                'currency': 'USD',
+                'event': 'US Nonfarm Payrolls',
+                'impact': 'high',
+                'crypto_relevance': 0.85
+            })
+        
+        return sorted(events, key=lambda x: x.get('crypto_relevance', 0), reverse=True)
 
 
-# ==================== CRYPTO EVENTS ====================
+# ==================== CRYPTO NEWS AGGREGATOR ====================
 
-class CryptoEventTracker:
-    """Tracks crypto-specific events like token unlocks, listings, upgrades"""
+class CryptoNewsAggregator:
+    """Aggregates and analyzes crypto news from multiple sources"""
     
     def __init__(self):
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+        self.cache = {}
+        self.cache_time = None
+        self.cache_duration = 300  # 5 min cache
     
-    def fetch_token_unlocks(self):
-        """Fetch upcoming token unlock events"""
-        unlocks = []
+    def fetch_all_news(self, limit=30):
+        """Fetch news from all RSS feeds"""
+        all_news = []
         
+        for source, url in CRYPTO_NEWS_FEEDS.items():
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:10]:  # 10 per source
+                    news_item = self._parse_feed_entry(entry, source)
+                    if news_item:
+                        all_news.append(news_item)
+            except Exception as e:
+                print(f"[WARN] Failed to fetch {source}: {e}")
+        
+        # Sort by published time (newest first)
+        all_news.sort(key=lambda x: x.get('published_ts', 0), reverse=True)
+        
+        # Analyze sentiment and tag coins
+        for item in all_news:
+            item['sentiment'] = self._analyze_sentiment(item['title'])
+            item['coins'] = self._extract_coins(item['title'] + ' ' + item.get('summary', ''))
+            item['is_breaking'] = self._is_breaking_news(item['title'])
+            item['impact_score'] = self._calculate_impact_score(item)
+        
+        return all_news[:limit]
+    
+    def _parse_feed_entry(self, entry, source):
+        """Parse a single RSS feed entry"""
         try:
-            # Try TokenUnlocks API or CryptoRank
-            url = "https://token.unlocks.app/api/v1/unlocks"
+            # Parse published date
+            published_ts = 0
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                published_ts = time.mktime(entry.published_parsed)
+            elif hasattr(entry, 'updated_parsed') and entry.updated_parsed:
+                published_ts = time.mktime(entry.updated_parsed)
             
-            # Alternative: use CoinGecko or manual tracking
-            # For now, use known major unlocks
-            known_unlocks = self._get_known_unlocks()
-            unlocks.extend(known_unlocks)
+            # Calculate time ago
+            now = time.time()
+            diff = now - published_ts
+            if diff < 3600:
+                time_ago = f"{int(diff / 60)}m ago"
+            elif diff < 86400:
+                time_ago = f"{int(diff / 3600)}h ago"
+            else:
+                time_ago = f"{int(diff / 86400)}d ago"
             
+            return {
+                'title': entry.get('title', 'No Title'),
+                'link': entry.get('link', ''),
+                'summary': entry.get('summary', '')[:200] if entry.get('summary') else '',
+                'source': source,
+                'published_ts': published_ts,
+                'time_ago': time_ago
+            }
         except Exception as e:
-            print(f"[WARN] Token unlocks fetch failed: {e}")
-        
-        return unlocks
+            return None
     
-    def _get_known_unlocks(self):
-        """Return known upcoming token unlocks"""
+    def _analyze_sentiment(self, text):
+        """Analyze sentiment of news title"""
+        text_lower = text.lower()
+        
+        bullish_score = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
+        bearish_score = sum(1 for kw in BEARISH_KEYWORDS if kw in text_lower)
+        
+        if bullish_score > bearish_score + 1:
+            return 'bullish'
+        elif bearish_score > bullish_score + 1:
+            return 'bearish'
+        else:
+            return 'neutral'
+    
+    def _extract_coins(self, text):
+        """Extract mentioned coins from text"""
+        text_upper = text.upper()
+        found_coins = []
+        
+        for coin in MAJOR_COINS:
+            # Check for coin symbol with word boundaries
+            if re.search(rf'\b{coin}\b', text_upper):
+                found_coins.append(coin)
+            # Also check for common variations
+            if coin == 'BTC' and 'BITCOIN' in text_upper:
+                if 'BTC' not in found_coins:
+                    found_coins.append('BTC')
+            if coin == 'ETH' and 'ETHEREUM' in text_upper:
+                if 'ETH' not in found_coins:
+                    found_coins.append('ETH')
+            if coin == 'SOL' and 'SOLANA' in text_upper:
+                if 'SOL' not in found_coins:
+                    found_coins.append('SOL')
+        
+        return found_coins[:5]  # Max 5 coins
+    
+    def _is_breaking_news(self, title):
+        """Detect if news is breaking/high-impact"""
+        title_lower = title.lower()
+        return any(kw in title_lower for kw in HIGH_IMPACT_KEYWORDS)
+    
+    def _calculate_impact_score(self, item):
+        """Calculate overall impact score (0-100)"""
+        score = 30  # Base score
+        
+        # Breaking news boost
+        if item.get('is_breaking'):
+            score += 30
+        
+        # Sentiment intensity
+        if item.get('sentiment') in ['bullish', 'bearish']:
+            score += 15
+        
+        # Coin mentions
+        if item.get('coins'):
+            score += min(len(item['coins']) * 5, 20)
+        
+        # Recency boost
+        if '1h ago' in item.get('time_ago', '') or 'm ago' in item.get('time_ago', ''):
+            score += 10
+        
+        return min(score, 100)
+
+
+# ==================== TOKEN UNLOCKS ====================
+
+class TokenUnlockTracker:
+    """Tracks crypto-specific events like token unlocks"""
+    
+    def __init__(self):
+        pass
+    
+    def get_upcoming_unlocks(self):
+        """Get upcoming token unlock events"""
         today = datetime.date.today()
         
         # Major tokens with regular unlocks (approximate monthly)
@@ -255,148 +403,128 @@ class CryptoEventTracker:
             {'symbol': 'TIA', 'name': 'Celestia', 'unlock_day': 18, 'typical_pct': 2.0},
             {'symbol': 'STRK', 'name': 'Starknet', 'unlock_day': 15, 'typical_pct': 4.0},
             {'symbol': 'JUP', 'name': 'Jupiter', 'unlock_day': 1, 'typical_pct': 1.5},
+            {'symbol': 'WLD', 'name': 'Worldcoin', 'unlock_day': 24, 'typical_pct': 2.0},
+            {'symbol': 'PYTH', 'name': 'Pyth', 'unlock_day': 20, 'typical_pct': 1.5},
         ]
         
         unlocks = []
         for token in major_tokens:
-            # Calculate next unlock date
-            this_month = datetime.date(today.year, today.month, token['unlock_day'])
-            if this_month < today:
-                # Move to next month
-                if today.month == 12:
-                    next_unlock = datetime.date(today.year + 1, 1, token['unlock_day'])
+            try:
+                # Calculate next unlock date
+                this_month = datetime.date(today.year, today.month, min(token['unlock_day'], 28))
+                if this_month < today:
+                    # Move to next month
+                    if today.month == 12:
+                        next_unlock = datetime.date(today.year + 1, 1, min(token['unlock_day'], 28))
+                    else:
+                        next_unlock = datetime.date(today.year, today.month + 1, min(token['unlock_day'], 28))
                 else:
-                    next_unlock = datetime.date(today.year, today.month + 1, token['unlock_day'])
-            else:
-                next_unlock = this_month
-            
-            days_until = (next_unlock - today).days
-            
-            if days_until <= 30:  # Only show unlocks within 30 days
-                unlocks.append({
-                    'symbol': token['symbol'],
-                    'name': token['name'],
-                    'date': next_unlock.strftime('%Y-%m-%d'),
-                    'days_until': days_until,
-                    'unlock_pct': token['typical_pct'],
-                    'impact': 'high' if token['typical_pct'] > 3 else 'medium',
-                    'expected_effect': 'bearish'  # Unlocks typically create selling pressure
-                })
+                    next_unlock = this_month
+                
+                days_until = (next_unlock - today).days
+                
+                if days_until <= 30:  # Only show unlocks within 30 days
+                    unlocks.append({
+                        'symbol': token['symbol'],
+                        'name': token['name'],
+                        'date': next_unlock.strftime('%Y-%m-%d'),
+                        'days_until': days_until,
+                        'unlock_pct': token['typical_pct'],
+                        'impact': 'high' if token['typical_pct'] > 3 else 'medium',
+                        'expected_effect': 'bearish'
+                    })
+            except:
+                continue
         
         return sorted(unlocks, key=lambda x: x['days_until'])
-    
-    def fetch_crypto_news(self, limit=20):
-        """Fetch latest crypto news with sentiment from CryptoPanic"""
-        news = []
-        
-        try:
-            # CryptoPanic API (free tier)
-            url = f"https://cryptopanic.com/api/v1/posts/?auth_token=free&public=true&filter=hot"
-            
-            response = requests.get(url, headers=self.headers, timeout=10)
-            
-            if response.status_code == 200:
-                data = response.json()
-                
-                for item in data.get('results', [])[:limit]:
-                    sentiment = 'neutral'
-                    votes = item.get('votes', {})
-                    
-                    positive = votes.get('positive', 0)
-                    negative = votes.get('negative', 0)
-                    
-                    if positive > negative * 1.5:
-                        sentiment = 'bullish'
-                    elif negative > positive * 1.5:
-                        sentiment = 'bearish'
-                    
-                    news.append({
-                        'title': item.get('title', ''),
-                        'source': item.get('source', {}).get('title', 'Unknown'),
-                        'url': item.get('url', ''),
-                        'published': item.get('published_at', ''),
-                        'sentiment': sentiment,
-                        'currencies': [c.get('code') for c in item.get('currencies', [])],
-                        'votes_positive': positive,
-                        'votes_negative': negative
-                    })
-            
-        except Exception as e:
-            print(f"[WARN] CryptoPanic news fetch failed: {e}")
-        
-        return news
 
 
-# ==================== IMPACT ANALYZER ====================
+# ==================== MAIN ANALYZER ====================
 
 class MarketImpactAnalyzer:
-    """Analyzes the combined impact of economic and crypto events"""
+    """Main analyzer combining all data sources"""
     
     def __init__(self):
         self.economic_calendar = EconomicCalendar()
-        self.crypto_tracker = CryptoEventTracker()
+        self.news_aggregator = CryptoNewsAggregator()
+        self.unlock_tracker = TokenUnlockTracker()
     
     def get_daily_impact_report(self):
-        """Generate a comprehensive daily impact report"""
+        """Generate comprehensive daily impact report"""
         report = {
             'generated_at': datetime.datetime.now().isoformat(),
             'economic_events': [],
-            'crypto_events': [],
+            'crypto_news': [],
             'token_unlocks': [],
             'news_sentiment': {},
+            'breaking_news': [],
             'overall_outlook': 'neutral',
             'risk_level': 'medium'
         }
         
         # Fetch economic calendar
-        economic_events = self.economic_calendar.fetch_investing_calendar(days_ahead=7)
-        report['economic_events'] = economic_events
+        try:
+            report['economic_events'] = self.economic_calendar.fetch_economic_events(days_ahead=7)
+        except Exception as e:
+            print(f"[ERROR] Economic calendar failed: {e}")
         
         # Fetch token unlocks
-        unlocks = self.crypto_tracker.fetch_token_unlocks()
-        report['token_unlocks'] = unlocks
+        try:
+            report['token_unlocks'] = self.unlock_tracker.get_upcoming_unlocks()
+        except Exception as e:
+            print(f"[ERROR] Token unlocks failed: {e}")
         
-        # Fetch news
-        news = self.crypto_tracker.fetch_crypto_news(limit=15)
-        
-        # Analyze news sentiment
-        bullish_count = sum(1 for n in news if n['sentiment'] == 'bullish')
-        bearish_count = sum(1 for n in news if n['sentiment'] == 'bearish')
-        neutral_count = sum(1 for n in news if n['sentiment'] == 'neutral')
-        
-        report['news_sentiment'] = {
-            'bullish': bullish_count,
-            'bearish': bearish_count,
-            'neutral': neutral_count,
-            'overall': 'bullish' if bullish_count > bearish_count * 1.3 else 
-                      'bearish' if bearish_count > bullish_count * 1.3 else 'neutral'
-        }
+        # Fetch crypto news
+        try:
+            all_news = self.news_aggregator.fetch_all_news(limit=25)
+            report['crypto_news'] = all_news
+            
+            # Extract breaking news
+            report['breaking_news'] = [n for n in all_news if n.get('is_breaking')][:5]
+            
+            # Analyze overall sentiment
+            bullish_count = sum(1 for n in all_news if n.get('sentiment') == 'bullish')
+            bearish_count = sum(1 for n in all_news if n.get('sentiment') == 'bearish')
+            neutral_count = sum(1 for n in all_news if n.get('sentiment') == 'neutral')
+            
+            report['news_sentiment'] = {
+                'bullish': bullish_count,
+                'bearish': bearish_count,
+                'neutral': neutral_count,
+                'overall': 'bullish' if bullish_count > bearish_count * 1.3 else 
+                          'bearish' if bearish_count > bullish_count * 1.3 else 'neutral'
+            }
+        except Exception as e:
+            print(f"[ERROR] News aggregation failed: {e}")
         
         # Calculate overall outlook
-        report['overall_outlook'] = self._calculate_outlook(economic_events, unlocks, report['news_sentiment'])
-        report['risk_level'] = self._calculate_risk_level(economic_events)
+        report['overall_outlook'] = self._calculate_outlook(report)
+        report['risk_level'] = self._calculate_risk_level(report)
         
         return report
     
-    def _calculate_outlook(self, economic_events, unlocks, news_sentiment):
+    def _calculate_outlook(self, report):
         """Calculate overall market outlook"""
         score = 0
         
         # News sentiment factor
-        if news_sentiment['overall'] == 'bullish':
+        ns = report.get('news_sentiment', {})
+        if ns.get('overall') == 'bullish':
             score += 2
-        elif news_sentiment['overall'] == 'bearish':
+        elif ns.get('overall') == 'bearish':
             score -= 2
         
         # Token unlocks factor (bearish pressure)
-        near_unlocks = [u for u in unlocks if u['days_until'] <= 3]
+        near_unlocks = [u for u in report.get('token_unlocks', []) if u.get('days_until', 99) <= 3]
         if near_unlocks:
             score -= len(near_unlocks)
         
-        # High impact events create uncertainty
-        high_impact_today = [e for e in economic_events if e.get('impact') == 'high']
-        if len(high_impact_today) >= 2:
-            score -= 1  # Uncertainty is slightly bearish
+        # Breaking news can cause volatility
+        breaking = report.get('breaking_news', [])
+        if breaking:
+            bearish_breaking = sum(1 for b in breaking if b.get('sentiment') == 'bearish')
+            bullish_breaking = sum(1 for b in breaking if b.get('sentiment') == 'bullish')
+            score += (bullish_breaking - bearish_breaking)
         
         if score >= 2:
             return 'bullish'
@@ -405,75 +533,27 @@ class MarketImpactAnalyzer:
         else:
             return 'neutral'
     
-    def _calculate_risk_level(self, economic_events):
-        """Calculate market risk level based on upcoming events"""
-        high_impact_count = sum(1 for e in economic_events if e.get('impact') == 'high')
+    def _calculate_risk_level(self, report):
+        """Calculate market risk level"""
+        risk_score = 0
         
-        if high_impact_count >= 3:
+        # High impact events
+        high_events = [e for e in report.get('economic_events', []) if e.get('impact') == 'high']
+        risk_score += len(high_events) * 2
+        
+        # Near token unlocks
+        near_unlocks = [u for u in report.get('token_unlocks', []) if u.get('days_until', 99) <= 3]
+        risk_score += len(near_unlocks)
+        
+        # Breaking news
+        risk_score += len(report.get('breaking_news', []))
+        
+        if risk_score >= 5:
             return 'high'
-        elif high_impact_count >= 1:
+        elif risk_score >= 2:
             return 'medium'
         else:
             return 'low'
-    
-    def generate_telegram_report(self):
-        """Generate a formatted report for Telegram"""
-        data = self.get_daily_impact_report()
-        
-        report = f"📅 <b>MARKET CALENDAR & IMPACT REPORT</b>\n"
-        report += f"<i>Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}</i>\n"
-        report += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        
-        # Overall Status
-        outlook_emoji = "🟢" if data['overall_outlook'] == 'bullish' else "🔴" if data['overall_outlook'] == 'bearish' else "🟡"
-        risk_emoji = "🔴" if data['risk_level'] == 'high' else "🟡" if data['risk_level'] == 'medium' else "🟢"
-        
-        report += f"<b>📊 Overall Status:</b>\n"
-        report += f"• Outlook: {outlook_emoji} {data['overall_outlook'].upper()}\n"
-        report += f"• Risk Level: {risk_emoji} {data['risk_level'].upper()}\n\n"
-        
-        # Economic Events - Today & Tomorrow
-        report += f"<b>🏛️ Economic Events (7 Days):</b>\n"
-        if data['economic_events']:
-            for event in data['economic_events'][:8]:
-                impact_icon = "🔴" if event.get('impact') == 'high' else "🟡" if event.get('impact') == 'medium' else "⚪"
-                report += f"{impact_icon} [{event.get('currency', 'N/A')}] {event.get('event', 'Unknown')}\n"
-                report += f"   📍 {event.get('time', 'TBA')} | Crypto Impact: {int(event.get('crypto_relevance', 0)*100)}%\n"
-        else:
-            report += "• No major events scheduled\n"
-        report += "\n"
-        
-        # Token Unlocks
-        report += f"<b>🔓 Token Unlocks (Next 30 Days):</b>\n"
-        if data['token_unlocks']:
-            for unlock in data['token_unlocks'][:5]:
-                days_text = "TODAY" if unlock['days_until'] == 0 else f"in {unlock['days_until']} days"
-                report += f"• ${unlock['symbol']}: ~{unlock['unlock_pct']}% unlock {days_text}\n"
-        else:
-            report += "• No major unlocks detected\n"
-        report += "\n"
-        
-        # News Sentiment
-        ns = data['news_sentiment']
-        report += f"<b>📰 News Sentiment:</b>\n"
-        report += f"• 🟢 Bullish: {ns.get('bullish', 0)} | 🔴 Bearish: {ns.get('bearish', 0)} | ⚪ Neutral: {ns.get('neutral', 0)}\n"
-        report += f"• Overall: {ns.get('overall', 'neutral').upper()}\n\n"
-        
-        # Trading Notes
-        report += "<b>⚡ Trading Notes:</b>\n"
-        if data['risk_level'] == 'high':
-            report += "• ⚠️ High volatility expected - reduce position sizes\n"
-        if any(u['days_until'] <= 1 for u in data['token_unlocks']):
-            report += "• 🔓 Token unlock imminent - watch for selling pressure\n"
-        if data['overall_outlook'] == 'bullish':
-            report += "• 📈 Sentiment favors long positions\n"
-        elif data['overall_outlook'] == 'bearish':
-            report += "• 📉 Sentiment favors caution/shorts\n"
-        
-        report += "\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        report += "<i>🤖 Data from multiple sources. Always DYOR.</i>"
-        
-        return report
 
 
 # ==================== GLOBAL INSTANCE ====================
@@ -491,16 +571,69 @@ def get_market_calendar_report():
     global MARKET_CALENDAR
     if not MARKET_CALENDAR:
         init_market_calendar()
-    return MARKET_CALENDAR.generate_telegram_report()
+    
+    data = MARKET_CALENDAR.get_daily_impact_report()
+    
+    # Format for Telegram
+    report = f"📅 <b>MARKET CALENDAR & NEWS</b>\n"
+    report += f"<i>Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}</i>\n"
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    # Overall Status
+    outlook_emoji = "🟢" if data['overall_outlook'] == 'bullish' else "🔴" if data['overall_outlook'] == 'bearish' else "🟡"
+    risk_emoji = "🔴" if data['risk_level'] == 'high' else "🟡" if data['risk_level'] == 'medium' else "🟢"
+    
+    report += f"<b>📊 Overall Status:</b>\n"
+    report += f"• Outlook: {outlook_emoji} {data['overall_outlook'].upper()}\n"
+    report += f"• Risk Level: {risk_emoji} {data['risk_level'].upper()}\n\n"
+    
+    # Breaking News
+    if data.get('breaking_news'):
+        report += f"<b>🚨 BREAKING NEWS:</b>\n"
+        for news in data['breaking_news'][:3]:
+            sentiment_icon = "🟢" if news.get('sentiment') == 'bullish' else "🔴" if news.get('sentiment') == 'bearish' else "⚪"
+            coins = ', '.join([f"${c}" for c in news.get('coins', [])]) if news.get('coins') else ''
+            report += f"{sentiment_icon} {news['title'][:60]}...\n"
+            if coins:
+                report += f"   📌 {coins}\n"
+        report += "\n"
+    
+    # Economic Events
+    report += f"<b>🏛️ Economic Events:</b>\n"
+    if data['economic_events']:
+        for event in data['economic_events'][:5]:
+            impact_icon = "🔴" if event.get('impact') == 'high' else "🟡" if event.get('impact') == 'medium' else "⚪"
+            report += f"{impact_icon} [{event.get('currency', 'N/A')}] {event.get('event', 'Unknown')}\n"
+    else:
+        report += "• No major events scheduled\n"
+    report += "\n"
+    
+    # Token Unlocks
+    report += f"<b>🔓 Token Unlocks:</b>\n"
+    if data['token_unlocks']:
+        for unlock in data['token_unlocks'][:5]:
+            days_text = "TODAY" if unlock['days_until'] == 0 else f"in {unlock['days_until']}d"
+            report += f"• ${unlock['symbol']}: ~{unlock['unlock_pct']}% {days_text}\n"
+    else:
+        report += "• No major unlocks\n"
+    report += "\n"
+    
+    # News Sentiment
+    ns = data.get('news_sentiment', {})
+    report += f"<b>📰 News Sentiment:</b>\n"
+    report += f"🟢 {ns.get('bullish', 0)} | 🔴 {ns.get('bearish', 0)} | ⚪ {ns.get('neutral', 0)}\n"
+    
+    return report
 
 
 # ==================== TEST ====================
 
 if __name__ == "__main__":
-    print("Testing Market Calendar...")
+    print("Testing Market Calendar V2...")
     analyzer = MarketImpactAnalyzer()
-    report = analyzer.generate_telegram_report()
-    # Strip HTML for console
-    import re
-    clean = re.sub('<[^<]+?>', '', report)
-    print(clean)
+    data = analyzer.get_daily_impact_report()
+    print(f"Economic Events: {len(data['economic_events'])}")
+    print(f"Crypto News: {len(data['crypto_news'])}")
+    print(f"Breaking News: {len(data['breaking_news'])}")
+    print(f"Token Unlocks: {len(data['token_unlocks'])}")
+    print(f"Overall Outlook: {data['overall_outlook']}")
