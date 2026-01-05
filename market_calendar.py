@@ -904,6 +904,7 @@ if __name__ == "__main__":
     analyzer = MarketImpactAnalyzer()
     data = analyzer.get_daily_impact_report()
     print(f"Economic Events: {len(data['economic_events'])}")
+    print(f"Crypto Events: {len(data['crypto_events'])}")
     print(f"Crypto News: {len(data['crypto_news'])}")
     print(f"Breaking News: {len(data['breaking_news'])}")
     print(f"Token Unlocks: {len(data['token_unlocks'])}")
