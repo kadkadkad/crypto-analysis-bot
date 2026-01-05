@@ -43,19 +43,47 @@ CRYPTO_NEWS_FEEDS = {
 HIGH_IMPACT_KEYWORDS = [
     'sec', 'etf', 'approved', 'rejected', 'hack', 'exploit', 'crash', 'surge',
     'billion', 'regulation', 'ban', 'legal', 'lawsuit', 'fed', 'rate', 'inflation',
-    'blackrock', 'grayscale', 'binance', 'coinbase', 'investigation', 'arrest'
+    'blackrock', 'grayscale', 'binance', 'coinbase', 'investigation', 'arrest',
+    'record', 'all-time', 'ath', 'breaking', 'major', 'significant'
 ]
 
 BULLISH_KEYWORDS = [
-    'approved', 'adoption', 'partnership', 'launch', 'surge', 'rally', 'bullish',
-    'institutional', 'record', 'milestone', 'upgrade', 'breakthrough', 'integration',
-    'etf approved', 'mainstream', 'accumulation', 'whale buying'
+    # Positive price action
+    'surge', 'surges', 'rally', 'rallies', 'soar', 'soars', 'jump', 'jumps',
+    'gain', 'gains', 'rise', 'rises', 'climb', 'climbs', 'spike', 'spikes',
+    'breakout', 'bullish', 'highs', 'high', 'record', 'ath', 'all-time',
+    'outperform', 'outperforms', 'momentum', 'pump', 'moon', 'mooning',
+    # Adoption & Growth
+    'approved', 'approval', 'adoption', 'adopt', 'partnership', 'partners',
+    'launch', 'launches', 'integration', 'integrates', 'upgrade', 'upgrades',
+    'milestone', 'breakthrough', 'mainstream', 'institutional', 'institutions',
+    # Buying signals
+    'accumulation', 'accumulate', 'buying', 'buys', 'inflows', 'inflow',
+    'whale', 'whales', 'bullish', 'positive', 'optimistic', 'confidence',
+    # ETF & Institutions
+    'etf approved', 'etf launch', 'blackrock', 'fidelity', 'grayscale',
+    # Staking & Rewards
+    'staking', 'rewards', 'yield', 'airdrop', 'dividend', 'payout'
 ]
 
 BEARISH_KEYWORDS = [
-    'hack', 'exploit', 'crash', 'dump', 'bearish', 'ban', 'lawsuit', 'investigation',
-    'arrest', 'fraud', 'rug pull', 'bankruptcy', 'layoffs', 'sell-off', 'rejected',
-    'fud', 'warning', 'risk', 'collapse'
+    # Negative price action
+    'crash', 'crashes', 'dump', 'dumps', 'plunge', 'plunges', 'drop', 'drops',
+    'fall', 'falls', 'sink', 'sinks', 'tumble', 'tumbles', 'slide', 'slides',
+    'decline', 'declines', 'slump', 'bearish', 'lows', 'low', 'downward',
+    'correction', 'pullback', 'selloff', 'sell-off', 'selling',
+    # Security & Legal issues
+    'hack', 'hacked', 'exploit', 'exploited', 'breach', 'vulnerability',
+    'lawsuit', 'sue', 'sued', 'investigation', 'investigated', 'probe',
+    'arrest', 'arrested', 'fraud', 'scam', 'rug pull', 'rugpull',
+    # Business problems
+    'bankruptcy', 'bankrupt', 'insolvent', 'layoffs', 'layoff', 'cuts',
+    'shutdown', 'closing', 'delisting', 'delisted', 'ban', 'banned',
+    # Regulatory
+    'rejected', 'rejection', 'denied', 'warning', 'risk', 'risky',
+    'regulation', 'crackdown', 'restrict', 'restrictions',
+    # Outflows
+    'outflows', 'outflow', 'withdrawals', 'withdrawal', 'flee', 'exit'
 ]
 
 # Major coins for tagging
@@ -423,15 +451,16 @@ class CryptoNewsAggregator:
             return None
     
     def _analyze_sentiment(self, text):
-        """Analyze sentiment of news title"""
+        """Analyze sentiment of news title - more aggressive detection"""
         text_lower = text.lower()
         
         bullish_score = sum(1 for kw in BULLISH_KEYWORDS if kw in text_lower)
         bearish_score = sum(1 for kw in BEARISH_KEYWORDS if kw in text_lower)
         
-        if bullish_score > bearish_score + 1:
+        # More sensitive: just 1 keyword difference is enough
+        if bullish_score > bearish_score:
             return 'bullish'
-        elif bearish_score > bullish_score + 1:
+        elif bearish_score > bullish_score:
             return 'bearish'
         else:
             return 'neutral'
