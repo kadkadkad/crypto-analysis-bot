@@ -1702,6 +1702,30 @@
                 }
                 html += `</div>`;
 
+                // Crypto Events (Mainnet, Airdrop, Upgrade)
+                html += `<div style="background: rgba(139, 92, 246, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">`;
+                html += `<h3 style="margin: 0 0 10px 0; color: #8b5cf6;">🚀 Crypto Events (Mainnet, Airdrop, Upgrade)</h3>`;
+                if (data.crypto_events && data.crypto_events.length > 0) {
+                    data.crypto_events.forEach(ev => {
+                        let typeIcon = '📌';
+                        let typeColor = '#6b7280';
+                        if (ev.type === 'mainnet') { typeIcon = '🌐'; typeColor = '#10b981'; }
+                        else if (ev.type === 'airdrop') { typeIcon = '🎁'; typeColor = '#f59e0b'; }
+                        else if (ev.type === 'upgrade') { typeIcon = '⚡'; typeColor = '#3b82f6'; }
+                        else if (ev.type === 'listing') { typeIcon = '📈'; typeColor = '#8b5cf6'; }
+                        else if (ev.type === 'conference') { typeIcon = '🎤'; typeColor = '#ec4899'; }
+                        else if (ev.type === 'burn') { typeIcon = '🔥'; typeColor = '#ef4444'; }
+
+                        html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.2); border-radius: 6px; border-left: 3px solid ${typeColor};">`;
+                        html += `<b>${typeIcon} ${ev.coin || 'Unknown'}</b> - ${ev.title}<br>`;
+                        html += `<span style="font-size: 12px; color: #8b949e;">📅 ${ev.date || 'TBA'} | <span style="color: ${typeColor}; text-transform: uppercase;">${ev.type}</span></span>`;
+                        html += `</div>`;
+                    });
+                } else {
+                    html += `<p style="color: #8b949e;">No upcoming crypto events</p>`;
+                }
+                html += `</div>`;
+
                 // News Sentiment
                 html += `<div style="background: rgba(139, 92, 246, 0.1); padding: 15px; border-radius: 10px; border-left: 4px solid #8b5cf6;">`;
                 html += `<h3 style="margin: 0 0 10px 0; color: #8b5cf6;">📰 News Sentiment</h3>`;

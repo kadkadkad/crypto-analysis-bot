@@ -439,6 +439,135 @@ class TokenUnlockTracker:
         return sorted(unlocks, key=lambda x: x['days_until'])
 
 
+# ==================== CRYPTO EVENTS (Mainnet, Airdrop, Upgrade) ====================
+
+class CryptoEventTracker:
+    """Tracks crypto events: mainnet launches, airdrops, upgrades, listings"""
+    
+    def __init__(self):
+        self.headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+    
+    def fetch_crypto_events(self):
+        """Fetch upcoming crypto events from CoinMarketCal and other sources"""
+        events = []
+        
+        # Try CoinMarketCal API (free tier)
+        try:
+            events = self._fetch_coinmarketcal()
+        except Exception as e:
+            print(f"[WARN] CoinMarketCal fetch failed: {e}")
+        
+        # Fallback to known scheduled events
+        if not events:
+            events = self._get_known_crypto_events()
+        
+        return events[:20]
+    
+    def _fetch_coinmarketcal(self):
+        """Fetch from CoinMarketCal API"""
+        events = []
+        try:
+            # CoinMarketCal free endpoint
+            url = "https://coinmarketcal.com/en/"
+            response = requests.get(url, headers=self.headers, timeout=10)
+            
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                event_cards = soup.find_all('article', class_='card')
+                
+                for card in event_cards[:15]:
+                    try:
+                        # Get coin name
+                        coin_elem = card.find('h5', class_='card__coins')
+                        coin = coin_elem.get_text(strip=True) if coin_elem else 'Unknown'
+                        
+                        # Get event title
+                        title_elem = card.find('h5', class_='card__title')
+                        title = title_elem.get_text(strip=True) if title_elem else 'Unknown Event'
+                        
+                        # Get date
+                        date_elem = card.find('h5', class_='card__date')
+                        date_str = date_elem.get_text(strip=True) if date_elem else 'TBA'
+                        
+                        # Determine event type
+                        event_type = self._categorize_event(title)
+                        
+                        events.append({
+                            'coin': coin,
+                            'title': title,
+                            'date': date_str,
+                            'type': event_type,
+                            'source': 'CoinMarketCal'
+                        })
+                    except:
+                        continue
+        except Exception as e:
+            print(f"[ERROR] CoinMarketCal scraping failed: {e}")
+        
+        return events
+    
+    def _categorize_event(self, title):
+        """Categorize event by type"""
+        title_lower = title.lower()
+        
+        if any(kw in title_lower for kw in ['mainnet', 'launch', 'genesis']):
+            return 'mainnet'
+        elif any(kw in title_lower for kw in ['airdrop', 'claim', 'distribute']):
+            return 'airdrop'
+        elif any(kw in title_lower for kw in ['upgrade', 'fork', 'update', 'v2', 'v3']):
+            return 'upgrade'
+        elif any(kw in title_lower for kw in ['listing', 'exchange', 'binance', 'coinbase']):
+            return 'listing'
+        elif any(kw in title_lower for kw in ['partnership', 'collab', 'integrat']):
+            return 'partnership'
+        elif any(kw in title_lower for kw in ['burn', 'buyback']):
+            return 'burn'
+        elif any(kw in title_lower for kw in ['conference', 'summit', 'event']):
+            return 'conference'
+        else:
+            return 'other'
+    
+    def _get_known_crypto_events(self):
+        """Return known upcoming crypto events as fallback"""
+        today = datetime.date.today()
+        events = []
+        
+        # Known upcoming events (regularly updated list)
+        known_events = [
+            # Mainnet Launches
+            {'coin': 'MONAD', 'title': 'Monad Mainnet Launch', 'date': 'Q1 2026', 'type': 'mainnet'},
+            {'coin': 'BERACHAIN', 'title': 'Berachain Mainnet', 'date': 'Q1 2026', 'type': 'mainnet'},
+            {'coin': 'MOVEMENT', 'title': 'Movement Mainnet', 'date': 'Q1 2026', 'type': 'mainnet'},
+            
+            # Upgrades
+            {'coin': 'ETH', 'title': 'Ethereum Pectra Upgrade', 'date': 'Q1 2026', 'type': 'upgrade'},
+            {'coin': 'SOL', 'title': 'Solana Firedancer Upgrade', 'date': 'H1 2026', 'type': 'upgrade'},
+            {'coin': 'AVAX', 'title': 'Avalanche HyperSDK', 'date': '2026', 'type': 'upgrade'},
+            
+            # Airdrops (frequently updated)
+            {'coin': 'LINEA', 'title': 'Linea Token Airdrop', 'date': 'TBA', 'type': 'airdrop'},
+            {'coin': 'SCROLL', 'title': 'Scroll Airdrop', 'date': 'TBA', 'type': 'airdrop'},
+            {'coin': 'ZKSYNC', 'title': 'zkSync Season 2', 'date': 'TBA', 'type': 'airdrop'},
+            {'coin': 'BASE', 'title': 'Base Points Airdrop', 'date': 'TBA', 'type': 'airdrop'},
+            {'coin': 'LAYERZERO', 'title': 'LayerZero Season 2', 'date': 'TBA', 'type': 'airdrop'},
+            
+            # Exchange Listings (tracked manually)
+            {'coin': 'Various', 'title': 'Binance Launchpool', 'date': 'Weekly', 'type': 'listing'},
+            
+            # Conferences
+            {'coin': 'CRYPTO', 'title': 'ETH Denver 2026', 'date': 'Feb 2026', 'type': 'conference'},
+            {'coin': 'CRYPTO', 'title': 'Token2049 Dubai', 'date': 'Apr 2026', 'type': 'conference'},
+        ]
+        
+        # Add source to all
+        for e in known_events:
+            e['source'] = 'Known Events'
+        
+        return known_events
+
+
 # ==================== MAIN ANALYZER ====================
 
 class MarketImpactAnalyzer:
@@ -448,12 +577,14 @@ class MarketImpactAnalyzer:
         self.economic_calendar = EconomicCalendar()
         self.news_aggregator = CryptoNewsAggregator()
         self.unlock_tracker = TokenUnlockTracker()
+        self.crypto_events = CryptoEventTracker()
     
     def get_daily_impact_report(self):
         """Generate comprehensive daily impact report"""
         report = {
             'generated_at': datetime.datetime.now().isoformat(),
             'economic_events': [],
+            'crypto_events': [],  # NEW: mainnet, airdrops, upgrades
             'crypto_news': [],
             'token_unlocks': [],
             'news_sentiment': {},
@@ -467,6 +598,12 @@ class MarketImpactAnalyzer:
             report['economic_events'] = self.economic_calendar.fetch_economic_events(days_ahead=7)
         except Exception as e:
             print(f"[ERROR] Economic calendar failed: {e}")
+        
+        # Fetch crypto events (mainnet, airdrop, upgrade)
+        try:
+            report['crypto_events'] = self.crypto_events.fetch_crypto_events()
+        except Exception as e:
+            print(f"[ERROR] Crypto events failed: {e}")
         
         # Fetch token unlocks
         try:
