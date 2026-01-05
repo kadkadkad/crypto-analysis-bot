@@ -1675,9 +1675,10 @@
                     data.economic_events.slice(0, 10).forEach(ev => {
                         const impactIcon = ev.impact === 'high' ? '🔴' : ev.impact === 'medium' ? '🟡' : '⚪';
                         const cryptoImpact = Math.round((ev.crypto_relevance || 0) * 100);
+                        const dateStr = ev.date ? `📅 ${ev.date}` : '';
                         html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.2); border-radius: 6px;">`;
                         html += `<b>${impactIcon} [${ev.currency || 'N/A'}] ${ev.event || 'Unknown Event'}</b><br>`;
-                        html += `<span style="font-size: 12px; color: #8b949e;">📍 Time: ${ev.time || 'TBA'} | Crypto Impact: ${cryptoImpact}%</span>`;
+                        html += `<span style="font-size: 12px; color: #8b949e;">${dateStr} ⏰ ${ev.time || 'TBA'} | Crypto Impact: ${cryptoImpact}%</span>`;
                         html += `</div>`;
                     });
                 } else {
@@ -1742,7 +1743,7 @@
 
                 // Breaking News Section
                 if (data.breaking_news && data.breaking_news.length > 0) {
-                    html += `<div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(0,0,0,0.3)); padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ef4444; animation: pulse 2s infinite;">`;
+                    html += `<div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(0,0,0,0.3)); padding: 15px; border-radius: 10px; margin-bottom: 20px; border: 2px solid #ef4444;">`;
                     html += `<h3 style="margin: 0 0 10px 0; color: #ef4444;">🚨 BREAKING NEWS</h3>`;
                     data.breaking_news.forEach(news => {
                         const sentimentIcon = news.sentiment === 'bullish' ? '🟢' : news.sentiment === 'bearish' ? '🔴' : '⚪';
