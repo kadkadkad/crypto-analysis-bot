@@ -56,6 +56,7 @@ from prediction_engine import PumpPredictionEngine
 from market_regime import MarketRegimeDetector
 from signal_tracker import SignalWinRateTracker
 from smart_money_report import generate_smart_money_indicators_report
+from market_calendar import get_market_calendar_report, init_market_calendar
 
 
 # Start Menu Manager
@@ -1532,7 +1533,15 @@ def create_complete_command_mapping():
         "📜 YouTube Transcripts": "YouTube Transcripts",
         "📚 Order Book Analysis": "order_book_analysis",
         "↩️ Ana Menü": "Main Menu",
-        "↩️ Main Menu": "Main Menu"
+        "↩️ Main Menu": "Main Menu",
+        
+        # Market Calendar & News
+        "📅 Market Calendar": "Market Calendar",
+        "Market Calendar": "Market Calendar",
+        "📅 Economic Calendar": "Market Calendar",
+        "Economic Calendar": "Market Calendar",
+        "📅 Event Impact": "Market Calendar",
+        "Event Impact": "Market Calendar"
     }
 
 
@@ -1710,7 +1719,7 @@ def handle_reply_message(message):
                 "Trend Status", "Composite Score", "RSI Report", "MACD", "EMA Crossings", "ADX", "MFI", "Candle Patterns", "Support/Resistance", "Bollinger Bands",
                 "Whale Strategies", "Whale Movement", "Manipulation Detector", "MM Analysis", "Net Accum", "Net Accum 4H", "Net Accum 1D", "Whale Ranking",
                 "Futures Analysis", "Long/Short Ratio", "Funding Rate", "Open Interest", "liquidation_analysis", "Volatility Ranking", "Trust Index", "Risk Analysis",
-                "YouTube Alpha", "YouTube Transcripts", "NotebookLM Export", "Summary", "Current Analysis"
+                "YouTube Alpha", "YouTube Transcripts", "NotebookLM Export", "Summary", "Current Analysis", "Market Calendar"
             ]:
                 handle_main_menu_option(normalized_text, chat_id)
 
@@ -2494,6 +2503,13 @@ def handle_main_menu_option(option, chat_id):
         elif option == "Whale Ranking":
             report = generate_whale_ranking_report()
             send_telegram_message_long(report)
+        elif option == "Market Calendar":
+            try:
+                report = get_market_calendar_report()
+                send_telegram_message_long(report)
+            except Exception as e:
+                print(f"[ERROR] Market Calendar failed: {e}")
+                send_telegram_message_long(f"⚠️ Market Calendar error: {str(e)}")
         else:
             print(f"[DEBUG] handle_main_menu_option catch-all: '{option}'")
             keyboard = create_reply_keyboard(ALL_RESULTS)
