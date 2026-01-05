@@ -1812,10 +1812,15 @@
                         const impactBadge = news.impact_score >= 70 ? '<span style="background: #ef4444; padding: 2px 6px; border-radius: 4px; font-size: 9px; margin-left: 8px;">HIGH IMPACT</span>' : '';
                         const coins = news.coins && news.coins.length > 0 ? news.coins.map(c => `<span style="background: rgba(59, 130, 246, 0.3); padding: 1px 5px; border-radius: 3px; font-size: 10px; margin-right: 3px;">$${c}</span>`).join('') : '';
 
+                        // Real vote counts from CryptoPanic
+                        const votesHtml = (news.votes_positive !== undefined || news.votes_negative !== undefined)
+                            ? `<span style="margin-left: 8px;">👍${news.votes_positive || 0} 👎${news.votes_negative || 0}</span>`
+                            : '';
+
                         html += `<div style="padding: 12px; margin: 8px 0; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid ${news.sentiment === 'bullish' ? '#10b981' : news.sentiment === 'bearish' ? '#ef4444' : '#6b7280'};">`;
                         html += `<div style="font-weight: 600; margin-bottom: 5px;">${sentimentIcon} ${news.title}${impactBadge}</div>`;
                         html += `<div style="font-size: 11px; color: #8b949e;">`;
-                        html += `<span style="color: #60a5fa;">${news.source}</span> • ${news.time_ago}`;
+                        html += `<span style="color: #60a5fa;">${news.source}</span> • ${news.time_ago}${votesHtml}`;
                         if (coins) html += ` • ${coins}`;
                         html += `</div>`;
                         html += `</div>`;

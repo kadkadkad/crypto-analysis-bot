@@ -253,38 +253,143 @@ class EconomicCalendar:
 # ==================== CRYPTO NEWS AGGREGATOR ====================
 
 class CryptoNewsAggregator:
-    """Aggregates and analyzes crypto news from multiple sources"""
+    """Aggregates crypto news from CryptoPanic API with REAL sentiment scores"""
     
     def __init__(self):
         self.cache = {}
         self.cache_time = None
         self.cache_duration = 300  # 5 min cache
+        self.cryptopanic_url = "https://cryptopanic.com/api/v1/posts/"
     
     def fetch_all_news(self, limit=30):
-        """Fetch news from all RSS feeds"""
+        """Fetch news from CryptoPanic API (real sentiment) + RSS fallback"""
+        all_news = []
+        
+        # Try CryptoPanic API first (has real sentiment votes)
+        try:
+            cryptopanic_news = self._fetch_cryptopanic()
+            all_news.extend(cryptopanic_news)
+        except Exception as e:
+            print(f"[WARN] CryptoPanic fetch failed: {e}")
+        
+        # Fallback: If no CryptoPanic news, use RSS
+        if not all_news:
+            all_news = self._fetch_rss_fallback()
+        
+        # Sort by published time (newest first)
+        all_news.sort(key=lambda x: x.get('published_ts', 0), reverse=True)
+        
+        return all_news[:limit]
+    
+    def _fetch_cryptopanic(self):
+        """Fetch from CryptoPanic API - has REAL community sentiment votes"""
+        news = []
+        try:
+            # Free tier: auth_token=free, returns limited but real data
+            params = {
+                'auth_token': 'free',
+                'public': 'true',
+                'kind': 'news',
+                'filter': 'hot'  # Get trending/hot news
+            }
+            
+            response = requests.get(self.cryptopanic_url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('results', [])
+                
+                for item in results[:25]:
+                    try:
+                        # Get votes (REAL sentiment from community)
+                        votes = item.get('votes', {})
+                        positive = votes.get('positive', 0)
+                        negative = votes.get('negative', 0)
+                        
+                        # Calculate real sentiment from votes
+                        total_votes = positive + negative
+                        if total_votes > 0:
+                            if positive > negative * 1.5:
+                                sentiment = 'bullish'
+                            elif negative > positive * 1.5:
+                                sentiment = 'bearish'
+                            else:
+                                sentiment = 'neutral'
+                        else:
+                            sentiment = 'neutral'
+                        
+                        # Parse published time
+                        published_at = item.get('published_at', '')
+                        published_ts = 0
+                        if published_at:
+                            try:
+                                dt = datetime.datetime.fromisoformat(published_at.replace('Z', '+00:00'))
+                                published_ts = dt.timestamp()
+                            except:
+                                published_ts = time.time()
+                        
+                        # Calculate time ago
+                        diff = time.time() - published_ts
+                        if diff < 3600:
+                            time_ago = f"{int(diff / 60)}m ago"
+                        elif diff < 86400:
+                            time_ago = f"{int(diff / 3600)}h ago"
+                        else:
+                            time_ago = f"{int(diff / 86400)}d ago"
+                        
+                        # Extract coins from currencies
+                        coins = []
+                        for curr in item.get('currencies', []):
+                            code = curr.get('code', '')
+                            if code and code in MAJOR_COINS:
+                                coins.append(code)
+                        
+                        # Check if breaking/important
+                        is_breaking = item.get('kind') == 'media' or total_votes > 10
+                        
+                        news.append({
+                            'title': item.get('title', 'No Title'),
+                            'link': item.get('url', ''),
+                            'source': item.get('source', {}).get('title', 'CryptoPanic'),
+                            'published_ts': published_ts,
+                            'time_ago': time_ago,
+                            'sentiment': sentiment,
+                            'votes_positive': positive,
+                            'votes_negative': negative,
+                            'coins': coins[:5],
+                            'is_breaking': is_breaking,
+                            'impact_score': min(30 + (total_votes * 5) + (len(coins) * 10), 100)
+                        })
+                    except Exception as e:
+                        continue
+                        
+        except Exception as e:
+            print(f"[ERROR] CryptoPanic API failed: {e}")
+        
+        return news
+    
+    def _fetch_rss_fallback(self):
+        """Fallback to RSS feeds if CryptoPanic fails"""
         all_news = []
         
         for source, url in CRYPTO_NEWS_FEEDS.items():
             try:
                 feed = feedparser.parse(url)
-                for entry in feed.entries[:10]:  # 10 per source
+                for entry in feed.entries[:10]:
                     news_item = self._parse_feed_entry(entry, source)
                     if news_item:
                         all_news.append(news_item)
             except Exception as e:
                 print(f"[WARN] Failed to fetch {source}: {e}")
         
-        # Sort by published time (newest first)
-        all_news.sort(key=lambda x: x.get('published_ts', 0), reverse=True)
-        
-        # Analyze sentiment and tag coins
+        # Add sentiment analysis for RSS
         for item in all_news:
             item['sentiment'] = self._analyze_sentiment(item['title'])
             item['coins'] = self._extract_coins(item['title'] + ' ' + item.get('summary', ''))
             item['is_breaking'] = self._is_breaking_news(item['title'])
             item['impact_score'] = self._calculate_impact_score(item)
         
-        return all_news[:limit]
+        return all_news
     
     def _parse_feed_entry(self, entry, source):
         """Parse a single RSS feed entry"""
