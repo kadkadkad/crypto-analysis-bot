@@ -205,6 +205,75 @@ def get_market_calendar():
         print(f"[API] Market Calendar error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# 🩺 API: Trade Doctor (position analysis)
+@app.route('/api/trade-doctor', methods=['POST'])
+@limiter.limit("20 per minute")
+@auth.login_required
+def analyze_position():
+    """Analyze a trading position and get AI recommendation"""
+    try:
+        from trade_doctor import TradeDoctor
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        symbol = data.get('symbol', 'BTC')
+        entry_price = float(data.get('entry_price', 0))
+        quantity = float(data.get('quantity', 0))
+        position_type = data.get('position_type', 'long')
+        
+        if entry_price <= 0 or quantity <= 0:
+            return jsonify({"error": "Invalid entry_price or quantity"}), 400
+        
+        doctor = TradeDoctor()
+        analysis = doctor.analyze_position(symbol, entry_price, quantity, position_type)
+        
+        return jsonify(analysis)
+    except Exception as e:
+        print(f"[API] Trade Doctor error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# 🩺 API: Trade Doctor Quick Check
+@app.route('/api/trade-doctor/quick/<symbol>')
+@limiter.limit("30 per minute")
+@auth.login_required
+def quick_check(symbol):
+    """Quick health check for a coin"""
+    try:
+        from trade_doctor import TradeDoctor
+        
+        doctor = TradeDoctor()
+        result = doctor.quick_check(symbol)
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"[API] Quick Check error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# 🐋 API: Whale Watcher
+@app.route('/api/whales')
+@limiter.limit("20 per minute")
+@auth.login_required
+def get_whale_transactions():
+    """Get recent whale transactions"""
+    try:
+        from whale_watcher import WhaleWatcher
+        
+        watcher = WhaleWatcher()
+        transactions = watcher.get_whale_transactions(20)
+        summary = watcher.get_whale_summary()
+        alerts = watcher.get_alerts(1_000_000)  # $1M+ alerts
+        
+        return jsonify({
+            "transactions": transactions,
+            "summary": summary,
+            "alerts": alerts
+        })
+    except Exception as e:
+        print(f"[API] Whale Watcher error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # 📥 API: Export (şifre korumalı, rate limited)
 @app.route('/api/export/<export_type>')
 @limiter.limit("5 per minute")

@@ -1355,6 +1355,12 @@
                     <button class="filter-btn" onclick="loadNews()"
                         style="background: linear-gradient(135deg, #10b981, #059669); border-color: #10b981;">📰
                         NEWS</button>
+                    <button class="filter-btn" onclick="openTradeDoctor()"
+                        style="background: linear-gradient(135deg, #f59e0b, #d97706); border-color: #f59e0b;">🩺
+                        TRADE DOCTOR</button>
+                    <button class="filter-btn" onclick="loadWhales()"
+                        style="background: linear-gradient(135deg, #06b6d4, #0891b2); border-color: #06b6d4;">🐋
+                        WHALES</button>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -1834,6 +1840,221 @@
 
             } catch (e) {
                 b.innerHTML = `<span style="color: #ef4444;">Error loading news: ${e.message}</span>`;
+            }
+        }
+
+        // 🩺 Trade Doctor function
+        function openTradeDoctor() {
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "🩺 AI TRADE DOCTOR";
+            document.getElementById('popupSearch').value = '';
+            m.style.display = 'flex';
+
+            b.innerHTML = `
+                <div style="background: rgba(245, 158, 11, 0.1); padding: 20px; border-radius: 12px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #f59e0b;">📊 Analyze Your Position</h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Coin Symbol</label>
+                            <input type="text" id="tdSymbol" placeholder="BTC, ETH, SOL..." 
+                                style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Position Type</label>
+                            <select id="tdType" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                                <option value="long">LONG</option>
+                                <option value="short">SHORT</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Entry Price ($)</label>
+                            <input type="number" id="tdEntry" placeholder="95000" step="0.01"
+                                style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Quantity</label>
+                            <input type="number" id="tdQuantity" placeholder="0.1" step="0.0001"
+                                style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                        </div>
+                    </div>
+                    <button onclick="analyzePosition()" 
+                        style="margin-top: 15px; padding: 12px 24px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; width: 100%;">
+                        🔍 ANALYZE POSITION
+                    </button>
+                </div>
+                <div id="tdResult" style="min-height: 100px;"></div>
+            `;
+        }
+
+        async function analyzePosition() {
+            const symbol = document.getElementById('tdSymbol').value || 'BTC';
+            const entryPrice = parseFloat(document.getElementById('tdEntry').value) || 0;
+            const quantity = parseFloat(document.getElementById('tdQuantity').value) || 0;
+            const positionType = document.getElementById('tdType').value || 'long';
+            const resultDiv = document.getElementById('tdResult');
+
+            if (entryPrice <= 0 || quantity <= 0) {
+                resultDiv.innerHTML = '<p style="color: #ef4444;">Please enter valid entry price and quantity</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<i>Analyzing your position... Please wait.</i>';
+
+            try {
+                const res = await fetch('/api/trade-doctor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, entry_price: entryPrice, quantity, position_type: positionType })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<span style="color: #ef4444;">Error: ${data.error}</span>`;
+                    return;
+                }
+
+                const pnlColor = data.pnl.usd >= 0 ? '#10b981' : '#ef4444';
+                const pnlIcon = data.pnl.usd >= 0 ? '📈' : '📉';
+                const actionColor = data.recommendation.action_raw === 'SELL' || data.recommendation.action_raw === 'CLOSE' ? '#ef4444' :
+                    data.recommendation.action_raw === 'BUY_MORE' ? '#10b981' : '#f59e0b';
+
+                let html = `
+                    <div style="background: rgba(30, 41, 59, 0.8); padding: 20px; border-radius: 12px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin: 0; color: white;">$${data.symbol} ${data.position_type.toUpperCase()}</h3>
+                            <span style="font-size: 24px; font-weight: 700; color: ${pnlColor};">
+                                ${pnlIcon} ${data.pnl.percentage > 0 ? '+' : ''}${data.pnl.percentage}%
+                            </span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px;">
+                            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                                <div style="color: #8b949e; font-size: 11px;">Entry</div>
+                                <div style="color: white; font-weight: 600;">$${data.entry_price}</div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                                <div style="color: #8b949e; font-size: 11px;">Current</div>
+                                <div style="color: white; font-weight: 600;">$${data.current_price}</div>
+                            </div>
+                            <div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                                <div style="color: #8b949e; font-size: 11px;">P&L</div>
+                                <div style="color: ${pnlColor}; font-weight: 600;">$${data.pnl.usd.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: ${actionColor}22; padding: 15px; border-radius: 12px; border-left: 4px solid ${actionColor}; margin-bottom: 15px;">
+                        <h3 style="margin: 0 0 10px 0; color: ${actionColor};">${data.recommendation.action}</h3>
+                        <div style="color: white; margin-bottom: 10px;">Confidence: <b>${data.recommendation.confidence}%</b></div>
+                        <ul style="margin: 0; padding-left: 20px; color: #8b949e;">
+                            ${data.recommendation.reasons.map(r => `<li>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                        <div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #10b981;">
+                            <h4 style="margin: 0 0 10px 0; color: #10b981;">📊 Technicals</h4>
+                            <p style="margin: 5px 0; color: #8b949e;">RSI: <b style="color: white;">${data.technicals.rsi}</b> (${data.technicals.rsi_signal})</p>
+                            <p style="margin: 5px 0; color: #8b949e;">Trend: <b style="color: white;">${data.technicals.trend.toUpperCase()}</b></p>
+                            <p style="margin: 5px 0; color: #8b949e;">EMA20: <b style="color: white;">$${data.technicals.ema_20.toFixed(2)}</b></p>
+                        </div>
+                        <div style="background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #ef4444;">
+                            <h4 style="margin: 0 0 10px 0; color: #ef4444;">🎯 Risk/Reward</h4>
+                            <p style="margin: 5px 0; color: #8b949e;">Stop Loss: <b style="color: #ef4444;">$${data.risk_reward.stop_loss}</b></p>
+                            <p style="margin: 5px 0; color: #8b949e;">Take Profit: <b style="color: #10b981;">$${data.risk_reward.take_profit}</b></p>
+                            <p style="margin: 5px 0; color: #8b949e;">R/R Ratio: <b style="color: ${data.risk_reward.is_favorable ? '#10b981' : '#f59e0b'};">${data.risk_reward.risk_reward_ratio}:1</b></p>
+                        </div>
+                    </div>
+                `;
+
+                resultDiv.innerHTML = html;
+
+            } catch (e) {
+                resultDiv.innerHTML = `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+            }
+        }
+
+        // 🐋 Whale Watcher function
+        async function loadWhales() {
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "🐋 WHALE WATCHER";
+            document.getElementById('popupSearch').value = '';
+            m.style.display = 'flex';
+            b.innerHTML = "<i>Loading whale transactions... Please wait.</i>";
+
+            try {
+                const res = await fetch('/api/whales');
+                const data = await res.json();
+
+                if (data.error) {
+                    b.innerHTML = `<span style="color: #ef4444;">Error: ${data.error}</span>`;
+                    return;
+                }
+
+                let html = '';
+
+                // Summary
+                const summary = data.summary || {};
+                const sentimentColor = summary.sentiment === 'bullish' ? '#10b981' : summary.sentiment === 'bearish' ? '#ef4444' : '#6b7280';
+                const sentimentEmoji = summary.sentiment === 'bullish' ? '🟢' : summary.sentiment === 'bearish' ? '🔴' : '⚪';
+
+                html += `<div style="background: rgba(6, 182, 212, 0.1); padding: 20px; border-radius: 12px; border-left: 4px solid #06b6d4; margin-bottom: 20px;">`;
+                html += `<h3 style="margin: 0 0 15px 0; color: #06b6d4;">📊 Whale Activity Summary</h3>`;
+                html += `<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">`;
+                html += `<div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                    <div style="color: #8b949e; font-size: 11px;">Total Volume</div>
+                    <div style="color: white; font-weight: 600;">$${(summary.total_volume_usd || 0).toLocaleString()}</div>
+                </div>`;
+                html += `<div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                    <div style="color: #8b949e; font-size: 11px;">Buy Volume</div>
+                    <div style="color: #10b981; font-weight: 600;">$${(summary.buy_volume || 0).toLocaleString()}</div>
+                </div>`;
+                html += `<div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                    <div style="color: #8b949e; font-size: 11px;">Sell Volume</div>
+                    <div style="color: #ef4444; font-weight: 600;">$${(summary.sell_volume || 0).toLocaleString()}</div>
+                </div>`;
+                html += `<div style="background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center;">
+                    <div style="color: #8b949e; font-size: 11px;">Sentiment</div>
+                    <div style="color: ${sentimentColor}; font-weight: 600;">${sentimentEmoji} ${(summary.sentiment || 'neutral').toUpperCase()}</div>
+                </div>`;
+                html += `</div></div>`;
+
+                // Alerts
+                if (data.alerts && data.alerts.length > 0) {
+                    html += `<div style="background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #ef4444; margin-bottom: 20px;">`;
+                    html += `<h3 style="margin: 0 0 10px 0; color: #ef4444;">🚨 High-Value Alerts ($1M+)</h3>`;
+                    data.alerts.slice(0, 5).forEach(a => {
+                        html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.3); border-radius: 6px;">${a.message} • ${a.time_ago}</div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                // Recent Transactions
+                html += `<div style="background: rgba(30, 41, 59, 0.5); padding: 15px; border-radius: 12px; border-left: 4px solid #3b82f6;">`;
+                html += `<h3 style="margin: 0 0 15px 0; color: #3b82f6;">💱 Recent Large Transactions</h3>`;
+
+                if (data.transactions && data.transactions.length > 0) {
+                    data.transactions.slice(0, 15).forEach(tx => {
+                        const typeColor = tx.type === 'BUY' ? '#10b981' : tx.type === 'SELL' ? '#ef4444' : '#6b7280';
+                        const typeIcon = tx.type === 'BUY' ? '🟢' : tx.type === 'SELL' ? '🔴' : '⚪';
+                        html += `<div style="padding: 10px; margin: 8px 0; background: rgba(0,0,0,0.3); border-radius: 8px; border-left: 3px solid ${typeColor};">`;
+                        html += `<div style="display: flex; justify-content: space-between; align-items: center;">`;
+                        html += `<span><b style="color: white;">${typeIcon} $${tx.coin}</b> <span style="color: ${typeColor};">${tx.type || 'TRANSFER'}</span></span>`;
+                        html += `<span style="color: #f59e0b; font-weight: 600;">$${tx.amount_usd.toLocaleString()}</span>`;
+                        html += `</div>`;
+                        html += `<div style="font-size: 11px; color: #8b949e; margin-top: 5px;">${tx.amount} ${tx.coin} • ${tx.time_ago} • ${tx.source}</div>`;
+                        html += `</div>`;
+                    });
+                } else {
+                    html += `<p style="color: #8b949e;">No large transactions detected recently.</p>`;
+                }
+                html += `</div>`;
+
+                b.innerHTML = html;
+
+            } catch (e) {
+                b.innerHTML = `<span style="color: #ef4444;">Error loading whales: ${e.message}</span>`;
             }
         }
 
