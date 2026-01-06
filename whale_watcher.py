@@ -167,8 +167,8 @@ class WhaleWatcher:
                         qty = float(trade.get('qty', 0))
                         total_usd = price * qty
                         
-                        # Only track trades > $500k for Binance (more frequent)
-                        if total_usd >= 500_000:
+                        # Only track trades > $100k for Binance
+                        if total_usd >= 100_000:
                             is_buyer_maker = trade.get('isBuyerMaker', False)
                             
                             transactions.append({
