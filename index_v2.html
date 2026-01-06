@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CryptoRadar - Smart Trading Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: rgba(30, 41, 59, 0.8);
+            --border-color: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-dim: #64748b;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-amber: #f59e0b;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-cyan: #06b6d4;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        /* Top Navigation */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 32px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .logo span {
+            color: var(--accent-green);
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .nav-btn:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border-color: var(--text-dim);
+        }
+
+        .nav-btn.active {
+            background: var(--accent-green);
+            color: white;
+            border-color: var(--accent-green);
+        }
+
+        .nav-btn.scam {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            border-color: #ef4444;
+        }
+
+        .nav-btn.scam:hover {
+            opacity: 0.9;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            min-height: calc(100vh - 73px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 64px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sidebar-icon {
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 18px;
+        }
+
+        .sidebar-icon:hover {
+            background: var(--bg-card);
+            color: var(--text-primary);
+        }
+
+        .sidebar-icon.active {
+            background: var(--accent-green);
+            color: white;
+        }
+
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding: 24px 32px;
+            overflow-y: auto;
+        }
+
+        /* Stats Cards */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-card .label {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stat-card .value.green {
+            color: var(--accent-green);
+        }
+
+        .stat-card .value.red {
+            color: var(--accent-red);
+        }
+
+        .stat-card .value.amber {
+            color: var(--accent-amber);
+        }
+
+        .stat-card .subtitle {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .stat-card .change {
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .stat-card .change.positive {
+            color: var(--accent-green);
+        }
+
+        .stat-card .change.negative {
+            color: var(--accent-red);
+        }
+
+        /* Data Table */
+        .table-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .table-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .table-search {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 14px;
+            width: 240px;
+        }
+
+        .table-search::placeholder {
+            color: var(--text-dim);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .data-table th {
+            text-align: left;
+            padding: 12px 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: var(--bg-secondary);
+        }
+
+        .data-table td {
+            padding: 16px 20px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table tr:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .coin-cell {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .coin-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .coin-name {
+            font-weight: 600;
+        }
+
+        .coin-symbol {
+            color: var(--text-dim);
+            font-size: 12px;
+        }
+
+        .signal-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .signal-badge.buy {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-green);
+        }
+
+        .signal-badge.sell {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+
+        .signal-badge.neutral {
+            background: rgba(100, 116, 139, 0.15);
+            color: var(--text-dim);
+        }
+
+        .signal-badge.strong-buy {
+            background: rgba(16, 185, 129, 0.25);
+            color: var(--accent-green);
+        }
+
+        /* RSI Bar */
+        .rsi-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .rsi-bar {
+            width: 60px;
+            height: 6px;
+            background: var(--bg-primary);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .rsi-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .modal-close:hover {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .modal-body {
+            padding: 24px;
+            overflow-y: auto;
+            max-height: calc(85vh - 80px);
+        }
+
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 15px;
+            transition: border-color 0.2s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .form-select {
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-size: 15px;
+            cursor: pointer;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent-green), #059669);
+            color: white;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-primary.red {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        /* Result Cards */
+        .result-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .result-card.success {
+            border-left: 4px solid var(--accent-green);
+        }
+
+        .result-card.warning {
+            border-left: 4px solid var(--accent-amber);
+        }
+
+        .result-card.danger {
+            border-left: 4px solid var(--accent-red);
+        }
+
+        /* Loading Spinner */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: var(--text-dim);
+        }
+
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-green);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Ticker */
+        .ticker {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            padding: 8px 0;
+            overflow: hidden;
+        }
+
+        .ticker-content {
+            display: flex;
+            gap: 40px;
+            animation: scroll 30s linear infinite;
+        }
+
+        .ticker-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+
+        .ticker-item .symbol {
+            font-weight: 600;
+        }
+
+        .ticker-item .price {
+            color: var(--text-secondary);
+        }
+
+        @keyframes scroll {
+            0% {
+                transform: translateX(0);
+            }
+
+            100% {
+                transform: translateX(-50%);
+            }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 12px 16px;
+            }
+
+            .nav-buttons {
+                display: none;
+            }
+
+            .content {
+                padding: 16px;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Top Navigation -->
+    <nav class="navbar">
+        <div class="logo">Crypto<span>Radar</span></div>
+        <div class="nav-buttons">
+            <button class="nav-btn active" onclick="showDashboard()">Dashboard</button>
+            <button class="nav-btn scam" onclick="openScamCheck()">🛡️ Scam Check</button>
+            <button class="nav-btn" onclick="openTradeDoctor()">🩺 Trade Doctor</button>
+            <button class="nav-btn" onclick="openWhales()">🐋 Whales</button>
+            <button class="nav-btn" onclick="openCalendar()">📅 Calendar</button>
+        </div>
+        <div style="font-size: 12px; color: var(--text-dim);">
+            <span id="updateTime">--:--:--</span>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-icon active" title="Dashboard">🏠</div>
+            <div class="sidebar-icon" title="Scam Check" onclick="openScamCheck()">🛡️</div>
+            <div class="sidebar-icon" title="Trade Doctor" onclick="openTradeDoctor()">🩺</div>
+            <div class="sidebar-icon" title="Whales" onclick="openWhales()">🐋</div>
+            <div class="sidebar-icon" title="Calendar" onclick="openCalendar()">📅</div>
+            <div class="sidebar-icon" title="News" onclick="openNews()">📰</div>
+            <div style="flex: 1;"></div>
+            <div class="sidebar-icon" title="Settings">⚙️</div>
+        </aside>
+
+        <!-- Content -->
+        <main class="content">
+            <!-- Stats Grid -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">📊 Market Status</div>
+                    <div class="value green" id="marketStatus">BULLISH</div>
+                    <div class="subtitle" id="marketSubtitle">68% of assets in uptrend</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">₿ BTC Price</div>
+                    <div class="value" id="btcPrice">$92,500</div>
+                    <div class="change positive" id="btcChange">+2.4% (24h)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">😨 Fear & Greed</div>
+                    <div class="value amber" id="fearGreed">65</div>
+                    <div class="subtitle">Greed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">🐋 Whale Activity</div>
+                    <div class="value" id="whaleVolume">$2.4M</div>
+                    <div class="subtitle" id="whaleSentiment">Neutral</div>
+                </div>
+            </div>
+
+            <!-- Coin Table -->
+            <div class="table-container">
+                <div class="table-header">
+                    <div class="table-title">📈 Market Overview</div>
+                    <input type="text" class="table-search" placeholder="🔍 Search coins..." id="coinSearch"
+                        onkeyup="filterCoins()">
+                </div>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Coin</th>
+                            <th>Price</th>
+                            <th>24h Change</th>
+                            <th>RSI</th>
+                            <th>Signal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="coinTableBody">
+                        <!-- Coins will be loaded dynamically -->
+                        <tr>
+                            <td colspan="5" class="loading">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Modal</div>
+                <button class="modal-close" onclick="closeModalForce()">×</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Modal content -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API base
+        const API_BASE = '';
+
+        // Update time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('updateTime').textContent = now.toLocaleTimeString('tr-TR');
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                const res = await fetch('/api/data');
+                const data = await res.json();
+
+                // Update BTC price
+                if (data.BTC) {
+                    document.getElementById('btcPrice').textContent = '$' + parseFloat(data.BTC.price || 0).toLocaleString();
+                    const change = parseFloat(data.BTC['24h_change'] || 0);
+                    const changeEl = document.getElementById('btcChange');
+                    changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2) + '% (24h)';
+                    changeEl.className = 'change ' + (change >= 0 ? 'positive' : 'negative');
+                }
+
+                // Build coin table
+                const coins = Object.entries(data).filter(([k, v]) => v && v.price);
+                let tableHTML = '';
+
+                coins.slice(0, 20).forEach(([symbol, coin]) => {
+                    const price = parseFloat(coin.price || 0);
+                    const change = parseFloat(coin['24h_change'] || 0);
+                    const rsi = parseFloat(coin.rsi || 50);
+
+                    let signal = 'NEUTRAL';
+                    let signalClass = 'neutral';
+                    if (rsi < 30) { signal = 'BUY'; signalClass = 'buy'; }
+                    else if (rsi > 70) { signal = 'SELL'; signalClass = 'sell'; }
+                    else if (rsi < 40) { signal = 'STRONG BUY'; signalClass = 'strong-buy'; }
+
+                    const rsiColor = rsi < 30 ? '#10b981' : rsi > 70 ? '#ef4444' : '#f59e0b';
+
+                    tableHTML += `
+                        <tr data-symbol="${symbol.toLowerCase()}">
+                            <td>
+                                <div class="coin-cell">
+                                    <div class="coin-icon" style="background: ${rsiColor}20; color: ${rsiColor};">${symbol.slice(0, 2)}</div>
+                                    <div>
+                                        <div class="coin-name">${symbol}</div>
+                                        <div class="coin-symbol">${symbol}/USDT</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>$${price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: price < 1 ? 6 : 2 })}</td>
+                            <td style="color: ${change >= 0 ? '#10b981' : '#ef4444'}">${change >= 0 ? '+' : ''}${change.toFixed(2)}%</td>
+                            <td>
+                                <div class="rsi-container">
+                                    <span>${rsi.toFixed(0)}</span>
+                                    <div class="rsi-bar">
+                                        <div class="rsi-fill" style="width: ${rsi}%; background: ${rsiColor};"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td><span class="signal-badge ${signalClass}">${signal}</span></td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('coinTableBody').innerHTML = tableHTML || '<tr><td colspan="5" style="text-align:center; padding: 40px; color: #64748b;">No data available</td></tr>';
+
+            } catch (e) {
+                console.error('Dashboard load error:', e);
+            }
+        }
+
+        // Filter coins
+        function filterCoins() {
+            const query = document.getElementById('coinSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#coinTableBody tr');
+            rows.forEach(row => {
+                const symbol = row.dataset.symbol || '';
+                row.style.display = symbol.includes(query) ? '' : 'none';
+            });
+        }
+
+        // Modal functions
+        function openModal(title, content) {
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalBody').innerHTML = content;
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal(event) {
+            if (event.target.id === 'modalOverlay') {
+                document.getElementById('modalOverlay').classList.remove('active');
+            }
+        }
+
+        function closeModalForce() {
+            document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        // Scam Check
+        function openScamCheck() {
+            openModal('🛡️ Scam Detector', `
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">Enter token name (PEPE, SHIB) or contract address to check for scam indicators.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Token Name or Address</label>
+                        <input type="text" class="form-input" id="scamQuery" placeholder="PEPE, SHIB, or 0x...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Chain</label>
+                        <select class="form-select" id="scamChain">
+                            <option value="">Auto-Detect</option>
+                            <option value="eth">Ethereum</option>
+                            <option value="bsc">BNB Chain</option>
+                            <option value="base">Base</option>
+                            <option value="arbitrum">Arbitrum</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn-primary red" onclick="runScamCheck()">🔍 Scan for Scam</button>
+                <div id="scamResult" style="margin-top: 20px;"></div>
+            `);
+        }
+
+        async function runScamCheck() {
+            const query = document.getElementById('scamQuery').value.trim();
+            const chain = document.getElementById('scamChain').value;
+            const resultDiv = document.getElementById('scamResult');
+
+            if (!query) {
+                resultDiv.innerHTML = '<div class="result-card danger"><p>Please enter a token name or address</p></div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const res = await fetch('/api/scam-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, chain })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="result-card danger"><p>${data.error}</p></div>`;
+                    return;
+                }
+
+                const riskClass = data.risk_level === 'SAFE' ? 'success' :
+                    data.risk_level === 'LOW' ? 'success' :
+                        data.risk_level === 'MEDIUM' ? 'warning' : 'danger';
+
+                let html = `
+                    <div class="result-card ${riskClass}">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin: 0; font-size: 18px;">${data.token_info?.symbol || 'Unknown'}</h3>
+                                <p style="margin: 4px 0 0 0; color: var(--text-dim);">${data.token_info?.name || ''}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 28px; font-weight: 700;">${data.risk_score}</div>
+                                <div style="font-size: 12px; color: var(--text-dim);">Risk Score</div>
+                            </div>
+                        </div>
+                        <p style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">${data.recommendation}</p>
+                    </div>
+                `;
+
+                if (data.warnings && data.warnings.length > 0) {
+                    html += '<div class="result-card danger"><h4 style="margin: 0 0 12px 0;">⚠️ Warnings</h4>';
+                    data.warnings.forEach(w => {
+                        html += `<p style="margin: 8px 0; font-size: 14px;">${w}</p>`;
+                    });
+                    html += '</div>';
+                }
+
+                resultDiv.innerHTML = html;
+
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="result-card danger"><p>Error: ${e.message}</p></div>`;
+            }
+        }
+
+        // Trade Doctor
+        function openTradeDoctor() {
+            openModal('🩺 Trade Doctor', `
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">Analyze your position and get AI-powered recommendations.</p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Coin Symbol</label>
+                        <input type="text" class="form-input" id="tdSymbol" placeholder="BTC, ETH, SOL...">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Position</label>
+                        <select class="form-select" id="tdType">
+                            <option value="long">LONG</option>
+                            <option value="short">SHORT</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Entry Price ($)</label>
+                        <input type="number" class="form-input" id="tdEntry" placeholder="95000">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-input" id="tdQty" placeholder="0.1" step="0.0001">
+                    </div>
+                </div>
+                <button class="btn-primary" onclick="runTradeDoctor()">🔍 Analyze Position</button>
+                <div id="tdResult" style="margin-top: 20px;"></div>
+            `);
+        }
+
+        async function runTradeDoctor() {
+            const symbol = document.getElementById('tdSymbol').value.trim();
+            const entry = parseFloat(document.getElementById('tdEntry').value);
+            const qty = parseFloat(document.getElementById('tdQty').value);
+            const type = document.getElementById('tdType').value;
+            const resultDiv = document.getElementById('tdResult');
+
+            if (!symbol || !entry || !qty) {
+                resultDiv.innerHTML = '<div class="result-card danger"><p>Please fill all fields</p></div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const res = await fetch('/api/trade-doctor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, entry_price: entry, quantity: qty, position_type: type })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="result-card danger"><p>${data.error}</p></div>`;
+                    return;
+                }
+
+                const pnlClass = data.pnl.usd >= 0 ? 'success' : 'danger';
+
+                resultDiv.innerHTML = `
+                    <div class="result-card ${pnlClass}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                            <h3 style="margin: 0;">$${data.symbol} ${data.position_type.toUpperCase()}</h3>
+                            <span style="font-size: 24px; font-weight: 700;">${data.pnl.percentage > 0 ? '+' : ''}${data.pnl.percentage}%</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
+                            <div><div style="color: var(--text-dim); font-size: 12px;">Entry</div><div>$${data.entry_price}</div></div>
+                            <div><div style="color: var(--text-dim); font-size: 12px;">Current</div><div>$${data.current_price}</div></div>
+                            <div><div style="color: var(--text-dim); font-size: 12px;">P&L</div><div>$${data.pnl.usd.toFixed(2)}</div></div>
+                        </div>
+                    </div>
+                    <div class="result-card warning">
+                        <h4 style="margin: 0 0 8px 0;">${data.recommendation.action}</h4>
+                        <p style="margin: 0; color: var(--text-secondary);">Confidence: ${data.recommendation.confidence}%</p>
+                    </div>
+                `;
+
+            } catch (e) {
+                resultDiv.innerHTML = `<div class="result-card danger"><p>Error: ${e.message}</p></div>`;
+            }
+        }
+
+        // Whales
+        async function openWhales() {
+            openModal('🐋 Whale Watcher', '<div class="loading"><div class="spinner"></div></div>');
+
+            try {
+                const res = await fetch('/api/whales');
+                const data = await res.json();
+
+                let html = `
+                    <div class="result-card success">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; text-align: center;">
+                            <div><div style="color: var(--text-dim); font-size: 12px;">Buy Volume</div><div style="font-size: 20px; font-weight: 600; color: #10b981;">$${(data.summary?.buy_volume || 0).toLocaleString()}</div></div>
+                            <div><div style="color: var(--text-dim); font-size: 12px;">Sell Volume</div><div style="font-size: 20px; font-weight: 600; color: #ef4444;">$${(data.summary?.sell_volume || 0).toLocaleString()}</div></div>
+                        </div>
+                    </div>
+                `;
+
+                if (data.transactions && data.transactions.length > 0) {
+                    html += '<div class="result-card"><h4 style="margin: 0 0 16px 0;">Recent Transactions</h4>';
+                    data.transactions.slice(0, 10).forEach(tx => {
+                        const color = tx.type === 'BUY' ? '#10b981' : tx.type === 'SELL' ? '#ef4444' : '#64748b';
+                        html += `<div style="padding: 12px 0; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between;">
+                            <span><strong style="color: ${color};">${tx.coin}</strong> ${tx.type}</span>
+                            <span>$${tx.amount_usd.toLocaleString()}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                }
+
+                document.getElementById('modalBody').innerHTML = html;
+
+            } catch (e) {
+                document.getElementById('modalBody').innerHTML = `<div class="result-card danger"><p>Error loading whales</p></div>`;
+            }
+        }
+
+        // Calendar
+        async function openCalendar() {
+            openModal('📅 Market Calendar', '<div class="loading"><div class="spinner"></div></div>');
+
+            try {
+                const res = await fetch('/api/calendar');
+                const data = await res.json();
+
+                let html = '';
+
+                if (data.crypto_events && data.crypto_events.length > 0) {
+                    html += '<div class="result-card"><h4 style="margin: 0 0 16px 0;">🚀 Upcoming Events</h4>';
+                    data.crypto_events.slice(0, 5).forEach(ev => {
+                        html += `<div style="padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                            <strong>${ev.coin}</strong> - ${ev.title}<br>
+                            <span style="color: var(--text-dim); font-size: 12px;">${ev.date}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                }
+
+                if (data.crypto_news && data.crypto_news.length > 0) {
+                    html += '<div class="result-card"><h4 style="margin: 0 0 16px 0;">📰 Latest News</h4>';
+                    data.crypto_news.slice(0, 5).forEach(news => {
+                        const color = news.sentiment === 'bullish' ? '#10b981' : news.sentiment === 'bearish' ? '#ef4444' : '#64748b';
+                        html += `<div style="padding: 12px 0; border-bottom: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>${news.title}</span>
+                                <span style="color: ${color}; font-size: 12px;">${news.sentiment?.toUpperCase()}</span>
+                            </div>
+                            <span style="color: var(--text-dim); font-size: 12px;">${news.time_ago}</span>
+                        </div>`;
+                    });
+                    html += '</div>';
+                }
+
+                document.getElementById('modalBody').innerHTML = html || '<div class="result-card"><p>No calendar events</p></div>';
+
+            } catch (e) {
+                document.getElementById('modalBody').innerHTML = `<div class="result-card danger"><p>Error loading calendar</p></div>`;
+            }
+        }
+
+        // News
+        async function openNews() {
+            openCalendar(); // Same as calendar for now
+        }
+
+        // Show dashboard
+        function showDashboard() {
+            // Already on dashboard
+        }
+
+        // Initial load
+        loadDashboard();
+        setInterval(loadDashboard, 30000); // Refresh every 30 seconds
+    </script>
+</body>
+
+</html>
