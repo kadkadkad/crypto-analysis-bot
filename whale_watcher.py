@@ -218,19 +218,30 @@ class WhaleWatcher:
         return 3500  # Fallback
     
     def _determine_tx_type(self, tx: Dict) -> str:
-        """Determine if transaction is likely exchange deposit/withdrawal"""
-        # Simplified logic - in reality would check known exchange addresses
+        """Determine transaction type based on inputs/outputs structure"""
         inputs = len(tx.get('inputs', []))
         outputs = len(tx.get('out', []))
         
-        if inputs == 1 and outputs > 5:
-            return 'DISTRIBUTION'
-        elif inputs > 5 and outputs == 1:
-            return 'CONSOLIDATION'
-        elif outputs == 2:
-            return 'TRANSFER'
+        # Get total input/output values
+        total_output = sum(out.get('value', 0) for out in tx.get('out', []))
+        
+        # Analyze structure
+        if inputs == 1 and outputs >= 10:
+            return 'DISTRIBUTION'  # One sender, many recipients (exchange withdrawal)
+        elif inputs >= 10 and outputs <= 2:
+            return 'CONSOLIDATION'  # Many inputs, few outputs (exchange deposit)
+        elif inputs == 1 and outputs == 2:
+            return 'TRANSFER'  # Simple transfer with change
+        elif inputs == 1 and outputs == 1:
+            return 'SWEEP'  # Full wallet sweep
+        elif inputs >= 5 and outputs >= 5:
+            return 'MIXING'  # Could be coinjoin/mixing
+        elif outputs == 1:
+            return 'DEPOSIT'  # Likely exchange deposit
+        elif inputs == 1:
+            return 'WITHDRAWAL'  # Likely exchange withdrawal
         else:
-            return 'UNKNOWN'
+            return 'TRANSFER'  # Default to transfer
     
     def _time_ago(self, timestamp: int) -> str:
         """Convert timestamp to human-readable time ago"""
