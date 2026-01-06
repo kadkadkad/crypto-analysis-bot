@@ -287,14 +287,20 @@ def check_token_security():
         if not data:
             return jsonify({"error": "No data provided"}), 400
         
-        token_address = data.get('address', '')
-        chain = data.get('chain', 'eth')
+        query = data.get('query', '') or data.get('address', '')
+        chain = data.get('chain', '')
         
-        if not token_address:
-            return jsonify({"error": "Token address required"}), 400
+        if not query:
+            return jsonify({"error": "Token name or address required"}), 400
         
         detector = ScamDetector()
-        result = detector.analyze_token(token_address, chain)
+        
+        # Check if query looks like an address (starts with 0x and is long)
+        if query.startswith('0x') and len(query) >= 40:
+            result = detector.analyze_token(query, chain or 'eth')
+        else:
+            # Search by name/symbol
+            result = detector.analyze_by_name(query, chain if chain else None)
         
         return jsonify(result)
     except Exception as e:

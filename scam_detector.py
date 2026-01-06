@@ -44,6 +44,100 @@ class ScamDetector:
             'avax': '43114'
         }
     
+    def search_token(self, query: str) -> List[Dict]:
+        """
+        Search for token by name or symbol
+        Returns list of matching tokens with their addresses
+        """
+        results = []
+        query = query.strip().upper()
+        
+        try:
+            # Use DEXScreener search API
+            url = f"https://api.dexscreener.com/latest/dex/search?q={query}"
+            response = requests.get(url, headers=self.headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                pairs = data.get('pairs', [])
+                
+                # Deduplicate by token address
+                seen_addresses = set()
+                
+                for pair in pairs[:20]:  # Check first 20 pairs
+                    base_token = pair.get('baseToken', {})
+                    address = base_token.get('address', '')
+                    symbol = base_token.get('symbol', '').upper()
+                    name = base_token.get('name', '')
+                    chain = pair.get('chainId', 'ethereum')
+                    
+                    if address and address not in seen_addresses:
+                        # Match by symbol or name
+                        if query in symbol or query in name.upper():
+                            liquidity = float(pair.get('liquidity', {}).get('usd', 0) or 0)
+                            
+                            results.append({
+                                'address': address,
+                                'symbol': symbol,
+                                'name': name,
+                                'chain': chain,
+                                'liquidity_usd': liquidity,
+                                'price_usd': pair.get('priceUsd', '0'),
+                                'dex': pair.get('dexId', 'unknown')
+                            })
+                            seen_addresses.add(address)
+                
+                # Sort by liquidity (highest first)
+                results.sort(key=lambda x: x['liquidity_usd'], reverse=True)
+                
+        except Exception as e:
+            print(f"[ERROR] Token search failed: {e}")
+        
+        return results[:10]  # Return top 10 matches
+    
+    def analyze_by_name(self, query: str, chain: str = None) -> Dict:
+        """
+        Analyze token by name/symbol (finds address automatically)
+        """
+        # First search for the token
+        matches = self.search_token(query)
+        
+        if not matches:
+            return {
+                'error': f"Token '{query}' not found. Try using the contract address.",
+                'suggestions': []
+            }
+        
+        # If chain specified, filter
+        if chain:
+            chain_matches = [m for m in matches if chain.lower() in m['chain'].lower()]
+            if chain_matches:
+                matches = chain_matches
+        
+        # Use the best match (highest liquidity)
+        best_match = matches[0]
+        
+        # Map chain name to our format
+        chain_map = {
+            'ethereum': 'eth',
+            'bsc': 'bsc',
+            'polygon': 'polygon',
+            'arbitrum': 'arbitrum',
+            'base': 'base',
+            'avalanche': 'avalanche',
+            'solana': 'solana'
+        }
+        detected_chain = chain_map.get(best_match['chain'], 'eth')
+        
+        # Now analyze the token
+        result = self.analyze_token(best_match['address'], detected_chain)
+        
+        # Add search results for alternative matches
+        result['search_query'] = query
+        result['alternatives'] = matches[1:5] if len(matches) > 1 else []
+        
+        return result
+    
     def analyze_token(self, token_address: str, chain: str = 'eth') -> Dict:
         """
         Comprehensive token security analysis

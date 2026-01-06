@@ -2072,16 +2072,17 @@
             b.innerHTML = `
                 <div style="background: rgba(239, 68, 68, 0.1); padding: 20px; border-radius: 12px; border-left: 4px solid #ef4444; margin-bottom: 20px;">
                     <h3 style="margin: 0 0 15px 0; color: #ef4444;">🔍 Check Token Security</h3>
-                    <p style="color: #8b949e; margin-bottom: 15px;">Paste any token contract address to check for scam/rug pull indicators.</p>
+                    <p style="color: #8b949e; margin-bottom: 15px;">Enter token name (PEPE, SHIB, DOGE) or contract address to check for scam/rug pull.</p>
                     <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
                         <div>
-                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Token Contract Address</label>
-                            <input type="text" id="scamAddress" placeholder="0x..." 
-                                style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white; font-family: monospace;">
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Token Name or Address</label>
+                            <input type="text" id="scamQuery" placeholder="PEPE, SHIB, or 0x..." 
+                                style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
                         </div>
                         <div>
-                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Chain</label>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Chain (optional)</label>
                             <select id="scamChain" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                                <option value="">Auto-Detect</option>
                                 <option value="eth">Ethereum</option>
                                 <option value="bsc">BNB Chain</option>
                                 <option value="polygon">Polygon</option>
@@ -2101,22 +2102,22 @@
         }
 
         async function analyzeToken() {
-            const address = document.getElementById('scamAddress').value.trim();
+            const query = document.getElementById('scamQuery').value.trim();
             const chain = document.getElementById('scamChain').value;
             const resultDiv = document.getElementById('scamResult');
 
-            if (!address || address.length < 20) {
-                resultDiv.innerHTML = '<p style="color: #ef4444;">Please enter a valid contract address</p>';
+            if (!query || query.length < 2) {
+                resultDiv.innerHTML = '<p style="color: #ef4444;">Please enter a token name or address</p>';
                 return;
             }
 
-            resultDiv.innerHTML = '<i>🔍 Scanning token for security issues... This may take a few seconds.</i>';
+            resultDiv.innerHTML = '<i>🔍 Searching and scanning token... This may take a few seconds.</i>';
 
             try {
                 const res = await fetch('/api/scam-check', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ address, chain })
+                    body: JSON.stringify({ query, chain })
                 });
                 const data = await res.json();
 
