@@ -133,28 +133,29 @@ class WhaleWatcher:
     
     def _get_whale_alert_public(self) -> List[Dict]:
         """
-        Get whale transaction data from public sources
-        Note: Real Whale Alert API requires paid key, this uses alternatives
+        Get whale transaction data from Binance aggregated trades
         """
         transactions = []
         
-        # Use Binance large trades as whale indicator
+        # Use Binance aggregated trades (larger individual trades)
         try:
-            # Get large trades from Binance
-            for symbol in ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']:
-                trades = self._get_binance_large_trades(symbol)
+            # Track multiple coins
+            coins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT']
+            for symbol in coins:
+                trades = self._get_binance_agg_trades(symbol)
                 transactions.extend(trades)
         except Exception as e:
             print(f"[WARN] Binance trades fetch failed: {e}")
         
         return transactions
     
-    def _get_binance_large_trades(self, symbol: str) -> List[Dict]:
-        """Get recent large trades from Binance"""
+    def _get_binance_agg_trades(self, symbol: str) -> List[Dict]:
+        """Get aggregated large trades from Binance - better for whale detection"""
         transactions = []
         try:
-            url = f"https://api.binance.com/api/v3/trades"
-            params = {'symbol': symbol, 'limit': 100}
+            # Use aggTrades for aggregated trades (combines multiple fills)
+            url = f"https://api.binance.com/api/v3/aggTrades"
+            params = {'symbol': symbol, 'limit': 500}  # Get more trades
             response = requests.get(url, params=params, timeout=5)
             
             if response.status_code == 200:
@@ -163,31 +164,35 @@ class WhaleWatcher:
                 
                 for trade in trades:
                     try:
-                        price = float(trade.get('price', 0))
-                        qty = float(trade.get('qty', 0))
+                        price = float(trade.get('p', 0))
+                        qty = float(trade.get('q', 0))
                         total_usd = price * qty
                         
-                        # Only track trades > $100k for Binance
-                        if total_usd >= 100_000:
-                            is_buyer_maker = trade.get('isBuyerMaker', False)
+                        # Lower threshold for altcoins
+                        min_usd = 50_000 if coin in ['DOGE', 'XRP'] else 100_000
+                        
+                        if total_usd >= min_usd:
+                            # isBuyerMaker: True = SELL (taker sold), False = BUY (taker bought)
+                            is_buyer_maker = trade.get('m', False)
+                            trade_type = 'SELL' if is_buyer_maker else 'BUY'
                             
                             transactions.append({
                                 'coin': coin,
                                 'amount': round(qty, 4),
                                 'amount_usd': round(total_usd, 0),
-                                'type': 'SELL' if is_buyer_maker else 'BUY',
-                                'hash': f"binance_{trade.get('id', '')}",
-                                'timestamp': trade.get('time', 0) // 1000,
-                                'time_ago': self._time_ago(trade.get('time', 0) // 1000),
+                                'type': trade_type,
+                                'hash': f"binance_{trade.get('a', '')}",
+                                'timestamp': trade.get('T', 0) // 1000,
+                                'time_ago': self._time_ago(trade.get('T', 0) // 1000),
                                 'source': 'Binance',
                                 'price': round(price, 4)
                             })
                     except:
                         continue
         except Exception as e:
-            print(f"[ERROR] Binance trades fetch: {e}")
+            print(f"[ERROR] Binance aggTrades fetch for {symbol}: {e}")
         
-        return transactions[:5]  # Max 5 per coin
+        return transactions[:10]  # Max 10 per coin
     
     def _get_btc_price(self) -> float:
         """Get current BTC price"""
