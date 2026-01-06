@@ -140,7 +140,8 @@ class WhaleWatcher:
         # Use Binance aggregated trades (larger individual trades)
         try:
             # Track multiple coins
-            coins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT']
+            coins = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT', 'DOGEUSDT', 'AVAXUSDT', 'LINKUSDT',
+                     'SUIUSDT', 'UNIUSDT', 'BCHUSDT', 'BNBUSDT', 'TRUMPUSDT']
             for symbol in coins:
                 trades = self._get_binance_agg_trades(symbol)
                 transactions.extend(trades)
