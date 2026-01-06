@@ -274,6 +274,33 @@ def get_whale_transactions():
         print(f"[API] Whale Watcher error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# 🛡️ API: Scam Detector
+@app.route('/api/scam-check', methods=['POST'])
+@limiter.limit("10 per minute")
+@auth.login_required
+def check_token_security():
+    """Analyze token for scam/rug pull indicators"""
+    try:
+        from scam_detector import ScamDetector
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        token_address = data.get('address', '')
+        chain = data.get('chain', 'eth')
+        
+        if not token_address:
+            return jsonify({"error": "Token address required"}), 400
+        
+        detector = ScamDetector()
+        result = detector.analyze_token(token_address, chain)
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"[API] Scam Detector error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # 📥 API: Export (şifre korumalı, rate limited)
 @app.route('/api/export/<export_type>')
 @limiter.limit("5 per minute")

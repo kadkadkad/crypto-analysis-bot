@@ -1361,6 +1361,9 @@
                     <button class="filter-btn" onclick="loadWhales()"
                         style="background: linear-gradient(135deg, #06b6d4, #0891b2); border-color: #06b6d4;">🐋
                         WHALES</button>
+                    <button class="filter-btn" onclick="openScamDetector()"
+                        style="background: linear-gradient(135deg, #ef4444, #dc2626); border-color: #ef4444;">🛡️
+                        SCAM CHECK</button>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -2055,6 +2058,152 @@
 
             } catch (e) {
                 b.innerHTML = `<span style="color: #ef4444;">Error loading whales: ${e.message}</span>`;
+            }
+        }
+
+        // 🛡️ Scam Detector function
+        function openScamDetector() {
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "🛡️ SCAM DETECTOR";
+            document.getElementById('popupSearch').value = '';
+            m.style.display = 'flex';
+
+            b.innerHTML = `
+                <div style="background: rgba(239, 68, 68, 0.1); padding: 20px; border-radius: 12px; border-left: 4px solid #ef4444; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #ef4444;">🔍 Check Token Security</h3>
+                    <p style="color: #8b949e; margin-bottom: 15px;">Paste any token contract address to check for scam/rug pull indicators.</p>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Token Contract Address</label>
+                            <input type="text" id="scamAddress" placeholder="0x..." 
+                                style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white; font-family: monospace;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Chain</label>
+                            <select id="scamChain" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                                <option value="eth">Ethereum</option>
+                                <option value="bsc">BNB Chain</option>
+                                <option value="polygon">Polygon</option>
+                                <option value="arbitrum">Arbitrum</option>
+                                <option value="base">Base</option>
+                                <option value="avalanche">Avalanche</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="analyzeToken()" 
+                        style="margin-top: 15px; padding: 12px 24px; background: linear-gradient(135deg, #ef4444, #dc2626); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; width: 100%;">
+                        🔍 SCAN FOR SCAM
+                    </button>
+                </div>
+                <div id="scamResult" style="min-height: 100px;"></div>
+            `;
+        }
+
+        async function analyzeToken() {
+            const address = document.getElementById('scamAddress').value.trim();
+            const chain = document.getElementById('scamChain').value;
+            const resultDiv = document.getElementById('scamResult');
+
+            if (!address || address.length < 20) {
+                resultDiv.innerHTML = '<p style="color: #ef4444;">Please enter a valid contract address</p>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<i>🔍 Scanning token for security issues... This may take a few seconds.</i>';
+
+            try {
+                const res = await fetch('/api/scam-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ address, chain })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<span style="color: #ef4444;">Error: ${data.error}</span>`;
+                    return;
+                }
+
+                const riskColor = data.risk_level === 'CRITICAL' ? '#ef4444' :
+                    data.risk_level === 'HIGH' ? '#f97316' :
+                        data.risk_level === 'MEDIUM' ? '#f59e0b' :
+                            data.risk_level === 'LOW' ? '#84cc16' : '#10b981';
+
+                const riskEmoji = data.risk_level === 'CRITICAL' ? '🚨' :
+                    data.risk_level === 'HIGH' ? '⚠️' :
+                        data.risk_level === 'MEDIUM' ? '⚡' :
+                            data.risk_level === 'LOW' ? '🟡' : '🟢';
+
+                let html = `
+                    <div style="background: ${riskColor}22; padding: 20px; border-radius: 12px; border-left: 4px solid ${riskColor}; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin: 0; color: ${riskColor};">${riskEmoji} ${data.risk_level} RISK</h3>
+                                <p style="margin: 5px 0 0 0; color: white;">${data.token_info?.symbol || 'Unknown Token'} - ${data.token_info?.name || ''}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 36px; font-weight: 700; color: ${riskColor};">${data.risk_score}</div>
+                                <div style="color: #8b949e; font-size: 12px;">Risk Score</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Recommendation
+                html += `<div style="background: rgba(30, 41, 59, 0.8); padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                    <p style="margin: 0; color: white; font-weight: 600;">${data.recommendation}</p>
+                </div>`;
+
+                // Warnings
+                if (data.warnings && data.warnings.length > 0) {
+                    html += `<div style="background: rgba(239, 68, 68, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #ef4444; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: #ef4444;">⚠️ Warnings (${data.warnings.length})</h4>`;
+                    data.warnings.forEach(w => {
+                        html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.3); border-radius: 6px; color: #fca5a5;">${w}</div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                // Security Checks
+                if (data.security_checks && Object.keys(data.security_checks).length > 0) {
+                    html += `<div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #10b981; margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 10px 0; color: #10b981;">🔒 Security Checks</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">`;
+                    Object.entries(data.security_checks).forEach(([key, check]) => {
+                        const checkColor = check.status === 'SAFE' ? '#10b981' :
+                            check.status === 'DANGER' ? '#ef4444' :
+                                check.status === 'WARNING' ? '#f59e0b' : '#6b7280';
+                        html += `<div style="padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; border-left: 3px solid ${checkColor};">
+                            <span style="color: ${checkColor};">${check.message}</span>
+                        </div>`;
+                    });
+                    html += `</div></div>`;
+                }
+
+                // Liquidity Info
+                if (data.liquidity_info && data.liquidity_info.usd) {
+                    const liqColor = data.liquidity_info.usd >= 50000 ? '#10b981' :
+                        data.liquidity_info.usd >= 10000 ? '#f59e0b' : '#ef4444';
+                    html += `<div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #3b82f6;">
+                        <h4 style="margin: 0 0 10px 0; color: #3b82f6;">💧 Liquidity</h4>
+                        <div style="display: flex; gap: 20px;">
+                            <div>
+                                <span style="color: #8b949e;">Total Liquidity:</span>
+                                <span style="color: ${liqColor}; font-weight: 600;"> $${data.liquidity_info.usd.toLocaleString()}</span>
+                            </div>
+                            ${data.token_info?.age_days ? `<div>
+                                <span style="color: #8b949e;">Token Age:</span>
+                                <span style="color: white; font-weight: 600;"> ${data.token_info.age_days} days</span>
+                            </div>` : ''}
+                        </div>
+                    </div>`;
+                }
+
+                resultDiv.innerHTML = html;
+
+            } catch (e) {
+                resultDiv.innerHTML = `<span style="color: #ef4444;">Error: ${e.message}</span>`;
             }
         }
 
