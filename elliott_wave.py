@@ -310,52 +310,57 @@ class ElliottWaveAnalyzer:
         
         return {'label': 'developing', 'position': 'uncertain', 'phase': 'developing'}
     
-    def _calculate_fib_levels(self, waves: List[Dict], current_price: float) -> Dict:
+    def _calculate_fib_levels(self, waves: List[Dict], current_price: float, highs: np.ndarray = None, lows: np.ndarray = None) -> Dict:
         """
-        Calculate Fibonacci retracement and extension levels
+        Calculate Fibonacci retracement and extension levels based on recent swing range
         """
         fib_levels = {}
         
         if len(waves) < 2:
             return fib_levels
         
-        # Get the last significant move
-        last_wave = waves[-1]
-        prev_wave = waves[-2] if len(waves) > 1 else None
+        # Find the major swing high and low from the wave structure
+        wave_prices = [w['end_price'] for w in waves]
+        swing_high = max(wave_prices)
+        swing_low = min(wave_prices)
+        move_range = swing_high - swing_low
         
-        if prev_wave:
-            move_start = prev_wave['end_price']
-            move_end = last_wave['end_price']
-            move_range = abs(move_end - move_start)
-            
-            is_up = move_end > move_start
-            
-            # Retracement levels (for corrections)
-            fib_levels['retracement'] = {
-                '23.6%': move_end - (move_range * 0.236) if is_up else move_end + (move_range * 0.236),
-                '38.2%': move_end - (move_range * 0.382) if is_up else move_end + (move_range * 0.382),
-                '50.0%': move_end - (move_range * 0.500) if is_up else move_end + (move_range * 0.500),
-                '61.8%': move_end - (move_range * 0.618) if is_up else move_end + (move_range * 0.618),
-                '78.6%': move_end - (move_range * 0.786) if is_up else move_end + (move_range * 0.786),
+        if move_range <= 0:
+            return fib_levels
+        
+        # Determine if currently bullish (price near highs) or bearish (price near lows)
+        is_bullish = current_price > (swing_low + move_range * 0.5)
+        
+        # Retracement levels - from swing high down (for pullback buys)
+        fib_levels['retracement'] = {
+            '23.6%': swing_high - (move_range * 0.236),
+            '38.2%': swing_high - (move_range * 0.382),
+            '50.0%': swing_high - (move_range * 0.500),
+            '61.8%': swing_high - (move_range * 0.618),
+            '78.6%': swing_high - (move_range * 0.786),
+        }
+        
+        # Extension levels - above swing high (for targets)
+        fib_levels['extension'] = {
+            '127.2%': swing_low + (move_range * 1.272),
+            '161.8%': swing_low + (move_range * 1.618),
+            '200.0%': swing_low + (move_range * 2.000),
+            '261.8%': swing_low + (move_range * 2.618),
+        }
+        
+        # Add swing info for context
+        fib_levels['swing_high'] = round(swing_high, 2)
+        fib_levels['swing_low'] = round(swing_low, 2)
+        
+        # Find nearest level to current price
+        all_levels = {**fib_levels.get('retracement', {}), **fib_levels.get('extension', {})}
+        if all_levels:
+            nearest = min(all_levels.items(), key=lambda x: abs(x[1] - current_price))
+            fib_levels['nearest_level'] = {
+                'name': nearest[0],
+                'price': round(nearest[1], 4),
+                'distance_pct': round((nearest[1] - current_price) / current_price * 100, 2)
             }
-            
-            # Extension levels (for impulse targets)
-            fib_levels['extension'] = {
-                '127.2%': move_start + (move_range * 1.272) if is_up else move_start - (move_range * 1.272),
-                '161.8%': move_start + (move_range * 1.618) if is_up else move_start - (move_range * 1.618),
-                '200.0%': move_start + (move_range * 2.000) if is_up else move_start - (move_range * 2.000),
-                '261.8%': move_start + (move_range * 2.618) if is_up else move_start - (move_range * 2.618),
-            }
-            
-            # Find nearest level to current price
-            all_levels = {**fib_levels.get('retracement', {}), **fib_levels.get('extension', {})}
-            if all_levels:
-                nearest = min(all_levels.items(), key=lambda x: abs(x[1] - current_price))
-                fib_levels['nearest_level'] = {
-                    'name': nearest[0],
-                    'price': round(nearest[1], 4),
-                    'distance_pct': round((nearest[1] - current_price) / current_price * 100, 2)
-                }
         
         return fib_levels
     
