@@ -2276,41 +2276,37 @@
 
                 let h = inputRow;
 
-                // Row 1: Stats Grid - COMPACT
-                h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:6px;">
-                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
-                        <div style="color:${tc};font-weight:700;font-size:14px;">$${data.symbol}</div>
-                        <div style="color:#6b7280;font-size:9px;">${data.timeframe.toUpperCase()}</div>
+                // Single row stats - no gaps
+                h += `<div style="display:flex;background:#1e2536;border-radius:4px;margin-bottom:4px;overflow:hidden;">
+                    <div style="flex:1;padding:4px 6px;text-align:center;border-right:1px solid #374151;">
+                        <span style="color:${tc};font-weight:700;font-size:13px;">$${data.symbol}</span>
+                        <span style="color:#6b7280;font-size:9px;margin-left:4px;">${data.timeframe.toUpperCase()}</span>
                     </div>
-                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
-                        <div style="color:${tc};font-weight:600;font-size:11px;">${tt}</div>
-                        <div style="color:#6b7280;font-size:9px;">Trend</div>
+                    <div style="padding:4px 10px;text-align:center;border-right:1px solid #374151;">
+                        <span style="color:${tc};font-weight:600;font-size:11px;">${tt}</span>
                     </div>
-                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
-                        <div style="color:white;font-weight:600;font-size:12px;">${fmtPrice(data.current_price)}</div>
-                        <div style="color:#6b7280;font-size:9px;">Price</div>
+                    <div style="padding:4px 10px;text-align:center;border-right:1px solid #374151;">
+                        <span style="color:white;font-weight:600;font-size:11px;">${fmtPrice(data.current_price)}</span>
                     </div>
-                    <div style="background:${ac};padding:6px;border-radius:4px;text-align:center;">
-                        <div style="color:white;font-weight:700;font-size:12px;">${act}</div>
-                        <div style="color:rgba(255,255,255,0.7);font-size:9px;">Action</div>
+                    <div style="padding:4px 12px;text-align:center;background:${ac};">
+                        <span style="color:white;font-weight:700;font-size:11px;">${act}</span>
                     </div>
-                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
-                        <div style="color:${tc};font-weight:700;font-size:14px;">${data.confidence}%</div>
-                        <div style="color:#6b7280;font-size:9px;">Conf</div>
+                    <div style="padding:4px 10px;text-align:center;">
+                        <span style="color:${tc};font-weight:700;font-size:12px;">${data.confidence}%</span>
                     </div>
                 </div>`;
 
-                // Row 2: Wave Progress - COMPACT
+                // Wave progress - compact inline
                 const waves = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
-                h += `<div style="display:flex;justify-content:center;gap:3px;padding:6px;background:#1e2536;border-radius:4px;margin-bottom:6px;">`;
+                h += `<div style="display:flex;justify-content:center;gap:2px;padding:4px;background:#1e2536;border-radius:4px;margin-bottom:4px;">`;
                 waves.forEach((w, i) => {
                     const imp = !isNaN(parseInt(w));
                     const bc = imp ? '#10b981' : '#ef4444';
                     const cur = cl === w;
                     const past = waves.indexOf(cl) > i;
-                    let s = cur ? `background:${bc};color:white;box-shadow:0 0 6px ${bc};` : past ? `background:${bc}55;color:${bc};` : `background:#0d1117;color:#4b5563;`;
-                    h += `<div style="padding:5px 10px;border-radius:3px;font-weight:700;font-size:12px;${s}">${w}${cur ? '◀' : ''}</div>`;
-                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:10px;align-self:center;">›</span>`;
+                    let s = cur ? `background:${bc};color:white;` : past ? `background:${bc}55;color:${bc};` : `background:#0d1117;color:#4b5563;`;
+                    h += `<div style="padding:3px 8px;border-radius:3px;font-weight:700;font-size:11px;${s}">${w}${cur ? '◀' : ''}</div>`;
+                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:9px;align-self:center;">›</span>`;
                 });
                 h += `</div>`;
 
