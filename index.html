@@ -2229,7 +2229,7 @@
             document.getElementById('modalT').innerText = "🌊 ELLIOTT WAVE";
             document.getElementById('popupSearch').value = '';
             m.style.display = 'flex';
-            b.innerHTML = `<div id="ewResult"><div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;"><input type="text" id="ewSymbol" value="BTC" style="width:50px;padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:3px;color:white;text-align:center;font-size:12px;font-weight:600;"><select id="ewTimeframe" style="padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:3px;color:white;font-size:11px;"><option value="1h">1H</option><option value="4h" selected>4H</option><option value="1d">1D</option></select><button onclick="analyzeElliottWave()" style="padding:4px 10px;background:#8b5cf6;border:none;border-radius:3px;color:white;font-size:11px;cursor:pointer;">Go</button></div><div style="color:#6b7280;font-size:11px;">Loading...</div></div>`;
+            b.innerHTML = `<div id="ewResult"><div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;"><input type="text" id="ewSymbol" value="BTC" style="width:70px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:white;text-align:center;font-size:14px;font-weight:600;"><select id="ewTimeframe" style="padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:white;font-size:13px;"><option value="1h">1H</option><option value="4h" selected>4H</option><option value="1d">1D</option></select><button onclick="analyzeElliottWave()" style="padding:8px 20px;background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;border-radius:4px;color:white;font-size:13px;font-weight:600;cursor:pointer;">Analyze</button></div><div style="color:#6b7280;text-align:center;padding:40px;">Loading BTC...</div></div>`;
             setTimeout(() => analyzeElliottWave(), 100);
         }
 
@@ -2237,70 +2237,101 @@
             const symbol = document.getElementById('ewSymbol').value.trim().toUpperCase() || 'BTC';
             const tf = document.getElementById('ewTimeframe').value;
             const r = document.getElementById('ewResult');
-            const inp = `<div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;"><input type="text" id="ewSymbol" value="${symbol}" style="width:50px;padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:3px;color:white;text-align:center;font-size:12px;font-weight:600;"><select id="ewTimeframe" style="padding:4px;background:#0d1117;border:1px solid #30363d;border-radius:3px;color:white;font-size:11px;"><option value="1h"${tf === '1h' ? ' selected' : ''}>1H</option><option value="4h"${tf === '4h' ? ' selected' : ''}>4H</option><option value="1d"${tf === '1d' ? ' selected' : ''}>1D</option></select><button onclick="analyzeElliottWave()" style="padding:4px 10px;background:#8b5cf6;border:none;border-radius:3px;color:white;font-size:11px;cursor:pointer;">Go</button></div>`;
-            r.innerHTML = inp + `<div style="color:#6b7280;font-size:11px;">Loading...</div>`;
+            const inp = `<div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;"><input type="text" id="ewSymbol" value="${symbol}" style="width:70px;padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:white;text-align:center;font-size:14px;font-weight:600;"><select id="ewTimeframe" style="padding:8px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:white;font-size:13px;"><option value="1h"${tf === '1h' ? ' selected' : ''}>1H</option><option value="4h"${tf === '4h' ? ' selected' : ''}>4H</option><option value="1d"${tf === '1d' ? ' selected' : ''}>1D</option></select><button onclick="analyzeElliottWave()" style="padding:8px 20px;background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none;border-radius:4px;color:white;font-size:13px;font-weight:600;cursor:pointer;">Analyze</button></div>`;
+            r.innerHTML = inp + `<div style="color:#6b7280;text-align:center;padding:40px;">Loading ${symbol}...</div>`;
             try {
                 const res = await fetch('/api/elliott-wave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol, timeframe: tf }) });
                 const d = await res.json();
-                if (d.error) { r.innerHTML = inp + `<div style="color:#ef4444;font-size:11px;">Error: ${d.error}</div>`; return; }
+                if (d.error) { r.innerHTML = inp + `<div style="color:#ef4444;padding:20px;text-align:center;">Error: ${d.error}</div>`; return; }
 
                 const tc = d.trend?.includes('bullish') ? '#10b981' : d.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
                 const fp = p => p >= 1000 ? '$' + Math.round(p).toLocaleString() : p >= 1 ? '$' + p.toFixed(2) : '$' + p.toFixed(4);
                 const cl = d.current_wave?.label || '1';
-                let act = 'WAIT', ac = '#f59e0b';
-                if (cl === '2' || cl === '4' || cl === 'C') { act = 'BUY'; ac = '#10b981'; }
-                else if (cl === '5' || cl === 'B') { act = 'SELL'; ac = '#ef4444'; }
-                else if (cl === '3') { act = 'HOLD'; ac = '#10b981'; }
-                else if (cl === 'A') { act = 'EXIT'; ac = '#ef4444'; }
+                let act = 'WAIT', ac = '#f59e0b', actMsg = 'Wait for confirmation';
+                if (cl === '2' || cl === '4') { act = 'BUY'; ac = '#10b981'; actMsg = 'Buy the dip - correction ending'; }
+                else if (cl === 'C') { act = 'BUY'; ac = '#10b981'; actMsg = 'Major buy - new cycle starting'; }
+                else if (cl === '5') { act = 'SELL'; ac = '#ef4444'; actMsg = 'Take profits - impulse ending'; }
+                else if (cl === 'B') { act = 'SELL'; ac = '#ef4444'; actMsg = 'Sell the rally - trap bounce'; }
+                else if (cl === '3') { act = 'HOLD'; ac = '#10b981'; actMsg = 'Strongest wave - ride momentum'; }
+                else if (cl === 'A') { act = 'EXIT'; ac = '#ef4444'; actMsg = 'Exit longs - correction starting'; }
+                else if (cl === '1') { act = 'WAIT'; ac = '#f59e0b'; actMsg = 'New cycle forming - wait for Wave 2'; }
 
                 let h = inp;
-                // Header line
-                h += `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #30363d;margin-bottom:4px;">
-                    <span style="color:${tc};font-weight:700;font-size:15px;">$${d.symbol}</span>
-                    <span style="color:#6b7280;font-size:10px;">${tf.toUpperCase()}</span>
-                    <span style="color:white;font-size:12px;">${fp(d.current_price)}</span>
-                    <span style="color:${tc};font-size:11px;">${d.trend?.includes('bullish') ? '↑' : d.trend?.includes('bearish') ? '↓' : '→'} ${d.trend?.split('_')[0]?.toUpperCase() || 'SIDE'}</span>
-                    <span style="padding:2px 8px;background:${ac};border-radius:2px;color:white;font-size:10px;font-weight:700;">${act}</span>
-                    <span style="color:${tc};font-size:11px;margin-left:auto;">${d.confidence}%</span>
+
+                // Big header with action
+                h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:16px;background:linear-gradient(135deg,#1e2536,#161b22);border-radius:8px;margin-bottom:12px;">
+                    <div>
+                        <div style="color:${tc};font-weight:700;font-size:28px;">$${d.symbol}</div>
+                        <div style="color:#8b949e;font-size:13px;">${tf.toUpperCase()} • ${fp(d.current_price)}</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="color:${tc};font-size:16px;font-weight:600;">${d.trend?.includes('bullish') ? '↑ BULLISH' : d.trend?.includes('bearish') ? '↓ BEARISH' : '→ SIDEWAYS'}</div>
+                        <div style="color:#8b949e;font-size:11px;">Confidence: ${d.confidence}%</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div style="padding:8px 20px;background:${ac};border-radius:6px;color:white;font-weight:700;font-size:18px;">${act}</div>
+                        <div style="color:#8b949e;font-size:11px;margin-top:4px;">${actMsg}</div>
+                    </div>
                 </div>`;
 
-                // Wave bar
-                const ws = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
-                h += `<div style="display:flex;align-items:center;gap:1px;margin-bottom:4px;">`;
-                ws.forEach((w, i) => {
-                    const bc = i < 5 ? '#10b981' : '#ef4444';
-                    const cur = cl === w, past = ws.indexOf(cl) > i;
-                    const bg = cur ? bc : past ? bc + '66' : '#21262d';
-                    const fg = cur ? '#fff' : past ? bc : '#484f58';
-                    h += `<div style="flex:1;text-align:center;padding:3px 0;background:${bg};color:${fg};font-size:10px;font-weight:600;${i === 0 ? 'border-radius:3px 0 0 3px;' : ''}${i === 7 ? 'border-radius:0 3px 3px 0;' : ''}">${w}${cur ? '◀' : ''}</div>`;
-                });
-                h += `</div>`;
+                // Visual Wave Chart (ASCII style)
+                const waveIdx = ['1', '2', '3', '4', '5', 'A', 'B', 'C'].indexOf(cl);
+                h += `<div style="background:#0d1117;border-radius:8px;padding:16px;margin-bottom:12px;">
+                    <div style="color:#8b949e;font-size:11px;margin-bottom:8px;">WAVE STRUCTURE</div>
+                    <div style="display:flex;height:80px;align-items:flex-end;gap:2px;margin-bottom:8px;">`;
 
-                // Message
+                // Draw wave heights
+                const heights = [30, 20, 80, 35, 60, 25, 40, 15]; // Visual heights for each wave
+                const labels = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
+                labels.forEach((w, i) => {
+                    const bc = i < 5 ? '#10b981' : '#ef4444';
+                    const isCur = cl === w;
+                    const isPast = waveIdx > i;
+                    const opacity = isCur ? 1 : isPast ? 0.6 : 0.2;
+                    h += `<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;">
+                        <div style="width:100%;height:${heights[i]}px;background:${bc};opacity:${opacity};border-radius:3px 3px 0 0;${isCur ? 'box-shadow:0 0 10px ' + bc + ';' : ''}"></div>
+                        <div style="color:${isCur ? '#fff' : isPast ? bc : '#484f58'};font-size:12px;font-weight:700;padding:4px;${isCur ? 'background:' + bc + ';border-radius:3px;' : ''}">W${w}${isCur ? ' ◀' : ''}</div>
+                    </div>`;
+                });
+                h += `</div>
+                    <div style="display:flex;justify-content:space-between;color:#484f58;font-size:10px;">
+                        <span>← IMPULSE (1-5) →</span>
+                        <span>← CORRECTION (A-B-C) →</span>
+                    </div>
+                </div>`;
+
+                // Message box
                 if (d.current_wave?.message) {
-                    h += `<div style="padding:4px 6px;background:#21262d;border-left:2px solid #8b5cf6;margin-bottom:4px;font-size:10px;color:#c4b5fd;">${d.current_wave.message}</div>`;
+                    h += `<div style="padding:14px;background:linear-gradient(135deg,rgba(139,92,246,0.15),rgba(99,102,241,0.1));border-radius:8px;margin-bottom:12px;border-left:4px solid #8b5cf6;">
+                        <div style="color:#c4b5fd;font-size:14px;"><strong>📍 Wave ${cl}:</strong> ${d.current_wave.message}</div>
+                    </div>`;
                 }
 
-                // Fib levels inline
+                // Fibonacci Grid
                 if (d.fibonacci_levels?.retracement) {
-                    h += `<div style="display:flex;flex-wrap:wrap;gap:3px;padding:4px 0;border-top:1px solid #30363d;border-bottom:1px solid #30363d;margin-bottom:4px;">
-                        <span style="color:#f59e0b;font-size:9px;margin-right:4px;">FIB</span>`;
+                    h += `<div style="background:#161b22;border-radius:8px;padding:12px;margin-bottom:12px;">
+                        <div style="color:#f59e0b;font-size:12px;margin-bottom:10px;font-weight:600;">📐 FIBONACCI LEVELS</div>
+                        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">`;
                     Object.entries(d.fibonacci_levels.retracement).forEach(([l, p]) => {
                         const near = Math.abs(p - d.current_price) / d.current_price < 0.02;
-                        h += `<span style="padding:1px 4px;background:${near ? '#f59e0b' : '#21262d'};color:${near ? '#000' : '#8b949e'};border-radius:2px;font-size:9px;">${l.replace('%', '')} ${fp(p)}</span>`;
+                        h += `<div style="padding:10px 8px;background:${near ? '#f59e0b' : '#21262d'};border-radius:6px;text-align:center;">
+                            <div style="color:${near ? '#000' : '#f59e0b'};font-size:11px;font-weight:600;">${l}</div>
+                            <div style="color:${near ? '#000' : '#8b949e'};font-size:12px;font-weight:500;">${fp(p)}</div>
+                        </div>`;
                     });
-                    h += `</div>`;
+                    h += `</div></div>`;
                 }
 
                 // Signals
                 if (d.signals?.length) {
-                    h += `<div style="font-size:9px;color:#8b949e;">`;
-                    d.signals.slice(0, 2).forEach(s => h += `<div>• ${s}</div>`);
+                    h += `<div style="background:#0d1117;border-radius:8px;padding:12px;border-left:4px solid #10b981;">
+                        <div style="color:#10b981;font-size:12px;margin-bottom:8px;font-weight:600;">📊 SIGNALS</div>`;
+                    d.signals.forEach(s => h += `<div style="color:#8b949e;font-size:12px;padding:3px 0;">• ${s}</div>`);
                     h += `</div>`;
                 }
 
                 r.innerHTML = h;
-            } catch (e) { r.innerHTML = inp + `<div style="color:#ef4444;font-size:11px;">Error: ${e.message}</div>`; }
+            } catch (e) { r.innerHTML = inp + `<div style="color:#ef4444;padding:20px;text-align:center;">Error: ${e.message}</div>`; }
         }
 
         async function api(type, e) {
