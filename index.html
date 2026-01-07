@@ -2258,7 +2258,7 @@
 
                 const tc = data.trend?.includes('bullish') ? '#10b981' : data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
                 const tt = data.trend?.includes('bullish') ? 'BULLISH' : data.trend?.includes('bearish') ? 'BEARISH' : 'SIDEWAYS';
-                
+
                 // Smart price formatter - shows decimals for small coins
                 const fmtPrice = (p) => {
                     if (p >= 1000) return '$' + Math.round(p).toLocaleString();
@@ -2276,41 +2276,41 @@
 
                 let h = inputRow;
 
-                // Row 1: Stats Grid - BIGGER
-                h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;">
-                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
-                        <div style="color:${tc};font-weight:700;font-size:18px;">$${data.symbol}</div>
-                        <div style="color:#6b7280;font-size:11px;">${data.timeframe.toUpperCase()}</div>
+                // Row 1: Stats Grid - COMPACT
+                h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-bottom:6px;">
+                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
+                        <div style="color:${tc};font-weight:700;font-size:14px;">$${data.symbol}</div>
+                        <div style="color:#6b7280;font-size:9px;">${data.timeframe.toUpperCase()}</div>
                     </div>
-                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
-                        <div style="color:${tc};font-weight:600;font-size:14px;">${tt}</div>
-                        <div style="color:#6b7280;font-size:11px;">Trend</div>
+                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
+                        <div style="color:${tc};font-weight:600;font-size:11px;">${tt}</div>
+                        <div style="color:#6b7280;font-size:9px;">Trend</div>
                     </div>
-                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
-                        <div style="color:white;font-weight:600;font-size:14px;">${fmtPrice(data.current_price)}</div>
-                        <div style="color:#6b7280;font-size:11px;">Price</div>
+                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
+                        <div style="color:white;font-weight:600;font-size:12px;">${fmtPrice(data.current_price)}</div>
+                        <div style="color:#6b7280;font-size:9px;">Price</div>
                     </div>
-                    <div style="background:${ac};padding:12px 8px;border-radius:6px;text-align:center;">
-                        <div style="color:white;font-weight:700;font-size:14px;">${act}</div>
-                        <div style="color:rgba(255,255,255,0.7);font-size:11px;">Action</div>
+                    <div style="background:${ac};padding:6px;border-radius:4px;text-align:center;">
+                        <div style="color:white;font-weight:700;font-size:12px;">${act}</div>
+                        <div style="color:rgba(255,255,255,0.7);font-size:9px;">Action</div>
                     </div>
-                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
-                        <div style="color:${tc};font-weight:700;font-size:18px;">${data.confidence}%</div>
-                        <div style="color:#6b7280;font-size:11px;">Confidence</div>
+                    <div style="background:#1e2536;padding:6px;border-radius:4px;text-align:center;">
+                        <div style="color:${tc};font-weight:700;font-size:14px;">${data.confidence}%</div>
+                        <div style="color:#6b7280;font-size:9px;">Conf</div>
                     </div>
                 </div>`;
 
-                // Row 2: Wave Progress - BIGGER
+                // Row 2: Wave Progress - COMPACT
                 const waves = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
-                h += `<div style="display:flex;justify-content:center;gap:4px;padding:10px;background:#1e2536;border-radius:6px;margin-bottom:8px;">`;
+                h += `<div style="display:flex;justify-content:center;gap:3px;padding:6px;background:#1e2536;border-radius:4px;margin-bottom:6px;">`;
                 waves.forEach((w, i) => {
                     const imp = !isNaN(parseInt(w));
                     const bc = imp ? '#10b981' : '#ef4444';
                     const cur = cl === w;
                     const past = waves.indexOf(cl) > i;
-                    let s = cur ? `background:${bc};color:white;box-shadow:0 0 10px ${bc};` : past ? `background:${bc}55;color:${bc};` : `background:#0d1117;color:#4b5563;`;
-                    h += `<div style="padding:8px 14px;border-radius:4px;font-weight:700;font-size:14px;${s}">${w}${cur ? '◀' : ''}</div>`;
-                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:12px;align-self:center;">›</span>`;
+                    let s = cur ? `background:${bc};color:white;box-shadow:0 0 6px ${bc};` : past ? `background:${bc}55;color:${bc};` : `background:#0d1117;color:#4b5563;`;
+                    h += `<div style="padding:5px 10px;border-radius:3px;font-weight:700;font-size:12px;${s}">${w}${cur ? '◀' : ''}</div>`;
+                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:10px;align-self:center;">›</span>`;
                 });
                 h += `</div>`;
 
