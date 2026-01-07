@@ -2229,7 +2229,9 @@
             document.getElementById('modalT').innerText = "🌊 ELLIOTT WAVE";
             document.getElementById('popupSearch').value = '';
             m.style.display = 'flex';
-            b.innerHTML = `<div id="ewResult"><div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;"><input type="text" id="ewSymbol" value="BTC" style="width:50px;padding:4px 6px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;text-align:center;font-size:11px;font-weight:600;"><select id="ewTimeframe" style="padding:4px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;font-size:11px;"><option value="1h">1H</option><option value="4h" selected>4H</option><option value="1d">1D</option></select><button onclick="analyzeElliottWave()" style="padding:4px 12px;background:#8b5cf6;border:none;border-radius:3px;color:white;font-size:11px;cursor:pointer;">Analyze</button><span style="font-size:9px;color:#6b7280;margin-left:auto;"><span style="color:#10b981;">●</span>1-5 <span style="color:#ef4444;">●</span>ABC</span></div><div style="color:#6b7280;font-size:11px;text-align:center;padding:20px;">Enter symbol and click Analyze</div></div>`;
+            b.innerHTML = `<div id="ewResult"><div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;"><input type="text" id="ewSymbol" value="BTC" style="width:60px;padding:6px 8px;background:#1a1f2e;border:1px solid #374151;border-radius:4px;color:white;text-align:center;font-size:13px;font-weight:600;"><select id="ewTimeframe" style="padding:6px 8px;background:#1a1f2e;border:1px solid #374151;border-radius:4px;color:white;font-size:12px;"><option value="1h">1H</option><option value="4h" selected>4H</option><option value="1d">1D</option></select><button onclick="analyzeElliottWave()" style="padding:6px 16px;background:#8b5cf6;border:none;border-radius:4px;color:white;font-size:12px;font-weight:600;cursor:pointer;">Analyze</button><span style="font-size:10px;color:#6b7280;margin-left:auto;"><span style="color:#10b981;">●</span> Impulse <span style="color:#ef4444;">●</span> Correction</span></div><div style="text-align:center;padding:30px;color:#6b7280;">Loading BTC...</div></div>`;
+            // Auto analyze on open
+            setTimeout(() => analyzeElliottWave(), 100);
         }
 
         async function analyzeElliottWave() {
@@ -2237,10 +2239,9 @@
             const timeframe = document.getElementById('ewTimeframe').value;
             const resultDiv = document.getElementById('ewResult');
 
-            // Keep input row
-            let inputRow = `<div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;"><input type="text" id="ewSymbol" value="${symbol}" style="width:50px;padding:4px 6px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;text-align:center;font-size:11px;font-weight:600;"><select id="ewTimeframe" style="padding:4px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;font-size:11px;"><option value="1h" ${timeframe === '1h' ? 'selected' : ''}>1H</option><option value="4h" ${timeframe === '4h' ? 'selected' : ''}>4H</option><option value="1d" ${timeframe === '1d' ? 'selected' : ''}>1D</option></select><button onclick="analyzeElliottWave()" style="padding:4px 12px;background:#8b5cf6;border:none;border-radius:3px;color:white;font-size:11px;cursor:pointer;">Analyze</button><span style="font-size:9px;color:#6b7280;margin-left:auto;"><span style="color:#10b981;">●</span>1-5 <span style="color:#ef4444;">●</span>ABC</span></div>`;
+            let inputRow = `<div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;"><input type="text" id="ewSymbol" value="${symbol}" style="width:60px;padding:6px 8px;background:#1a1f2e;border:1px solid #374151;border-radius:4px;color:white;text-align:center;font-size:13px;font-weight:600;"><select id="ewTimeframe" style="padding:6px 8px;background:#1a1f2e;border:1px solid #374151;border-radius:4px;color:white;font-size:12px;"><option value="1h" ${timeframe === '1h' ? 'selected' : ''}>1H</option><option value="4h" ${timeframe === '4h' ? 'selected' : ''}>4H</option><option value="1d" ${timeframe === '1d' ? 'selected' : ''}>1D</option></select><button onclick="analyzeElliottWave()" style="padding:6px 16px;background:#8b5cf6;border:none;border-radius:4px;color:white;font-size:12px;font-weight:600;cursor:pointer;">Analyze</button><span style="font-size:10px;color:#6b7280;margin-left:auto;"><span style="color:#10b981;">●</span> Impulse <span style="color:#ef4444;">●</span> Correction</span></div>`;
 
-            resultDiv.innerHTML = inputRow + `<div style="text-align:center;padding:15px;color:#6b7280;font-size:11px;">Loading...</div>`;
+            resultDiv.innerHTML = inputRow + `<div style="text-align:center;padding:30px;color:#6b7280;">Loading ${symbol}...</div>`;
 
             try {
                 const res = await fetch('/api/elliott-wave', {
@@ -2251,72 +2252,92 @@
                 const data = await res.json();
 
                 if (data.error) {
-                    resultDiv.innerHTML = inputRow + `<div style="color:#ef4444;font-size:11px;padding:10px;">Error: ${data.error}</div>`;
+                    resultDiv.innerHTML = inputRow + `<div style="color:#ef4444;font-size:13px;padding:20px;text-align:center;">Error: ${data.error}</div>`;
                     return;
                 }
 
                 const tc = data.trend?.includes('bullish') ? '#10b981' : data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
-                const tt = data.trend?.includes('bullish') ? 'BULL' : data.trend?.includes('bearish') ? 'BEAR' : 'SIDE';
+                const tt = data.trend?.includes('bullish') ? 'BULLISH' : data.trend?.includes('bearish') ? 'BEARISH' : 'SIDEWAYS';
 
                 let act = 'HOLD', ac = '#f59e0b';
-                const cl = data.current_wave?.label || '';
-                if (cl.includes('2') || cl.includes('4') || cl.includes('C')) { act = 'BUY'; ac = '#10b981'; }
-                else if (cl.includes('5') || cl.includes('B')) { act = 'SELL'; ac = '#ef4444'; }
-                else if (cl.includes('3') || cl.includes('1')) { act = 'HOLD'; ac = '#10b981'; }
-                else if (cl.includes('A')) { act = 'EXIT'; ac = '#ef4444'; }
+                const cl = data.current_wave?.label || '1';
+                if (cl === '2' || cl === '4' || cl === 'C') { act = 'BUY'; ac = '#10b981'; }
+                else if (cl === '5' || cl === 'B') { act = 'SELL'; ac = '#ef4444'; }
+                else if (cl === '3') { act = 'HOLD'; ac = '#10b981'; }
+                else if (cl === 'A') { act = 'EXIT'; ac = '#ef4444'; }
+                else if (cl === '1') { act = 'WAIT'; ac = '#f59e0b'; }
 
                 let h = inputRow;
 
-                // Row 1: Symbol | Trend | Price | Action | Confidence
-                h += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:4px;margin-bottom:4px;text-align:center;font-size:10px;">
-                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:${tc};font-weight:700;font-size:13px;">$${data.symbol}</div><div style="color:#6b7280;">${data.timeframe}</div></div>
-                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:${tc};font-weight:600;">${tt}</div><div style="color:#6b7280;">Trend</div></div>
-                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:white;font-weight:600;">$${Math.round(data.current_price).toLocaleString()}</div><div style="color:#6b7280;">Price</div></div>
-                    <div style="background:${ac};padding:6px 4px;border-radius:3px;"><div style="color:white;font-weight:700;">${act}</div><div style="color:rgba(255,255,255,0.7);">Action</div></div>
-                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:${tc};font-weight:700;font-size:13px;">${data.confidence}%</div><div style="color:#6b7280;">Conf</div></div>
+                // Row 1: Stats Grid - BIGGER
+                h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:8px;">
+                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
+                        <div style="color:${tc};font-weight:700;font-size:18px;">$${data.symbol}</div>
+                        <div style="color:#6b7280;font-size:11px;">${data.timeframe.toUpperCase()}</div>
+                    </div>
+                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
+                        <div style="color:${tc};font-weight:600;font-size:14px;">${tt}</div>
+                        <div style="color:#6b7280;font-size:11px;">Trend</div>
+                    </div>
+                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
+                        <div style="color:white;font-weight:600;font-size:14px;">$${Math.round(data.current_price).toLocaleString()}</div>
+                        <div style="color:#6b7280;font-size:11px;">Price</div>
+                    </div>
+                    <div style="background:${ac};padding:12px 8px;border-radius:6px;text-align:center;">
+                        <div style="color:white;font-weight:700;font-size:14px;">${act}</div>
+                        <div style="color:rgba(255,255,255,0.7);font-size:11px;">Action</div>
+                    </div>
+                    <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
+                        <div style="color:${tc};font-weight:700;font-size:18px;">${data.confidence}%</div>
+                        <div style="color:#6b7280;font-size:11px;">Confidence</div>
+                    </div>
                 </div>`;
 
-                // Row 2: Wave Progress Bar
+                // Row 2: Wave Progress - BIGGER
                 const waves = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
-                const cwl = data.current_wave?.label?.charAt(0) || '';
-                h += `<div style="display:flex;justify-content:center;gap:1px;padding:4px;background:#1e2536;border-radius:3px;margin-bottom:4px;">`;
+                h += `<div style="display:flex;justify-content:center;gap:4px;padding:10px;background:#1e2536;border-radius:6px;margin-bottom:8px;">`;
                 waves.forEach((w, i) => {
                     const imp = !isNaN(parseInt(w));
                     const bc = imp ? '#10b981' : '#ef4444';
-                    const cur = cwl === w;
-                    const past = waves.indexOf(cwl) > i;
-                    let s = cur ? `background:${bc};color:white;` : past ? `background:${bc}44;color:${bc};` : `background:#0d1117;color:#4b5563;`;
-                    h += `<div style="padding:3px 6px;border-radius:2px;font-weight:600;font-size:10px;${s}">${w}${cur ? '◀' : ''}</div>`;
-                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:8px;padding:0 1px;">›</span>`;
+                    const cur = cl === w;
+                    const past = waves.indexOf(cl) > i;
+                    let s = cur ? `background:${bc};color:white;box-shadow:0 0 10px ${bc};` : past ? `background:${bc}55;color:${bc};` : `background:#0d1117;color:#4b5563;`;
+                    h += `<div style="padding:8px 14px;border-radius:4px;font-weight:700;font-size:14px;${s}">${w}${cur ? '◀' : ''}</div>`;
+                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:12px;align-self:center;">›</span>`;
                 });
                 h += `</div>`;
 
-                // Row 3: Message
+                // Row 3: Current Wave Message - BIGGER
                 if (data.current_wave?.message) {
-                    h += `<div style="padding:4px 6px;background:rgba(139,92,246,0.15);border-radius:3px;margin-bottom:4px;font-size:10px;color:#c4b5fd;border-left:2px solid #8b5cf6;">${data.current_wave.message}</div>`;
+                    h += `<div style="padding:12px;background:rgba(139,92,246,0.15);border-radius:6px;margin-bottom:8px;font-size:14px;color:#c4b5fd;border-left:3px solid #8b5cf6;">
+                        <strong>Wave ${cl}:</strong> ${data.current_wave.message}
+                    </div>`;
                 }
 
-                // Row 4: Fibonacci Levels
+                // Row 4: Fibonacci - BIGGER
                 if (data.fibonacci_levels?.retracement) {
-                    h += `<div style="background:#1e2536;padding:4px 6px;border-radius:3px;margin-bottom:4px;"><div style="font-size:9px;color:#f59e0b;margin-bottom:2px;">Fibonacci Levels</div><div style="display:flex;flex-wrap:wrap;gap:2px;">`;
+                    h += `<div style="background:#1e2536;padding:10px;border-radius:6px;margin-bottom:8px;">
+                        <div style="font-size:12px;color:#f59e0b;margin-bottom:6px;font-weight:600;">📐 Fibonacci Levels (Swing: $${data.fibonacci_levels.swing_low?.toLocaleString()} - $${data.fibonacci_levels.swing_high?.toLocaleString()})</div>
+                        <div style="display:flex;flex-wrap:wrap;gap:6px;">`;
                     Object.entries(data.fibonacci_levels.retracement).forEach(([l, p]) => {
                         const near = Math.abs(p - data.current_price) / data.current_price < 0.02;
-                        h += `<span style="padding:2px 4px;background:#0d1117;border-radius:2px;font-size:9px;${near ? 'border:1px solid #f59e0b;color:#f59e0b;' : 'color:#6b7280;'}">${l.replace('%', '')} $${Math.round(p)}</span>`;
+                        h += `<span style="padding:6px 10px;background:#0d1117;border-radius:4px;font-size:12px;${near ? 'border:2px solid #f59e0b;color:#f59e0b;font-weight:600;' : 'color:#9ca3af;'}">${l} $${Math.round(p).toLocaleString()}</span>`;
                     });
                     h += `</div></div>`;
                 }
 
-                // Row 5: Signals
+                // Row 5: Signals - BIGGER
                 if (data.signals?.length) {
-                    h += `<div style="background:rgba(16,185,129,0.1);padding:4px 6px;border-radius:3px;border-left:2px solid #10b981;">`;
-                    data.signals.slice(0, 2).forEach(s => h += `<div style="font-size:9px;color:#9ca3af;">• ${s}</div>`);
+                    h += `<div style="background:rgba(16,185,129,0.1);padding:10px;border-radius:6px;border-left:3px solid #10b981;">
+                        <div style="font-size:12px;color:#10b981;margin-bottom:4px;font-weight:600;">📊 Signals</div>`;
+                    data.signals.slice(0, 3).forEach(s => h += `<div style="font-size:12px;color:#d1d5db;padding:2px 0;">• ${s}</div>`);
                     h += `</div>`;
                 }
 
                 resultDiv.innerHTML = h;
 
             } catch (e) {
-                resultDiv.innerHTML = inputRow + `<div style="color:#ef4444;font-size:11px;padding:10px;">Error: ${e.message}</div>`;
+                resultDiv.innerHTML = inputRow + `<div style="color:#ef4444;font-size:13px;padding:20px;text-align:center;">Error: ${e.message}</div>`;
             }
         }
 

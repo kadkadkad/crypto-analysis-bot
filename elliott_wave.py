@@ -255,60 +255,37 @@ class ElliottWaveAnalyzer:
     
     def _determine_current_wave(self, waves: List[Dict], current_price: float) -> Dict:
         """
-        Determine which wave we're currently in
+        Determine which wave we're currently in based on last completed wave
+        Returns the NEXT expected wave (what we're entering now)
         """
         if not waves:
-            return {'label': 'unknown', 'position': 'unknown'}
+            return {'label': '1', 'position': 'start', 'phase': 'impulse', 'message': 'No clear pattern yet'}
         
         last_wave = waves[-1]
+        last_label = last_wave['label']
         
-        # Estimate next wave
-        if last_wave['label'] == '5':
+        # Map: last completed wave -> current wave we're in
+        wave_progression = {
+            '1': ('2', 'impulse', '📉 Wave 2 correction. Wait for support.'),
+            '2': ('3', 'impulse', '📈 Wave 3 starting - strongest wave! BUY.'),
+            '3': ('4', 'impulse', '📉 Wave 4 pullback. Accumulation zone.'),
+            '4': ('5', 'impulse', '📈 Wave 5 final push. Take profits soon.'),
+            '5': ('A', 'corrective', '� Wave A correction starting. Be cautious.'),
+            'A': ('B', 'corrective', '📈 Wave B bounce. Don\'t chase - it\'s a trap.'),
+            'B': ('C', 'corrective', '🔻 Wave C final leg down. Best buy at bottom.'),
+            'C': ('1', 'new_cycle', '🚀 New cycle! Wave 1 impulse starting.')
+        }
+        
+        if last_label in wave_progression:
+            next_wave, phase, message = wave_progression[last_label]
             return {
-                'label': 'A (Correction Starting)',
-                'position': 'end_of_impulse',
-                'phase': 'corrective',
-                'message': '🔻 5-wave impulse complete. Expect A-B-C correction.'
-            }
-        elif last_wave['label'] == 'C':
-            return {
-                'label': '1 (New Impulse)',
-                'position': 'end_of_correction',
-                'phase': 'new_cycle',
-                'message': '🚀 Correction complete. Watch for new impulse wave.'
-            }
-        elif last_wave['label'] in ['1', '3']:
-            next_wave = str(int(last_wave['label']) + 1)
-            return {
-                'label': f"Wave {next_wave} (Correction)",
-                'position': 'in_impulse_correction',
-                'phase': 'impulse',
-                'message': f'📉 Expect Wave {next_wave} pullback. Buy opportunity if support holds.'
-            }
-        elif last_wave['label'] in ['2', '4']:
-            next_wave = str(int(last_wave['label']) + 1)
-            return {
-                'label': f"Wave {next_wave} (Impulse)",
-                'position': 'in_impulse',
-                'phase': 'impulse',
-                'message': f'📈 Wave {next_wave} starting. Ride the momentum.'
-            }
-        elif last_wave['label'] == 'A':
-            return {
-                'label': 'B (Counter Rally)',
-                'position': 'in_correction',
-                'phase': 'corrective',
-                'message': '📈 Wave B bounce expected. Don\'t mistake for new trend.'
-            }
-        elif last_wave['label'] == 'B':
-            return {
-                'label': 'C (Final Correction)',
-                'position': 'in_correction',
-                'phase': 'corrective',
-                'message': '🔻 Wave C drop expected. Best entry comes at C completion.'
+                'label': next_wave,
+                'position': f'after_{last_label}',
+                'phase': phase,
+                'message': message
             }
         
-        return {'label': 'developing', 'position': 'uncertain', 'phase': 'developing'}
+        return {'label': '1', 'position': 'uncertain', 'phase': 'developing', 'message': 'Pattern developing...'}
     
     def _calculate_fib_levels(self, waves: List[Dict], current_price: float, highs: np.ndarray = None, lows: np.ndarray = None) -> Dict:
         """
