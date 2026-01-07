@@ -2229,35 +2229,18 @@
             document.getElementById('modalT').innerText = "🌊 ELLIOTT WAVE";
             document.getElementById('popupSearch').value = '';
             m.style.display = 'flex';
-
-            b.innerHTML = `
-                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px;">
-                    <input type="text" id="ewSymbol" placeholder="BTC" value="BTC"
-                        style="width: 60px; padding: 6px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 4px; color: white; text-align: center; font-weight: 600; font-size: 12px;">
-                    <select id="ewTimeframe" style="padding: 6px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 4px; color: white; font-size: 12px;">
-                        <option value="1h">1H</option>
-                        <option value="4h" selected>4H</option>
-                        <option value="1d">1D</option>
-                    </select>
-                    <button onclick="analyzeElliottWave()" 
-                        style="flex: 1; padding: 6px 10px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 4px; color: white; font-weight: 600; cursor: pointer; font-size: 12px;">
-                        🌊 ANALYZE
-                    </button>
-                    <div style="font-size: 9px; color: #8b949e;">
-                        <span style="color: #10b981;">■</span>1-5 
-                        <span style="color: #ef4444;">■</span>A-C
-                    </div>
-                </div>
-                <div id="ewResult"></div>
-            `;
+            b.innerHTML = `<div id="ewResult"><div style="display:flex;gap:4px;align-items:center;margin-bottom:8px;"><input type="text" id="ewSymbol" value="BTC" style="width:50px;padding:4px 6px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;text-align:center;font-size:11px;font-weight:600;"><select id="ewTimeframe" style="padding:4px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;font-size:11px;"><option value="1h">1H</option><option value="4h" selected>4H</option><option value="1d">1D</option></select><button onclick="analyzeElliottWave()" style="padding:4px 12px;background:#8b5cf6;border:none;border-radius:3px;color:white;font-size:11px;cursor:pointer;">Analyze</button><span style="font-size:9px;color:#6b7280;margin-left:auto;"><span style="color:#10b981;">●</span>1-5 <span style="color:#ef4444;">●</span>ABC</span></div><div style="color:#6b7280;font-size:11px;text-align:center;padding:20px;">Enter symbol and click Analyze</div></div>`;
         }
 
         async function analyzeElliottWave() {
-            const symbol = document.getElementById('ewSymbol').value.trim() || 'BTC';
+            const symbol = document.getElementById('ewSymbol').value.trim().toUpperCase() || 'BTC';
             const timeframe = document.getElementById('ewTimeframe').value;
             const resultDiv = document.getElementById('ewResult');
 
-            resultDiv.innerHTML = '<div style="text-align: center; padding: 10px; color: #8b949e; font-size: 12px;">🌊 Analyzing...</div>';
+            // Keep input row
+            let inputRow = `<div style="display:flex;gap:4px;align-items:center;margin-bottom:6px;"><input type="text" id="ewSymbol" value="${symbol}" style="width:50px;padding:4px 6px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;text-align:center;font-size:11px;font-weight:600;"><select id="ewTimeframe" style="padding:4px;background:#1a1f2e;border:1px solid #374151;border-radius:3px;color:white;font-size:11px;"><option value="1h" ${timeframe === '1h' ? 'selected' : ''}>1H</option><option value="4h" ${timeframe === '4h' ? 'selected' : ''}>4H</option><option value="1d" ${timeframe === '1d' ? 'selected' : ''}>1D</option></select><button onclick="analyzeElliottWave()" style="padding:4px 12px;background:#8b5cf6;border:none;border-radius:3px;color:white;font-size:11px;cursor:pointer;">Analyze</button><span style="font-size:9px;color:#6b7280;margin-left:auto;"><span style="color:#10b981;">●</span>1-5 <span style="color:#ef4444;">●</span>ABC</span></div>`;
+
+            resultDiv.innerHTML = inputRow + `<div style="text-align:center;padding:15px;color:#6b7280;font-size:11px;">Loading...</div>`;
 
             try {
                 const res = await fetch('/api/elliott-wave', {
@@ -2268,106 +2251,72 @@
                 const data = await res.json();
 
                 if (data.error) {
-                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 8px; font-size: 12px;">❌ ${data.error}</div>`;
+                    resultDiv.innerHTML = inputRow + `<div style="color:#ef4444;font-size:11px;padding:10px;">Error: ${data.error}</div>`;
                     return;
                 }
 
-                const trendColor = data.trend?.includes('bullish') ? '#10b981' :
-                    data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
-                const trendText = data.trend?.includes('bullish') ? '📈 BULL' :
-                    data.trend?.includes('bearish') ? '📉 BEAR' : '↔️ SIDE';
+                const tc = data.trend?.includes('bullish') ? '#10b981' : data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
+                const tt = data.trend?.includes('bullish') ? 'BULL' : data.trend?.includes('bearish') ? 'BEAR' : 'SIDE';
 
-                // Determine action
-                let actionText = 'HOLD';
-                let actionColor = '#f59e0b';
-                const currentLabel = data.current_wave?.label || '';
-                if (currentLabel.includes('2') || currentLabel.includes('4') || currentLabel.includes('C')) {
-                    actionText = '🟢 BUY';
-                    actionColor = '#10b981';
-                } else if (currentLabel.includes('5') || currentLabel.includes('B')) {
-                    actionText = '🔴 SELL';
-                    actionColor = '#ef4444';
-                } else if (currentLabel.includes('3') || currentLabel.includes('1')) {
-                    actionText = '🚀 HOLD';
-                    actionColor = '#10b981';
-                } else if (currentLabel.includes('A')) {
-                    actionText = '⚠️ EXIT';
-                    actionColor = '#ef4444';
-                }
+                let act = 'HOLD', ac = '#f59e0b';
+                const cl = data.current_wave?.label || '';
+                if (cl.includes('2') || cl.includes('4') || cl.includes('C')) { act = 'BUY'; ac = '#10b981'; }
+                else if (cl.includes('5') || cl.includes('B')) { act = 'SELL'; ac = '#ef4444'; }
+                else if (cl.includes('3') || cl.includes('1')) { act = 'HOLD'; ac = '#10b981'; }
+                else if (cl.includes('A')) { act = 'EXIT'; ac = '#ef4444'; }
 
-                let html = `
-                    <!-- Header: Symbol + Price + Action -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: ${trendColor}15; border-radius: 4px; margin-bottom: 6px; border: 1px solid ${trendColor}33;">
-                        <div><span style="font-size: 16px; font-weight: 700; color: ${trendColor};">$${data.symbol}</span> <span style="font-size: 10px; color: #8b949e;">${data.timeframe}</span></div>
-                        <div style="font-size: 12px; color: ${trendColor}; font-weight: 600;">${trendText}</div>
-                        <div style="font-size: 12px; color: white;">$${parseFloat(data.current_price).toLocaleString()}</div>
-                        <div style="padding: 3px 8px; background: ${actionColor}; border-radius: 3px; font-size: 11px; font-weight: 700; color: white;">${actionText}</div>
-                    </div>
-                    
-                    <!-- Wave Diagram - Single Row -->
-                    <div style="display: flex; justify-content: center; gap: 2px; padding: 6px; background: rgba(30, 41, 59, 0.4); border-radius: 4px; margin-bottom: 6px;">`;
+                let h = inputRow;
 
-                const allWaves = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
-                const currentWaveLabel = data.current_wave?.label?.charAt(0) || '';
+                // Row 1: Symbol | Trend | Price | Action | Confidence
+                h += `<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:4px;margin-bottom:4px;text-align:center;font-size:10px;">
+                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:${tc};font-weight:700;font-size:13px;">$${data.symbol}</div><div style="color:#6b7280;">${data.timeframe}</div></div>
+                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:${tc};font-weight:600;">${tt}</div><div style="color:#6b7280;">Trend</div></div>
+                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:white;font-weight:600;">$${Math.round(data.current_price).toLocaleString()}</div><div style="color:#6b7280;">Price</div></div>
+                    <div style="background:${ac};padding:6px 4px;border-radius:3px;"><div style="color:white;font-weight:700;">${act}</div><div style="color:rgba(255,255,255,0.7);">Action</div></div>
+                    <div style="background:#1e2536;padding:6px 4px;border-radius:3px;"><div style="color:${tc};font-weight:700;font-size:13px;">${data.confidence}%</div><div style="color:#6b7280;">Conf</div></div>
+                </div>`;
 
-                allWaves.forEach((w, i) => {
-                    const isImpulse = !isNaN(parseInt(w));
-                    const baseColor = isImpulse ? '#10b981' : '#ef4444';
-                    const isCurrent = currentWaveLabel === w;
-                    const isPast = allWaves.indexOf(currentWaveLabel) > i;
-
-                    let style = '';
-                    if (isCurrent) {
-                        style = `background: ${baseColor}; color: white; box-shadow: 0 0 6px ${baseColor};`;
-                    } else if (isPast) {
-                        style = `background: ${baseColor}33; color: ${baseColor}; opacity: 0.7;`;
-                    } else {
-                        style = `background: rgba(0,0,0,0.2); color: #4b5563;`;
-                    }
-
-                    html += `<div style="padding: 4px 8px; border-radius: 3px; font-weight: 700; font-size: 11px; ${style}">${w}${isCurrent ? '📍' : ''}</div>`;
-                    if (i < 7) html += `<span style="color: ${isPast || isCurrent ? baseColor : '#374151'}; font-size: 10px;">→</span>`;
+                // Row 2: Wave Progress Bar
+                const waves = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
+                const cwl = data.current_wave?.label?.charAt(0) || '';
+                h += `<div style="display:flex;justify-content:center;gap:1px;padding:4px;background:#1e2536;border-radius:3px;margin-bottom:4px;">`;
+                waves.forEach((w, i) => {
+                    const imp = !isNaN(parseInt(w));
+                    const bc = imp ? '#10b981' : '#ef4444';
+                    const cur = cwl === w;
+                    const past = waves.indexOf(cwl) > i;
+                    let s = cur ? `background:${bc};color:white;` : past ? `background:${bc}44;color:${bc};` : `background:#0d1117;color:#4b5563;`;
+                    h += `<div style="padding:3px 6px;border-radius:2px;font-weight:600;font-size:10px;${s}">${w}${cur ? '◀' : ''}</div>`;
+                    if (i < 7) h += `<span style="color:${past || cur ? bc : '#374151'};font-size:8px;padding:0 1px;">›</span>`;
                 });
+                h += `</div>`;
 
-                html += `</div>`;
-
-                // Message
+                // Row 3: Message
                 if (data.current_wave?.message) {
-                    html += `<div style="padding: 5px 8px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; margin-bottom: 6px; font-size: 11px; color: #d1d5db; border-left: 2px solid #8b5cf6;">${data.current_wave.message}</div>`;
+                    h += `<div style="padding:4px 6px;background:rgba(139,92,246,0.15);border-radius:3px;margin-bottom:4px;font-size:10px;color:#c4b5fd;border-left:2px solid #8b5cf6;">${data.current_wave.message}</div>`;
                 }
 
-                // Confidence + Fib in one row
-                html += `<div style="display: flex; gap: 6px; margin-bottom: 6px;">
-                    <div style="background: rgba(30, 41, 59, 0.4); padding: 5px 10px; border-radius: 4px; text-align: center;">
-                        <div style="font-size: 16px; font-weight: 700; color: ${trendColor};">${data.confidence}%</div>
-                        <div style="font-size: 9px; color: #8b949e;">Confidence</div>
-                    </div>
-                    <div style="flex: 1; background: rgba(245, 158, 11, 0.1); padding: 5px 8px; border-radius: 4px; border-left: 2px solid #f59e0b;">
-                        <div style="font-size: 9px; color: #f59e0b; margin-bottom: 3px;">📐 Fibonacci</div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 3px;">`;
-
+                // Row 4: Fibonacci Levels
                 if (data.fibonacci_levels?.retracement) {
-                    Object.entries(data.fibonacci_levels.retracement).forEach(([level, price]) => {
-                        const nearCurrent = Math.abs(price - data.current_price) / data.current_price < 0.02;
-                        html += `<span style="padding: 1px 4px; background: rgba(0,0,0,0.2); border-radius: 2px; font-size: 9px; ${nearCurrent ? 'border: 1px solid #f59e0b; color: #f59e0b;' : 'color: #9ca3af;'}">${level.replace('%', '')} $${parseFloat(price).toFixed(0)}</span>`;
+                    h += `<div style="background:#1e2536;padding:4px 6px;border-radius:3px;margin-bottom:4px;"><div style="font-size:9px;color:#f59e0b;margin-bottom:2px;">Fibonacci Levels</div><div style="display:flex;flex-wrap:wrap;gap:2px;">`;
+                    Object.entries(data.fibonacci_levels.retracement).forEach(([l, p]) => {
+                        const near = Math.abs(p - data.current_price) / data.current_price < 0.02;
+                        h += `<span style="padding:2px 4px;background:#0d1117;border-radius:2px;font-size:9px;${near ? 'border:1px solid #f59e0b;color:#f59e0b;' : 'color:#6b7280;'}">${l.replace('%', '')} $${Math.round(p)}</span>`;
                     });
+                    h += `</div></div>`;
                 }
 
-                html += `</div></div></div>`;
-
-                // Signals
-                if (data.signals && data.signals.length > 0) {
-                    html += `<div style="padding: 5px 8px; background: rgba(16, 185, 129, 0.1); border-radius: 4px; border-left: 2px solid #10b981;">`;
-                    data.signals.slice(0, 2).forEach(s => {
-                        html += `<div style="font-size: 10px; color: #d1d5db;">• ${s}</div>`;
-                    });
-                    html += `</div>`;
+                // Row 5: Signals
+                if (data.signals?.length) {
+                    h += `<div style="background:rgba(16,185,129,0.1);padding:4px 6px;border-radius:3px;border-left:2px solid #10b981;">`;
+                    data.signals.slice(0, 2).forEach(s => h += `<div style="font-size:9px;color:#9ca3af;">• ${s}</div>`);
+                    h += `</div>`;
                 }
 
-                resultDiv.innerHTML = html;
+                resultDiv.innerHTML = h;
 
             } catch (e) {
-                resultDiv.innerHTML = `<div style="color: #ef4444; padding: 10px;">❌ ${e.message}</div>`;
+                resultDiv.innerHTML = inputRow + `<div style="color:#ef4444;font-size:11px;padding:10px;">Error: ${e.message}</div>`;
             }
         }
 
