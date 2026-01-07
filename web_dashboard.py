@@ -307,6 +307,30 @@ def check_token_security():
         print(f"[API] Scam Detector error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# 🌊 API: Elliott Wave Analysis
+@app.route('/api/elliott-wave', methods=['POST'])
+@limiter.limit("15 per minute")
+@auth.login_required
+def elliott_wave_analysis():
+    """Perform Elliott Wave analysis on a symbol"""
+    try:
+        from elliott_wave import ElliottWaveAnalyzer
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        symbol = data.get('symbol', 'BTC')
+        timeframe = data.get('timeframe', '4h')
+        
+        analyzer = ElliottWaveAnalyzer()
+        result = analyzer.analyze(symbol, timeframe)
+        
+        return jsonify(result)
+    except Exception as e:
+        print(f"[API] Elliott Wave error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 # 📥 API: Export (şifre korumalı, rate limited)
 @app.route('/api/export/<export_type>')
 @limiter.limit("5 per minute")

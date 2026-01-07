@@ -1375,6 +1375,9 @@
                     <button class="filter-btn" onclick="openScamDetector()"
                         style="background: linear-gradient(135deg, #ef4444, #dc2626); border-color: #ef4444;">🛡️
                         SCAM CHECK</button>
+                    <button class="filter-btn" onclick="openElliottWave()"
+                        style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-color: #8b5cf6;">🌊
+                        ELLIOTT WAVE</button>
                 </div>
             </div>
             <div style="text-align: right;">
@@ -2210,6 +2213,143 @@
                             </div>` : ''}
                         </div>
                     </div>`;
+                }
+
+                resultDiv.innerHTML = html;
+
+            } catch (e) {
+                resultDiv.innerHTML = `<span style="color: #ef4444;">Error: ${e.message}</span>`;
+            }
+        }
+
+        // 🌊 Elliott Wave function
+        function openElliottWave() {
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "🌊 ELLIOTT WAVE ANALYSIS";
+            document.getElementById('popupSearch').value = '';
+            m.style.display = 'flex';
+
+            b.innerHTML = `
+                <div style="background: rgba(139, 92, 246, 0.1); padding: 20px; border-radius: 12px; border-left: 4px solid #8b5cf6; margin-bottom: 20px;">
+                    <h3 style="margin: 0 0 15px 0; color: #8b5cf6;">🌊 Wave Pattern Analysis</h3>
+                    <p style="color: #8b949e; margin-bottom: 15px;">Identify Elliott Wave patterns (5-3 structure) and Fibonacci levels.</p>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Coin Symbol</label>
+                            <input type="text" id="ewSymbol" placeholder="BTC, ETH, SOL..." 
+                                style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px; color: #8b949e;">Timeframe</label>
+                            <select id="ewTimeframe" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 6px; color: white;">
+                                <option value="1h">1 Hour</option>
+                                <option value="4h" selected>4 Hours</option>
+                                <option value="1d">1 Day</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button onclick="analyzeElliottWave()" 
+                        style="margin-top: 15px; padding: 12px 24px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer; width: 100%;">
+                        🌊 ANALYZE WAVES
+                    </button>
+                </div>
+                <div id="ewResult" style="min-height: 100px;"></div>
+            `;
+        }
+
+        async function analyzeElliottWave() {
+            const symbol = document.getElementById('ewSymbol').value.trim() || 'BTC';
+            const timeframe = document.getElementById('ewTimeframe').value;
+            const resultDiv = document.getElementById('ewResult');
+
+            resultDiv.innerHTML = '<i>🌊 Analyzing wave patterns... This may take a few seconds.</i>';
+
+            try {
+                const res = await fetch('/api/elliott-wave', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol, timeframe })
+                });
+                const data = await res.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<span style="color: #ef4444;">Error: ${data.error}</span>`;
+                    return;
+                }
+
+                const trendColor = data.trend?.includes('bullish') ? '#10b981' :
+                    data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
+
+                let html = `
+                    <div style="background: ${trendColor}22; padding: 20px; border-radius: 12px; border-left: 4px solid ${trendColor}; margin-bottom: 20px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h3 style="margin: 0; color: ${trendColor};">$${data.symbol} - ${data.timeframe.toUpperCase()}</h3>
+                                <p style="margin: 5px 0 0 0; color: white;">Price: $${parseFloat(data.current_price).toLocaleString()}</p>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 28px; font-weight: 700; color: ${trendColor};">${data.confidence}%</div>
+                                <div style="color: #8b949e; font-size: 12px;">Confidence</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                // Current Wave
+                if (data.current_wave) {
+                    const phaseColor = data.current_wave.phase === 'impulse' ? '#10b981' :
+                        data.current_wave.phase === 'corrective' ? '#f59e0b' : '#8b5cf6';
+                    html += `<div style="background: rgba(30, 41, 59, 0.8); padding: 15px; border-radius: 12px; margin-bottom: 15px; border-left: 4px solid ${phaseColor};">
+                        <h4 style="margin: 0 0 8px 0; color: ${phaseColor};">📍 Current Position: ${data.current_wave.label}</h4>
+                        <p style="margin: 0; color: white;">${data.current_wave.message || ''}</p>
+                    </div>`;
+                }
+
+                // Recommendation
+                html += `<div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
+                    <p style="margin: 0; color: white; font-weight: 600; font-size: 15px;">${data.recommendation}</p>
+                </div>`;
+
+                // Signals
+                if (data.signals && data.signals.length > 0) {
+                    html += `<div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 12px; margin-bottom: 15px; border-left: 4px solid #10b981;">
+                        <h4 style="margin: 0 0 10px 0; color: #10b981;">📊 Signals</h4>`;
+                    data.signals.forEach(s => {
+                        html += `<div style="padding: 8px; margin: 5px 0; background: rgba(0,0,0,0.3); border-radius: 6px; color: white;">${s}</div>`;
+                    });
+                    html += `</div>`;
+                }
+
+                // Fibonacci Levels
+                if (data.fibonacci_levels && data.fibonacci_levels.retracement) {
+                    html += `<div style="background: rgba(245, 158, 11, 0.1); padding: 15px; border-radius: 12px; border-left: 4px solid #f59e0b;">
+                        <h4 style="margin: 0 0 10px 0; color: #f59e0b;">📐 Fibonacci Levels</h4>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">`;
+
+                    Object.entries(data.fibonacci_levels.retracement).forEach(([level, price]) => {
+                        const nearCurrent = Math.abs(price - data.current_price) / data.current_price < 0.02;
+                        html += `<div style="padding: 8px; background: rgba(0,0,0,0.3); border-radius: 6px; ${nearCurrent ? 'border: 1px solid #f59e0b;' : ''}">
+                            <span style="color: #f59e0b;">${level}:</span> 
+                            <span style="color: white;">$${parseFloat(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>`;
+                    });
+                    html += `</div></div>`;
+                }
+
+                // Wave Structure Summary  
+                if (data.wave_structure && data.wave_structure.length > 0) {
+                    html += `<div style="margin-top: 15px; padding: 15px; background: rgba(30, 41, 59, 0.5); border-radius: 12px;">
+                        <h4 style="margin: 0 0 10px 0; color: #8b5cf6;">🌊 Wave Structure (${data.wave_count} waves)</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                    data.wave_structure.forEach(wave => {
+                        const waveColor = wave.direction === 'up' ? '#10b981' : '#ef4444';
+                        const waveIcon = wave.direction === 'up' ? '↗' : '↘';
+                        html += `<span style="padding: 6px 12px; background: ${waveColor}22; border: 1px solid ${waveColor}; border-radius: 20px; color: ${waveColor}; font-weight: 600;">
+                            ${wave.label} ${waveIcon}
+                        </span>`;
+                    });
+                    html += `</div></div>`;
                 }
 
                 resultDiv.innerHTML = html;
