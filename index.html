@@ -2258,6 +2258,13 @@
 
                 const tc = data.trend?.includes('bullish') ? '#10b981' : data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
                 const tt = data.trend?.includes('bullish') ? 'BULLISH' : data.trend?.includes('bearish') ? 'BEARISH' : 'SIDEWAYS';
+                
+                // Smart price formatter - shows decimals for small coins
+                const fmtPrice = (p) => {
+                    if (p >= 1000) return '$' + Math.round(p).toLocaleString();
+                    if (p >= 1) return '$' + p.toFixed(2);
+                    return '$' + p.toFixed(4);
+                };
 
                 let act = 'HOLD', ac = '#f59e0b';
                 const cl = data.current_wave?.label || '1';
@@ -2280,7 +2287,7 @@
                         <div style="color:#6b7280;font-size:11px;">Trend</div>
                     </div>
                     <div style="background:#1e2536;padding:12px 8px;border-radius:6px;text-align:center;">
-                        <div style="color:white;font-weight:600;font-size:14px;">$${Math.round(data.current_price).toLocaleString()}</div>
+                        <div style="color:white;font-weight:600;font-size:14px;">${fmtPrice(data.current_price)}</div>
                         <div style="color:#6b7280;font-size:11px;">Price</div>
                     </div>
                     <div style="background:${ac};padding:12px 8px;border-radius:6px;text-align:center;">
@@ -2316,12 +2323,14 @@
 
                 // Row 4: Fibonacci - BIGGER
                 if (data.fibonacci_levels?.retracement) {
+                    const swLo = data.fibonacci_levels.swing_low || 0;
+                    const swHi = data.fibonacci_levels.swing_high || 0;
                     h += `<div style="background:#1e2536;padding:10px;border-radius:6px;margin-bottom:8px;">
-                        <div style="font-size:12px;color:#f59e0b;margin-bottom:6px;font-weight:600;">📐 Fibonacci Levels (Swing: $${data.fibonacci_levels.swing_low?.toLocaleString()} - $${data.fibonacci_levels.swing_high?.toLocaleString()})</div>
+                        <div style="font-size:12px;color:#f59e0b;margin-bottom:6px;font-weight:600;">📐 Fibonacci (Swing: ${fmtPrice(swLo)} - ${fmtPrice(swHi)})</div>
                         <div style="display:flex;flex-wrap:wrap;gap:6px;">`;
                     Object.entries(data.fibonacci_levels.retracement).forEach(([l, p]) => {
                         const near = Math.abs(p - data.current_price) / data.current_price < 0.02;
-                        h += `<span style="padding:6px 10px;background:#0d1117;border-radius:4px;font-size:12px;${near ? 'border:2px solid #f59e0b;color:#f59e0b;font-weight:600;' : 'color:#9ca3af;'}">${l} $${Math.round(p).toLocaleString()}</span>`;
+                        h += `<span style="padding:6px 10px;background:#0d1117;border-radius:4px;font-size:12px;${near ? 'border:2px solid #f59e0b;color:#f59e0b;font-weight:600;' : 'color:#9ca3af;'}">${l} ${fmtPrice(p)}</span>`;
                     });
                     h += `</div></div>`;
                 }
