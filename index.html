@@ -2231,32 +2231,24 @@
             m.style.display = 'flex';
 
             b.innerHTML = `
-                <div style="background: rgba(139, 92, 246, 0.1); padding: 10px; border-radius: 8px; border-left: 3px solid #8b5cf6; margin-bottom: 10px;">
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="ewSymbol" placeholder="BTC" value="BTC"
-                            style="width: 70px; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 4px; color: white; text-align: center; font-weight: 600;">
-                        <select id="ewTimeframe" style="padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 4px; color: white;">
-                            <option value="1h">1H</option>
-                            <option value="4h" selected>4H</option>
-                            <option value="1d">1D</option>
-                        </select>
-                        <button onclick="analyzeElliottWave()" 
-                            style="flex: 1; padding: 8px 12px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 4px; color: white; font-weight: 600; cursor: pointer;">
-                            🌊 ANALYZE
-                        </button>
+                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px;">
+                    <input type="text" id="ewSymbol" placeholder="BTC" value="BTC"
+                        style="width: 60px; padding: 6px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 4px; color: white; text-align: center; font-weight: 600; font-size: 12px;">
+                    <select id="ewTimeframe" style="padding: 6px; background: rgba(0,0,0,0.3); border: 1px solid #374151; border-radius: 4px; color: white; font-size: 12px;">
+                        <option value="1h">1H</option>
+                        <option value="4h" selected>4H</option>
+                        <option value="1d">1D</option>
+                    </select>
+                    <button onclick="analyzeElliottWave()" 
+                        style="flex: 1; padding: 6px 10px; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border: none; border-radius: 4px; color: white; font-weight: 600; cursor: pointer; font-size: 12px;">
+                        🌊 ANALYZE
+                    </button>
+                    <div style="font-size: 9px; color: #8b949e;">
+                        <span style="color: #10b981;">■</span>1-5 
+                        <span style="color: #ef4444;">■</span>A-C
                     </div>
                 </div>
-                
-                <!-- Mini Legend -->
-                <div style="background: rgba(30, 41, 59, 0.5); padding: 8px; border-radius: 6px; margin-bottom: 10px; font-size: 11px; display: flex; align-items: center; justify-content: space-between;">
-                    <div>
-                        <span style="color: #10b981;">■</span> <span style="color: #8b949e;">Impulse (1-5)</span>
-                        <span style="margin-left: 8px; color: #ef4444;">■</span> <span style="color: #8b949e;">Correction (A-C)</span>
-                    </div>
-                    <div style="color: #8b5cf6;">📍 = Your Position</div>
-                </div>
-                
-                <div id="ewResult" style="min-height: 60px;"></div>
+                <div id="ewResult"></div>
             `;
         }
 
@@ -2265,7 +2257,7 @@
             const timeframe = document.getElementById('ewTimeframe').value;
             const resultDiv = document.getElementById('ewResult');
 
-            resultDiv.innerHTML = '<div style="text-align: center; padding: 15px; color: #8b949e;">🌊 Analyzing...</div>';
+            resultDiv.innerHTML = '<div style="text-align: center; padding: 10px; color: #8b949e; font-size: 12px;">🌊 Analyzing...</div>';
 
             try {
                 const res = await fetch('/api/elliott-wave', {
@@ -2276,50 +2268,45 @@
                 const data = await res.json();
 
                 if (data.error) {
-                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 10px;">❌ ${data.error}</div>`;
+                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 8px; font-size: 12px;">❌ ${data.error}</div>`;
                     return;
                 }
 
                 const trendColor = data.trend?.includes('bullish') ? '#10b981' :
                     data.trend?.includes('bearish') ? '#ef4444' : '#f59e0b';
-                const trendText = data.trend?.includes('bullish') ? '📈 BULLISH' :
-                    data.trend?.includes('bearish') ? '📉 BEARISH' : '↔️ SIDEWAYS';
+                const trendText = data.trend?.includes('bullish') ? '📈 BULL' :
+                    data.trend?.includes('bearish') ? '📉 BEAR' : '↔️ SIDE';
 
-                // Determine action based on current wave
+                // Determine action
                 let actionText = 'HOLD';
                 let actionColor = '#f59e0b';
                 const currentLabel = data.current_wave?.label || '';
                 if (currentLabel.includes('2') || currentLabel.includes('4') || currentLabel.includes('C')) {
-                    actionText = '🟢 BUY ZONE';
+                    actionText = '🟢 BUY';
                     actionColor = '#10b981';
                 } else if (currentLabel.includes('5') || currentLabel.includes('B')) {
-                    actionText = '🔴 TAKE PROFIT';
+                    actionText = '🔴 SELL';
                     actionColor = '#ef4444';
                 } else if (currentLabel.includes('3') || currentLabel.includes('1')) {
-                    actionText = '🚀 RIDE TREND';
+                    actionText = '🚀 HOLD';
                     actionColor = '#10b981';
                 } else if (currentLabel.includes('A')) {
-                    actionText = '⚠️ EXIT/SHORT';
+                    actionText = '⚠️ EXIT';
                     actionColor = '#ef4444';
                 }
 
                 let html = `
-                    <!-- Header Row -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 8px; background: ${trendColor}15; border-radius: 6px; border: 1px solid ${trendColor}44;">
-                        <div>
-                            <span style="font-size: 18px; font-weight: 700; color: ${trendColor};">$${data.symbol}</span>
-                            <span style="font-size: 12px; color: #8b949e; margin-left: 6px;">${data.timeframe.toUpperCase()}</span>
-                        </div>
-                        <div style="font-size: 13px; font-weight: 600; color: ${trendColor};">${trendText}</div>
-                        <div style="font-size: 13px; color: white;">$${parseFloat(data.current_price).toLocaleString()}</div>
+                    <!-- Header: Symbol + Price + Action -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: ${trendColor}15; border-radius: 4px; margin-bottom: 6px; border: 1px solid ${trendColor}33;">
+                        <div><span style="font-size: 16px; font-weight: 700; color: ${trendColor};">$${data.symbol}</span> <span style="font-size: 10px; color: #8b949e;">${data.timeframe}</span></div>
+                        <div style="font-size: 12px; color: ${trendColor}; font-weight: 600;">${trendText}</div>
+                        <div style="font-size: 12px; color: white;">$${parseFloat(data.current_price).toLocaleString()}</div>
+                        <div style="padding: 3px 8px; background: ${actionColor}; border-radius: 3px; font-size: 11px; font-weight: 700; color: white;">${actionText}</div>
                     </div>
                     
-                    <!-- WAVE DIAGRAM with YOU ARE HERE -->
-                    <div style="background: rgba(30, 41, 59, 0.5); padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                        <div style="text-align: center; margin-bottom: 8px; font-size: 11px; color: #8b949e;">Wave Structure (click = info)</div>
-                        <div style="display: flex; justify-content: center; gap: 3px; flex-wrap: wrap;">`;
+                    <!-- Wave Diagram - Single Row -->
+                    <div style="display: flex; justify-content: center; gap: 2px; padding: 6px; background: rgba(30, 41, 59, 0.4); border-radius: 4px; margin-bottom: 6px;">`;
 
-                // Wave structure with "YOU ARE HERE" indicator
                 const allWaves = ['1', '2', '3', '4', '5', 'A', 'B', 'C'];
                 const currentWaveLabel = data.current_wave?.label?.charAt(0) || '';
 
@@ -2329,71 +2316,53 @@
                     const isCurrent = currentWaveLabel === w;
                     const isPast = allWaves.indexOf(currentWaveLabel) > i;
 
-                    let waveStyle = '';
-                    let indicator = '';
-
+                    let style = '';
                     if (isCurrent) {
-                        waveStyle = `background: ${baseColor}; color: white; box-shadow: 0 0 12px ${baseColor}; transform: scale(1.1);`;
-                        indicator = '<div style="font-size: 8px; color: white; margin-top: 2px;">📍HERE</div>';
+                        style = `background: ${baseColor}; color: white; box-shadow: 0 0 6px ${baseColor};`;
                     } else if (isPast) {
-                        waveStyle = `background: ${baseColor}44; color: ${baseColor}; opacity: 0.6;`;
+                        style = `background: ${baseColor}33; color: ${baseColor}; opacity: 0.7;`;
                     } else {
-                        waveStyle = `background: rgba(0,0,0,0.3); color: #64748b; border: 1px dashed #374151;`;
+                        style = `background: rgba(0,0,0,0.2); color: #4b5563;`;
                     }
 
-                    html += `<div style="padding: 6px 10px; border-radius: 4px; text-align: center; min-width: 36px; ${waveStyle}">
-                        <div style="font-weight: 700; font-size: 14px;">${w}</div>
-                        ${indicator}
-                    </div>`;
-
-                    // Arrow between waves
-                    if (i < 7) {
-                        const arrowColor = isPast || isCurrent ? baseColor : '#374151';
-                        html += `<span style="color: ${arrowColor}; align-self: center;">→</span>`;
-                    }
+                    html += `<div style="padding: 4px 8px; border-radius: 3px; font-weight: 700; font-size: 11px; ${style}">${w}${isCurrent ? '📍' : ''}</div>`;
+                    if (i < 7) html += `<span style="color: ${isPast || isCurrent ? baseColor : '#374151'}; font-size: 10px;">→</span>`;
                 });
 
-                html += `</div></div>`;
+                html += `</div>`;
 
-                // Action Box - What to do NOW
-                html += `<div style="background: ${actionColor}22; padding: 10px; border-radius: 6px; margin-bottom: 10px; border: 1px solid ${actionColor}; text-align: center;">
-                    <div style="font-size: 16px; font-weight: 700; color: ${actionColor};">${actionText}</div>
-                    <div style="font-size: 11px; color: #d1d5db; margin-top: 4px;">${data.current_wave?.message || 'Analyzing pattern...'}</div>
-                </div>`;
+                // Message
+                if (data.current_wave?.message) {
+                    html += `<div style="padding: 5px 8px; background: rgba(139, 92, 246, 0.15); border-radius: 4px; margin-bottom: 6px; font-size: 11px; color: #d1d5db; border-left: 2px solid #8b5cf6;">${data.current_wave.message}</div>`;
+                }
 
-                // Confidence + Signals in one row
-                html += `<div style="display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-bottom: 10px;">
-                    <div style="background: rgba(30, 41, 59, 0.5); padding: 8px; border-radius: 6px; text-align: center;">
-                        <div style="font-size: 20px; font-weight: 700; color: ${trendColor};">${data.confidence}%</div>
-                        <div style="font-size: 10px; color: #8b949e;">Confidence</div>
+                // Confidence + Fib in one row
+                html += `<div style="display: flex; gap: 6px; margin-bottom: 6px;">
+                    <div style="background: rgba(30, 41, 59, 0.4); padding: 5px 10px; border-radius: 4px; text-align: center;">
+                        <div style="font-size: 16px; font-weight: 700; color: ${trendColor};">${data.confidence}%</div>
+                        <div style="font-size: 9px; color: #8b949e;">Confidence</div>
                     </div>
-                    <div style="background: rgba(30, 41, 59, 0.5); padding: 8px; border-radius: 6px;">`;
+                    <div style="flex: 1; background: rgba(245, 158, 11, 0.1); padding: 5px 8px; border-radius: 4px; border-left: 2px solid #f59e0b;">
+                        <div style="font-size: 9px; color: #f59e0b; margin-bottom: 3px;">📐 Fibonacci</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 3px;">`;
 
-                if (data.signals && data.signals.length > 0) {
-                    data.signals.slice(0, 2).forEach(s => {
-                        html += `<div style="font-size: 11px; color: #d1d5db; padding: 2px 0;">• ${s}</div>`;
-                    });
-                }
-                html += `</div></div>`;
-
-                // Fibonacci - Super Compact
                 if (data.fibonacci_levels?.retracement) {
-                    html += `<div style="background: rgba(245, 158, 11, 0.1); padding: 8px; border-radius: 6px; border-left: 3px solid #f59e0b;">
-                        <div style="font-size: 11px; color: #f59e0b; font-weight: 600; margin-bottom: 4px;">📐 Fib Levels</div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 4px;">`;
                     Object.entries(data.fibonacci_levels.retracement).forEach(([level, price]) => {
-                        const nearCurrent = Math.abs(price - data.current_price) / data.current_price < 0.015;
-                        html += `<span style="padding: 2px 6px; background: rgba(0,0,0,0.3); border-radius: 3px; font-size: 10px; ${nearCurrent ? 'border: 1px solid #f59e0b; color: #f59e0b;' : 'color: #9ca3af;'}">
-                            ${level} $${parseFloat(price).toFixed(0)}
-                        </span>`;
+                        const nearCurrent = Math.abs(price - data.current_price) / data.current_price < 0.02;
+                        html += `<span style="padding: 1px 4px; background: rgba(0,0,0,0.2); border-radius: 2px; font-size: 9px; ${nearCurrent ? 'border: 1px solid #f59e0b; color: #f59e0b;' : 'color: #9ca3af;'}">${level.replace('%', '')} $${parseFloat(price).toFixed(0)}</span>`;
                     });
-                    html += `</div></div>`;
                 }
 
-                // Recommendation - Bottom
-                html += `<div style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2)); padding: 10px; border-radius: 6px; margin-top: 10px; text-align: center;">
-                    <div style="color: white; font-size: 13px; font-weight: 500;">${data.recommendation}</div>
-                </div>`;
+                html += `</div></div></div>`;
+
+                // Signals
+                if (data.signals && data.signals.length > 0) {
+                    html += `<div style="padding: 5px 8px; background: rgba(16, 185, 129, 0.1); border-radius: 4px; border-left: 2px solid #10b981;">`;
+                    data.signals.slice(0, 2).forEach(s => {
+                        html += `<div style="font-size: 10px; color: #d1d5db;">• ${s}</div>`;
+                    });
+                    html += `</div>`;
+                }
 
                 resultDiv.innerHTML = html;
 
