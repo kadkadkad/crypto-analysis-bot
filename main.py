@@ -9239,14 +9239,19 @@ def generate_detailed_analysis_message(results):
 
         # 4. Market Dynamics
         ob = coin.get("OrderBook", {})
+        whale_walls = ob.get("whale_walls", {})
         coin_report += "\n<b>🔍 Market Dynamics:</b>\n"
-        coin_report += f"• Order Book: Buy Wall: {format_money(ob.get('max_bid_price', 0))} | Sell Wall: {format_money(ob.get('max_ask_price', 0))}\n"
+        # Use whale_walls for price levels, max_qty for volume
+        buy_wall = whale_walls.get("buy_wall_price") or "None"
+        sell_wall = whale_walls.get("sell_wall_price") or "None"
+        coin_report += f"• Order Book: Buy Wall: {format_money(buy_wall) if buy_wall != 'None' else 'None'} | Sell Wall: {format_money(sell_wall) if sell_wall != 'None' else 'None'}\n"
         coin_report += f"• OB Imbalance: {fv(ob.get('imbalance'))}% | Spread: {fv(ob.get('spread_pct'), '{:.4f}')}%\n"
         coin_report += f"• Whale Buy/Sell: {format_money(coin.get('Whale_Buy_M', 0))} / {format_money(coin.get('Whale_Sell_M', 0))}\n"
         coin_report += f"• Net Accum: ${format_money(coin.get('NetAccum_raw', 0))} {get_whale_logo(coin.get('NetAccum_raw', 0))}\n"
         coin_report += f"• Composite Score: {fv(coin.get('Composite Score'))}\n"
-        coin_report += f"• Whale Activity: {coin.get('Whale Activity', 'N/A')}\n"
-        coin_report += f"• Avg Trade Size: {format_money(coin.get('Avg Trade Size', 0))}\n"
+        # Show big wall status
+        big_wall_status = "🧱 Buy" if ob.get("big_bid_wall") else ("🧱 Sell" if ob.get("big_ask_wall") else "None")
+        coin_report += f"• Big Wall: {big_wall_status}\n"
         coin_report += f"• Max Trade Volume: {format_money(coin.get('24h Volume', 0))}\n"
 
         # 5. Correlation & Other Data
