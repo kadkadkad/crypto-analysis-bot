@@ -6992,108 +6992,146 @@ The formation of <b>{onay_modeli}</b> structure at the HTF {fvg_zone if fvg_dete
 
 def generate_enhanced_manipulation_report():
     """
-    Generates an enhanced manipulation detection report.
-
-    Returns:
-        str: Formatted report
+    Generates manipulation detection report using real market data.
+    Detects: Volume spikes, OI/Price divergence, Funding extremes, Whale activity anomalies
     """
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"🔍 <b>Enhanced Manipulation Detection Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
-    report += "This report shows various manipulation strategies and whale movements detected in the market.\n\n"
+    report = f"🔍 <b>Manipulation Detector – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
 
-    all_strategies = []
-    strategy_counts = {
-        "Pump and Dump": 0,
-        "Wash Trading": 0,
-        "Spoofing": 0,
-        "Stop-Loss Hunt": 0,
-        "Silent Accumulation": 0,
-        "Aggressive Buying": 0,
-        "Front-Running": 0
-    }
+    # Detection categories
+    volume_spikes = []      # Unusual volume
+    oi_divergence = []      # OI vs Price divergence
+    funding_extremes = []   # Extreme funding rates
+    whale_anomalies = []    # Large net accumulation changes
+    price_anomalies = []    # Unusual price moves
 
-    # Analysis for all coins
-    for coin in ALL_RESULTS:
-        # result = detect_whale_strategies_enhanced(coin)
-        # Use pre-calculated manipulation results if present
-        if "Manipulation_Results" in coin:
-            result = coin["Manipulation_Results"]
-        else:
-            # Fallback if not pre-calculated (only if absolutely needed)
-            result = {"detected_strategies": [], "symbol": coin.get("Coin", "Unknown")}
-
-        if result["detected_strategies"]:
-            for strategy in result["detected_strategies"]:
-                strategy_counts[strategy["type"]] = strategy_counts.get(strategy["type"], 0) + 1
-                all_strategies.append({
-                    "symbol": result["symbol"],
-                    "strategy": strategy
+    for coin in ALL_RESULTS[:50]:
+        try:
+            symbol = "$" + coin.get("Coin", "").replace("USDT", "")
+            
+            # Get metrics
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            oi_change = extract_numeric(coin.get("OI Change %", 0))
+            funding = extract_numeric(coin.get("Funding Rate", 0))
+            net_accum = extract_numeric(coin.get("NetAccum_raw", 0))
+            price_1h = extract_numeric(coin.get("1H Change", coin.get("1H Change Raw", 0)))
+            price_24h = extract_numeric(coin.get("24h Change Raw", 0))
+            rsi = extract_numeric(coin.get("RSI", 50))
+            
+            # 1. VOLUME SPIKE DETECTION (possible wash trading or pump setup)
+            if vol_ratio > 3:
+                volume_spikes.append({
+                    "symbol": symbol,
+                    "vol_ratio": vol_ratio,
+                    "type": "🚨 WASH TRADING?" if abs(price_1h) < 1 and vol_ratio > 5 else "📈 VOLUME SPIKE"
                 })
+            
+            # 2. OI/PRICE DIVERGENCE (smart money positioning)
+            if oi_change > 5 and price_24h < -2:
+                oi_divergence.append({
+                    "symbol": symbol,
+                    "oi": oi_change,
+                    "price": price_24h,
+                    "type": "🔴 SHORTS LOADING"
+                })
+            elif oi_change > 5 and price_24h > 2:
+                oi_divergence.append({
+                    "symbol": symbol,
+                    "oi": oi_change,
+                    "price": price_24h,
+                    "type": "🟢 LONGS LOADING"
+                })
+            elif oi_change < -5 and abs(price_24h) > 3:
+                oi_divergence.append({
+                    "symbol": symbol,
+                    "oi": oi_change,
+                    "price": price_24h,
+                    "type": "⚠️ POSITION FLUSH"
+                })
+            
+            # 3. FUNDING RATE EXTREMES (squeeze setup)
+            if funding < -0.001:  # Very negative
+                funding_extremes.append({
+                    "symbol": symbol,
+                    "funding": funding * 100,
+                    "type": "🔥 LONG SQUEEZE RISK"
+                })
+            elif funding > 0.001:  # Very positive
+                funding_extremes.append({
+                    "symbol": symbol,
+                    "funding": funding * 100,
+                    "type": "🥵 SHORT SQUEEZE RISK"
+                })
+            
+            # 4. WHALE ANOMALIES (accumulation/distribution)
+            if abs(net_accum) > 50_000_000:  # 50M+ moves
+                whale_anomalies.append({
+                    "symbol": symbol,
+                    "net": net_accum,
+                    "type": "🐋 WHALE ACCUMULATION" if net_accum > 0 else "💸 WHALE DISTRIBUTION"
+                })
+            
+            # 5. PRICE ANOMALIES (potential stop hunt or pump/dump)
+            if abs(price_1h) > 5:  # 5%+ in 1 hour
+                price_anomalies.append({
+                    "symbol": symbol,
+                    "change": price_1h,
+                    "rsi": rsi,
+                    "type": "🚀 PUMP" if price_1h > 0 else "💥 DUMP"
+                })
+                
+        except Exception as e:
+            continue
 
-    # Group by manipulation types
-    if all_strategies:
-        for strategy_type in ["Pump and Dump", "Wash Trading", "Spoofing", "Stop-Loss Hunt", "Front-Running"]:
-            matching_strategies = [s for s in all_strategies if s["strategy"]["type"] == strategy_type]
-
-            if matching_strategies:
-                report += f"<b>🚨 {strategy_type} Detection ({len(matching_strategies)} coins):</b>\n"
-
-                # Show highest score strategies
-                sorted_strategies = sorted(matching_strategies, key=lambda x: x["strategy"]["score"], reverse=True)
-
-                for strategy_data in sorted_strategies[:5]:  # Show top 5
-                    symbol = strategy_data["symbol"]
-                    strategy = strategy_data["strategy"]
-
-                    report += f"• <b>{symbol}</b> (Score: {strategy['score']}/100) - {strategy['danger_level']}\n"
-
-                    # Show evidence
-                    for evidence in strategy["evidence"]:
-                        report += f"  - {evidence}\n"
-
-                    report += f"  <b>Recommendation:</b> {strategy['recommendation']}\n\n"
-
-                if len(matching_strategies) > 5:
-                    report += f"  ...and {len(matching_strategies) - 5} more coins.\n\n"
-
-        # Opportunity strategies
-        opportunity_strategies = ["Silent Accumulation", "Aggressive Buying"]
-        matching_opportunities = [s for s in all_strategies if s["strategy"]["type"] in opportunity_strategies]
-
-        if matching_opportunities:
-            report += f"<b>💰 Opportunity Detection ({len(matching_opportunities)} coins):</b>\n"
-
-            sorted_opportunities = sorted(matching_opportunities, key=lambda x: x["strategy"]["score"], reverse=True)
-
-            for strategy_data in sorted_opportunities[:5]:
-                symbol = strategy_data["symbol"]
-                strategy = strategy_data["strategy"]
-
-                report += f"• <b>{symbol}</b> - {strategy['type']}\n"
-
-                for evidence in strategy["evidence"]:
-                    report += f"  - {evidence}\n"
-
-                report += f"  <b>Recommendation:</b> {strategy['recommendation']}\n\n"
-
-            if len(matching_opportunities) > 5:
-                report += f"  ...and {len(matching_opportunities) - 5} more coins.\n\n"
+    # Build report
+    detection_count = len(volume_spikes) + len(oi_divergence) + len(funding_extremes) + len(whale_anomalies) + len(price_anomalies)
+    
+    if detection_count == 0:
+        report += "✅ <b>Market appears normal.</b> No significant manipulation signals detected.\n\n"
     else:
-        report += "✅ <b>No manipulation detected at this time.</b>\n\n"
+        report += f"⚠️ <b>{detection_count} signals detected</b>\n\n"
+    
+    # 1. Volume Spikes
+    if volume_spikes:
+        report += f"<b>📊 VOLUME ANOMALIES ({len(volume_spikes)})</b>\n"
+        for v in sorted(volume_spikes, key=lambda x: x["vol_ratio"], reverse=True)[:5]:
+            report += f"• {v['symbol']}: {v['vol_ratio']:.1f}x volume - {v['type']}\n"
+        report += "\n"
+    
+    # 2. OI/Price Divergence
+    if oi_divergence:
+        report += f"<b>📈 OI DIVERGENCE ({len(oi_divergence)})</b>\n"
+        for o in oi_divergence[:5]:
+            report += f"• {o['symbol']}: OI {o['oi']:+.1f}% vs Price {o['price']:+.1f}% - {o['type']}\n"
+        report += "\n"
+    
+    # 3. Funding Extremes
+    if funding_extremes:
+        report += f"<b>⚡ FUNDING EXTREMES ({len(funding_extremes)})</b>\n"
+        for f in sorted(funding_extremes, key=lambda x: abs(x["funding"]), reverse=True)[:5]:
+            report += f"• {f['symbol']}: {f['funding']:.3f}% - {f['type']}\n"
+        report += "\n"
+    
+    # 4. Whale Anomalies
+    if whale_anomalies:
+        report += f"<b>🐋 WHALE MOVES ({len(whale_anomalies)})</b>\n"
+        for w in sorted(whale_anomalies, key=lambda x: abs(x["net"]), reverse=True)[:5]:
+            report += f"• {w['symbol']}: {format_money(w['net'])} - {w['type']}\n"
+        report += "\n"
+    
+    # 5. Price Anomalies
+    if price_anomalies:
+        report += f"<b>💥 PRICE MOVES ({len(price_anomalies)})</b>\n"
+        for p in sorted(price_anomalies, key=lambda x: abs(x["change"]), reverse=True)[:5]:
+            report += f"• {p['symbol']}: {p['change']:+.1f}% (RSI: {p['rsi']:.0f}) - {p['type']}\n"
+        report += "\n"
 
-    # Explanations
-    report += "<b>📚 About Manipulation Types:</b>\n"
-    report += "• <b>Pump and Dump:</b> Strategy to artificially inflate price and sell at peaks.\n"
-    report += "• <b>Wash Trading:</b> Creating fake volume to attract interest.\n"
-    report += "• <b>Spoofing:</b> Creating large walls in order book and withdrawing them.\n"
-    report += "• <b>Stop-Loss Hunt:</b> Causing sudden drops to trigger stops and buy cheap.\n"
-    report += "• <b>Front-Running:</b> Executing trades before large orders.\n"
-    report += "• <b>Silent Accumulation:</b> Quietly buying large amounts at low prices.\n"
-    report += "• <b>Aggressive Buying:</b> Rapidly buying with high volume to push price up.\n\n"
-
-    report += "<b>⚠️ Note:</b> These detections are algorithmic analyses and not definitive. Always do your own research."
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<i>💡 High volume + low price move = Potential wash trading\n"
+    report += "💡 OI rising + price falling = Shorts positioning\n"
+    report += "💡 Extreme funding = Squeeze incoming</i>"
 
     return report
 
