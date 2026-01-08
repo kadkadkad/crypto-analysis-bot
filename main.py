@@ -9564,6 +9564,35 @@ def generate_metric_report(metric, results):
             v4h = format_money(extract_numeric(coin.get("net_accum_4h", 0)))
             v1d = format_money(extract_numeric(coin.get("net_accum_1d", 0)))
             report += f"<code>{symbol:<12} {v1h:>10} {v4h:>10} {v1d:>10}</code>\n"
+    
+    # Special handling for Taker Rate - show with % and emoji
+    elif "Taker" in display_name:
+        report = f"📊 <b>Taker Buy/Sell Ratio</b>\n"
+        report += f"<i>% of volume from market BUY orders</i>\n"
+        report += f"<i>>50% = Buyers dominate | <50% = Sellers dominate</i>\n\n"
+        report += "<b>🟢 BUYER PRESSURE (>52%)</b>\n"
+        buyers = [c for c in sorted_results if extract_numeric(c.get(data_key, 50)) > 52]
+        for coin in buyers[:10]:
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            val = extract_numeric(coin.get(data_key, 50))
+            report += f"• {symbol}: {val:.1f}% 🟢\n"
+        if not buyers:
+            report += "  None\n"
+        report += "\n<b>🔴 SELLER PRESSURE (<48%)</b>\n"
+        sellers = [c for c in sorted_results if extract_numeric(c.get(data_key, 50)) < 48]
+        sellers = sorted(sellers, key=lambda x: extract_numeric(x.get(data_key, 50)))
+        for coin in sellers[:10]:
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            val = extract_numeric(coin.get(data_key, 50))
+            report += f"• {symbol}: {val:.1f}% 🔴\n"
+        if not sellers:
+            report += "  None\n"
+        report += "\n<b>⚖️ NEUTRAL (48-52%)</b>\n"
+        neutrals = [c for c in sorted_results if 48 <= extract_numeric(c.get(data_key, 50)) <= 52]
+        for coin in neutrals[:15]:
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            val = extract_numeric(coin.get(data_key, 50))
+            report += f"• {symbol}: {val:.1f}%\n"
     else:
         for coin in sorted_results[:50]:
             symbol = "$" + coin['Coin'].replace("USDT", "")
@@ -9572,7 +9601,6 @@ def generate_metric_report(metric, results):
             # Smart formatting
             if isinstance(val, (int, float)):
                 if "Correlation" in display_name: val_str = f"{val:.2f}"
-                elif "Taker" in display_name: val_str = f"{val:.4f}"
                 elif "Volume" in display_name: val_str = format_money(val)
                 else: val_str = f"{val:.2f}"
             elif isinstance(val, tuple):
