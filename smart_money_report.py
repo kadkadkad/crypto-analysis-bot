@@ -19,7 +19,7 @@ def generate_smart_money_indicators_report(all_results):
     🧠 SMART MONEY INDICATORS - Deep Analysis Report
     
     Analyzes the three most critical smart money metrics:
-    - Whale Net Accumulation (12H Buy/Sell Pressure)
+    - Whale Net Accumulation (Buy/Sell Pressure)
     - Open Interest Momentum (Futures Positioning)
     - Funding Rate Dynamics (Market Sentiment)
     
@@ -31,34 +31,20 @@ def generate_smart_money_indicators_report(all_results):
     
     # Import helpers locally to avoid circular imports
     from utils import extract_numeric, format_money
+    from main import get_turkey_time
     
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')
     
-    report = f"""🧠 <b>SMART MONEY INDICATORS - Deep Analysis – {timestamp}</b>
+    report = f"""🧠 <b>SMART MONEY INDICATORS – {timestamp}</b>
 
-<b>📊 Methodology:</b>
-This report tracks the three most powerful indicators used by institutional traders and market makers to predict large moves:
-
-<b>1️⃣ Net Accumulation (Whale Activity)</b>
-   • Measures buy vs sell pressure from large wallets
-   • Calculated from Taker Buy Volume vs Total Volume
-   • Positive = Accumulation (Bullish), Negative = Distribution (Bearish)
-
-<b>2️⃣ Open Interest (OI)</b>
-   • Total value of open futures contracts
-   • Rising OI + Rising Price = Strong Bullish Trend
-   • Rising OI + Falling Price = Strong Bearish Trend
-   • Falling OI = Trend Exhaustion
-
-<b>3️⃣ Funding Rate</b>
-   • Periodic payments between longs and shorts
-   • Positive = Longs pay Shorts (Bullish Sentiment)
-   • Negative = Shorts pay Longs (Bearish Sentiment)
-   • Extreme values signal potential reversals
+<b>📊 Key Metrics:</b>
+• <b>Net Accum</b>: Taker Buy - Sell (+ = Whales Buying)
+• <b>OI Change</b>: Futures positioning momentum
+• <b>Funding Rate</b>: Long/Short sentiment
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<b>🔥 TOP SMART MONEY SIGNALS (Combined Analysis)</b>
+<b>🔥 TOP SMART MONEY SIGNALS (Confluence)</b>
 
 """
     
@@ -70,10 +56,11 @@ This report tracks the three most powerful indicators used by institutional trad
             symbol = coin.get("Coin", "Unknown")
             price = extract_numeric(coin.get("Price", 0))
             price_str = format_money(price)
-            change_24h = extract_numeric(coin.get("24h Change", 0))
+            change_24h = extract_numeric(coin.get("24h Change Raw", coin.get("24h Change", 0)))
             
-            # Extract metrics
-            net_accum_12h = extract_numeric(coin.get("Net Accum 12h", 0))
+            # Extract metrics - USE CORRECT KEYS
+            net_accum_1h = extract_numeric(coin.get("NetAccum_raw", 0))  # 1H net accum
+            net_accum_12h = extract_numeric(coin.get("net_accum_12h", net_accum_1h))  # fallback to 1h
             oi_value = extract_numeric(coin.get("Open Interest", 0))
             oi_change = extract_numeric(coin.get("OI Change %", 0))
             funding_rate = extract_numeric(coin.get("Funding Rate", 0))
@@ -82,46 +69,46 @@ This report tracks the three most powerful indicators used by institutional trad
             score = 0
             signals_detected = []
             
-            # Whale Accumulation Signal (Max 35 points)
-            if abs(net_accum_12h) > 3_000_000:
-                if net_accum_12h > 0:
-                    score += min((net_accum_12h / 10_000_000) * 35, 35)
+            # Whale Accumulation Signal (Max 35 points) - LOWERED THRESHOLD
+            if abs(net_accum_1h) > 1_000_000:  # 1M threshold
+                if net_accum_1h > 0:
+                    score += min((net_accum_1h / 5_000_000) * 35, 35)
                     signals_detected.append("🐋 WHALE BUYING")
                 else:
-                    score -= min((abs(net_accum_12h) / 10_000_000) * 35, 35)
+                    score -= min((abs(net_accum_1h) / 5_000_000) * 35, 35)
                     signals_detected.append("💸 WHALE SELLING")
             
-            # OI Momentum Signal (Max 35 points)
-            if abs(oi_change) > 5:
-                oi_score = min((abs(oi_change) / 50) * 35, 35)
+            # OI Momentum Signal (Max 35 points) - LOWERED THRESHOLD
+            if abs(oi_change) > 1:  # 1% threshold
+                oi_score = min((abs(oi_change) / 20) * 35, 35)
                 if oi_change > 0 and change_24h > 0:
                     score += oi_score
                     signals_detected.append("📈 OI + PRICE UP")
                 elif oi_change > 0 and change_24h < 0:
                     score -= oi_score
                     signals_detected.append("📉 OI UP, PRICE DOWN")
-                elif oi_change < 0 and abs(change_24h) > 2:
+                elif oi_change < 0 and abs(change_24h) > 1:
                     signals_detected.append("⚠️ OI DECLINING")
             
             # Funding Rate Signal (Max 30 points)
-            if abs(funding_rate) > 0.0001:
-                funding_score = min((abs(funding_rate) / 0.001) * 30, 30)
-                if funding_rate < -0.0002:  # Extreme negative = squeeze potential
+            if abs(funding_rate) > 0.00005:
+                funding_score = min((abs(funding_rate) / 0.0005) * 30, 30)
+                if funding_rate < -0.0001:  # Negative = squeeze potential
                     score += funding_score
                     signals_detected.append("🔥 FUNDING SQUEEZE")
-                elif funding_rate > 0.0005:  # Extreme positive = overheat
+                elif funding_rate > 0.0003:  # Extreme positive = overheat
                     score -= funding_score
                     signals_detected.append("🥵 FUNDING OVERHEAT")
             
-            # Only include coins with significant signals
-            if abs(score) > 15 and len(signals_detected) >= 2:
+            # LOWERED: Include coins with at least 1 signal and score > 5
+            if abs(score) > 5 and len(signals_detected) >= 1:
                 smart_money_signals.append({
                     "symbol": symbol,
                     "price": price_str,
                     "change_24h": change_24h,
                     "score": score,
                     "signals": signals_detected,
-                    "net_accum": net_accum_12h,
+                    "net_accum": net_accum_1h,
                     "oi_change": oi_change,
                     "funding": funding_rate
                 })
@@ -132,57 +119,48 @@ This report tracks the three most powerful indicators used by institutional trad
     # Sort by absolute score (strongest signals first)
     smart_money_signals.sort(key=lambda x: abs(x["score"]), reverse=True)
     
-    # Display Top 20 Signals
-    for i, signal in enumerate(smart_money_signals[:20], 1):
+    # Display Top 15 Signals
+    for i, signal in enumerate(smart_money_signals[:15], 1):
         direction = "🟢 BULLISH" if signal["score"] > 0 else "🔴 BEARISH"
         confidence = min(abs(signal["score"]), 100)
-        conf_bars = int(confidence / 10)
-        conf_visual = "█" * conf_bars + "░" * (10 - conf_bars)
         
         # Build signal breakdown
-        signals_str = " | ".join(signal["signals"])
+        signals_str = " + ".join(signal["signals"])
         
-        report += f"""<b>{i}. {signal['symbol']}</b> — {direction}
-   💵 Price: {signal['price']} ({signal['change_24h']:+.2f}%)
-   🎯 Confluence Score: {confidence:.0f}% [{conf_visual}]
-   🔎 Signals: {signals_str}
-   
-   📊 Raw Data:
-   • Net Accum (12H): ${format_money(signal['net_accum'])}
-   • OI Change: {signal['oi_change']:+.2f}%
-   • Funding Rate: {signal['funding']*100:.4f}%
+        report += f"""<b>{i}. ${signal['symbol'].replace('USDT','')}</b> — {direction} ({confidence:.0f}%)
+   📊 {signals_str}
+   • Net: {format_money(signal['net_accum'])} | OI: {signal['oi_change']:+.1f}% | FR: {signal['funding']*100:.3f}%
 
 """
     
     if not smart_money_signals:
-        report += "✨ No strong smart money confluence detected at the moment.\n"
-        report += "All metrics are within normal ranges.\n\n"
+        report += "✨ No strong smart money confluence detected.\n\n"
     
     report += """
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<b>📈 DETAILED BREAKDOWN - TOP 30 BY INDIVIDUAL METRICS</b>
+<b>📈 DETAILED BREAKDOWN - TOP 15</b>
 
 """
     
-    # Section 1: Net Accumulation Leaders
-    report += "<b>🐋 WHALE ACCUMULATION LEADERS (12H Period)</b>\n\n"
+    # Section 1: Net Accumulation Leaders - FIXED KEY
+    report += "<b>🐋 WHALE ACTIVITY (1H Net Accumulation)</b>\n"
     whale_sorted = sorted(
-        [(c, extract_numeric(c.get("Net Accum 12h", 0))) for c in all_results[:50]],
+        [(c, extract_numeric(c.get("NetAccum_raw", 0))) for c in all_results[:50]],
         key=lambda x: x[1],
         reverse=True
     )[:15]
     
     for i, (coin, net_accum) in enumerate(whale_sorted, 1):
-        if abs(net_accum) > 500_000:  # Filter noise
+        if abs(net_accum) > 100_000:  # LOWERED to 100K
             symbol = coin.get("Coin", "").replace("USDT", "")
-            direction = "🟢 ACCUMULATION" if net_accum > 0 else "🔴 DISTRIBUTION"
-            report += f"{i}. ${symbol}: {direction} ${format_money(abs(net_accum))}\n"
+            direction = "🟢 BUY" if net_accum > 0 else "🔴 SELL"
+            report += f"{i}. ${symbol}: {direction} {format_money(net_accum)}\n"
     
     report += "\n"
     
-    # Section 2: Open Interest Momentum
-    report += "<b>📊 OPEN INTEREST MOMENTUM LEADERS</b>\n\n"
+    # Section 2: Open Interest Momentum - LOWERED THRESHOLD
+    report += "<b>📊 OI MOMENTUM (Futures)</b>\n"
     oi_sorted = sorted(
         [(c, extract_numeric(c.get("OI Change %", 0))) for c in all_results[:50]],
         key=lambda x: abs(x[1]),
@@ -190,50 +168,40 @@ This report tracks the three most powerful indicators used by institutional trad
     )[:15]
     
     for i, (coin, oi_change) in enumerate(oi_sorted, 1):
-        if abs(oi_change) > 3:
+        if abs(oi_change) > 0.5:  # LOWERED to 0.5%
             symbol = coin.get("Coin", "").replace("USDT", "")
-            direction = "🟢 INCREASING" if oi_change > 0 else "🔴 DECREASING"
-            report += f"{i}. ${symbol}: {direction} {oi_change:+.2f}%\n"
+            direction = "🟢 +" if oi_change > 0 else "🔴 "
+            report += f"{i}. ${symbol}: {direction}{oi_change:.2f}%\n"
     
     report += "\n"
     
     # Section 3: Funding Rate Extremes
-    report += "<b>⚡ FUNDING RATE EXTREMES (Potential Squeezes)</b>\n\n"
+    report += "<b>⚡ FUNDING RATE</b>\n"
     funding_sorted = sorted(
         [(c, extract_numeric(c.get("Funding Rate", 0))) for c in all_results[:50]],
         key=lambda x: x[1]  # Most negative first
-    )[:15]
+    )[:10]
     
     for i, (coin, funding) in enumerate(funding_sorted, 1):
-        if abs(funding) > 0.00005:
+        if abs(funding) > 0.00001:  # LOWERED threshold
             symbol = coin.get("Coin", "").replace("USDT", "")
             if funding < -0.0001:
-                status = "🔥 LONG SQUEEZE RISK"
-            elif funding > 0.0003:
-                status = "🥵 SHORT SQUEEZE RISK"
+                status = "🔥 LONG SQUEEZE"
+            elif funding > 0.0002:
+                status = "🥵 SHORT SQUEEZE"
             else:
-                status = "⚖️ NEUTRAL"
+                status = "⚖️ Neutral"
             report += f"{i}. ${symbol}: {status} ({funding*100:.4f}%)\n"
     
     report += """
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-<b>💡 INTERPRETATION GUIDE</b>
+<b>💡 QUICK GUIDE</b>
+• 🐋 + 📈 OI + 🔥 FR = <b>Strong Long Setup</b>
+• 💸 + 📉 OI + 🥵 FR = <b>Strong Short Setup</b>
 
-<b>Strong Bullish Confluence:</b>
-• Whale Accumulation (+) + OI Rising + Funding Negative
-• Interpretation: Smart money accumulating before a squeeze
-
-<b>Strong Bearish Confluence:</b>
-• Whale Distribution (-) + OI Rising + Funding Positive
-• Interpretation: Smart money exiting before a dump
-
-<b>Reversal Signals:</b>
-• Extreme Funding (>0.05% or <-0.05%) = Potential reversal
-• OI Declining + Price Volatile = Trend exhaustion
-
-<i>⚡ Data updated every 5-10 minutes • Powered by Radar Ultra AI</i>
+<i>⚡ Powered by Radar Ultra AI</i>
 """
     
     return report
