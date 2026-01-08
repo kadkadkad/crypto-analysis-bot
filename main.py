@@ -7705,6 +7705,141 @@ def get_order_block_report_string():
     
     return report
 
+
+def generate_deep_technical_analysis():
+    """
+    Deep Technical Analysis - Multi-timeframe technical overview
+    RSI divergence, EMA trends, MACD momentum across timeframes
+    """
+    if not ALL_RESULTS:
+        return "⚠️ No analysis data available yet."
+    
+    report = f"🔬 <b>Deep Technical Analysis – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
+    
+    # Categories
+    bullish_setups = []
+    bearish_setups = []
+    neutral_watch = []
+    
+    for coin in ALL_RESULTS[:30]:
+        try:
+            symbol = "$" + coin["Coin"].replace("USDT", "")
+            price = extract_numeric(coin.get("Price", 0))
+            
+            # Multi-timeframe RSI
+            rsi_1h = extract_numeric(coin.get("RSI", 50))
+            rsi_4h = extract_numeric(coin.get("RSI_4h", 50))
+            rsi_1d = extract_numeric(coin.get("RSI_1d", 50))
+            
+            # EMA Trend
+            ema_trend = coin.get("EMA Trend", "Neutral")
+            
+            # MACD
+            macd = extract_numeric(coin.get("MACD", 0))
+            macd_signal = extract_numeric(coin.get("MACD_Signal", 0))
+            
+            # Volume
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            
+            # Price changes
+            price_1h = extract_numeric(coin.get("1H Change", 0))
+            price_24h = extract_numeric(coin.get("24h Change Raw", 0))
+            
+            # Bollinger
+            bb_squeeze = coin.get("BB_Squeeze", "")
+            
+            # Calculate technical score
+            tech_score = 0
+            signals = []
+            
+            # RSI Analysis
+            if rsi_1h < 30 and rsi_4h < 40:
+                tech_score += 30
+                signals.append("📊 RSI Oversold")
+            elif rsi_1h > 70 and rsi_4h > 60:
+                tech_score -= 30
+                signals.append("📊 RSI Overbought")
+            
+            # EMA Trend
+            if "Bullish" in ema_trend or "Up" in ema_trend:
+                tech_score += 20
+                signals.append("📈 EMA Bullish")
+            elif "Bearish" in ema_trend or "Down" in ema_trend:
+                tech_score -= 20
+                signals.append("📉 EMA Bearish")
+            
+            # MACD
+            if macd > macd_signal and macd > 0:
+                tech_score += 15
+                signals.append("🟢 MACD Bullish")
+            elif macd < macd_signal and macd < 0:
+                tech_score -= 15
+                signals.append("🔴 MACD Bearish")
+            
+            # Volume confirmation
+            if vol_ratio > 1.5:
+                if price_1h > 0:
+                    tech_score += 10
+                else:
+                    tech_score -= 10
+                signals.append(f"🔊 Vol {vol_ratio:.1f}x")
+            
+            # BB Squeeze
+            if "Squeeze" in bb_squeeze:
+                signals.append("💥 BB Squeeze")
+            
+            if not signals:
+                continue
+                
+            coin_data = {
+                "symbol": symbol,
+                "price": format_money(price),
+                "score": tech_score,
+                "signals": signals,
+                "rsi": f"{rsi_1h:.0f}/{rsi_4h:.0f}/{rsi_1d:.0f}",
+                "trend": ema_trend[:20] if len(ema_trend) > 20 else ema_trend,
+                "change": f"{price_1h:+.1f}%"
+            }
+            
+            if tech_score >= 25:
+                bullish_setups.append(coin_data)
+            elif tech_score <= -25:
+                bearish_setups.append(coin_data)
+            else:
+                neutral_watch.append(coin_data)
+                
+        except Exception as e:
+            continue
+    
+    # Build report
+    if bullish_setups:
+        report += "<b>🟢 BULLISH SETUPS</b>\n"
+        for c in sorted(bullish_setups, key=lambda x: x["score"], reverse=True)[:8]:
+            report += f"<b>{c['symbol']}</b> {c['price']} ({c['change']})\n"
+            report += f"  RSI: {c['rsi']} | {' + '.join(c['signals'][:3])}\n\n"
+    
+    if bearish_setups:
+        report += "<b>🔴 BEARISH SETUPS</b>\n"
+        for c in sorted(bearish_setups, key=lambda x: x["score"])[:8]:
+            report += f"<b>{c['symbol']}</b> {c['price']} ({c['change']})\n"
+            report += f"  RSI: {c['rsi']} | {' + '.join(c['signals'][:3])}\n\n"
+    
+    if neutral_watch and len(bullish_setups) < 3 and len(bearish_setups) < 3:
+        report += "<b>⚖️ WATCH LIST</b>\n"
+        for c in neutral_watch[:5]:
+            report += f"• {c['symbol']}: RSI {c['rsi']} | {c['trend']}\n"
+        report += "\n"
+    
+    if not bullish_setups and not bearish_setups:
+        report += "✅ No strong technical setups detected.\n"
+        report += "<i>Market in consolidation phase.</i>\n\n"
+    
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<i>📊 RSI format: 1H/4H/1D\n"
+    report += "💡 Best entries: RSI oversold + EMA bullish + MACD cross</i>"
+    
+    return report
+
 def get_liq_heatmap_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
@@ -13439,7 +13574,7 @@ async def analyze_market():
                         web_reports["Global Analysis"] = g_report
                     except: pass
                     
-                    # SMART MONEY INDICATORS (Deep Analysis)
+                    # SMART MONEY INDICATORS
                     try: 
                         sm_rep = generate_smart_money_indicators_report(ALL_RESULTS)
                         web_reports["Smart Money Indicators"] = sm_rep
@@ -13447,6 +13582,12 @@ async def analyze_market():
                     except Exception as e: 
                         print(f"[WARN] Smart Money Indicators report failed: {e}")
                         pass
+                    
+                    # DEEP TECHNICAL ANALYSIS
+                    try:
+                        web_reports["Deep Analysis"] = generate_deep_technical_analysis()
+                    except Exception as e:
+                        print(f"[WARN] Deep Technical Analysis report failed: {e}")
                     
                     try: web_reports["Live Ticker"] = get_live_ticker_string()
                     except Exception as e: print(f"[WARN] Live Ticker failed: {e}")
