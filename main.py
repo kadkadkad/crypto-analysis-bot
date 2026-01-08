@@ -11801,21 +11801,24 @@ def get_market_alerts_report_string():
         return "✨ No high-priority alerts triggered in the last 4 hours.\nEverything is stable."
 
     now_dt = get_turkey_time()
-    report = f"🛸 <b>RADAR ULTRA AI v2 - Market Narrative Summary</b>\n"
+    report = f"🛸 <b>RADAR ULTRA AI v2 - Market Alerts</b>\n"
     
     # Simple Narrative Logic
     bull_count = sum(1 for s, a in SENT_ALERTS.items() for k, ts in a.items() if "bull" in k or "confluence" in k)
     bear_count = sum(1 for s, a in SENT_ALERTS.items() for k, ts in a.items() if "bear" in k or "reversal" in k)
     
     if bull_count > bear_count * 2:
-        narrative = "High-conviction institutional accumulation detected across several assets. Risk-on environment likely."
+        narrative = "🟢 Strong bullish momentum. Institutional accumulation detected."
+        bias = "BULLISH"
     elif bear_count > bull_count * 2:
-        narrative = "Heavy distribution and exhaustion wicks detected at extremes. Conservative/Short approach recommended."
+        narrative = "🔴 Distribution phase. Watch for reversal setups."
+        bias = "BEARISH"
     else:
-        narrative = "Mixed signals with high intraday volatility. Selective focus on specific asset confluences is key."
+        narrative = "⚖️ Mixed signals. Focus on high-conviction setups only."
+        bias = "NEUTRAL"
     
-    report += f"📝 <b>AI Context:</b> {narrative}\n"
-    report += f"🕐 <b>Last Update:</b> {now_dt.strftime('%H:%M:%S')} (GMT+3)\n"
+    report += f"📊 <b>Bias:</b> {bias} | {narrative}\n"
+    report += f"🕐 <b>Updated:</b> {now_dt.strftime('%H:%M:%S')} | 📈 Bulls: {bull_count} | 📉 Bears: {bear_count}\n"
     report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
 
     # Flatten and sort SENT_ALERTS by timestamp
@@ -11831,22 +11834,53 @@ def get_market_alerts_report_string():
     # Sort by newest first
     flat_alerts.sort(key=lambda x: x["timestamp"], reverse=True)
 
+    # Alert type descriptions - more readable
+    alert_descriptions = {
+        "btc_div_bull": "↗️ BTC Divergence",
+        "btc_div_bear": "↘️ BTC Divergence", 
+        "ob_bull": "🟢 Order Block",
+        "ob_bear": "🔴 Order Block",
+        "sfp_bull": "🟢 Swing Failure",
+        "sfp_bear": "🔴 Swing Failure",
+        "vol_div": "📊 Volume Divergence",
+        "vol_climax_bull": "🚀 Volume Climax",
+        "vol_climax_bear": "💥 Volume Climax",
+        "manip_wash": "⚠️ Wash Trading",
+        "manip_spoofing": "⚠️ Spoofing",
+        "lead_cross": "⚡ Leading Cross",
+        "smart_money": "🐋 Smart Money",
+        "elite_confluence": "💎 Elite Setup",
+    }
+
     for alert in flat_alerts[:25]: # Show last 25 alerts
         dt_str = datetime.fromtimestamp(alert["timestamp"]).strftime('%H:%M:%S')
-        icon = "🔔"
-        if "lead" in alert["type"]: icon = "🔭"
-        elif "bull" in alert["type"]: icon = "🟢"
-        elif "bear" in alert["type"]: icon = "🔴"
-        elif "climax" in alert["type"]: icon = "🔥"
-        elif "div" in alert["type"]: icon = "🎭"
-        elif "smart_money" in alert["type"]: icon = "🐋"
-        elif "elite" in alert["type"]: icon = "💎"
         
-        desc = alert["type"].replace("_", " ").title()
-        if "Lead" in desc: desc = f"<b>{desc}</b>"
-        report += f"[{dt_str}] {icon} <b>{alert['symbol']}</b>: {desc}\n"
+        # Convert symbol: BTCUSDT -> $BTC
+        display_symbol = "$" + alert['symbol'].replace("USDT", "").replace("USD", "")
+        
+        # Get icon and description
+        alert_key = alert["type"].lower()
+        if alert_key in alert_descriptions:
+            desc = alert_descriptions[alert_key]
+        else:
+            # Fallback - format nicely
+            desc = alert["type"].replace("_", " ").title()
+        
+        # Color coding
+        if "bull" in alert_key:
+            line = f"<code>{dt_str}</code> 🟢 <b>{display_symbol}</b>: {desc}\n"
+        elif "bear" in alert_key:
+            line = f"<code>{dt_str}</code> 🔴 <b>{display_symbol}</b>: {desc}\n"
+        elif "manip" in alert_key or "wash" in alert_key:
+            line = f"<code>{dt_str}</code> ⚠️ <b>{display_symbol}</b>: {desc}\n"
+        elif "div" in alert_key:
+            line = f"<code>{dt_str}</code> 🎭 <b>{display_symbol}</b>: {desc}\n"
+        else:
+            line = f"<code>{dt_str}</code> 🔔 <b>{display_symbol}</b>: {desc}\n"
+        
+        report += line
 
-    report += "\n<b>ℹ️ Info:</b> Elite alerts are kept for 4 hours. Check structural charts for confirmation."
+    report += "\n<i>💡 Alerts valid for 4h. Confirm with charts before entry.</i>"
     return report
 
 def get_live_ticker_string():
