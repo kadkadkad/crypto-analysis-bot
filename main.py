@@ -3327,9 +3327,12 @@ def generate_cash_flow_migration_report():
 
     # 2. Second Pass: Build Report Lines
     lines = []
-    header = "Pair          BuyPower  CashIn%  MinorTrend%  BuyPressure"
+    header = "Pair          BuyPwr  Cash%   Trend%  Flow(15m→1d)  Signal"
+    lines.append("📈 <b>Cash Flow Migration Report</b>")
+    lines.append(f"🕐 {get_turkey_time().strftime('%H:%M:%S')} | Total Vol: ${format_money(total_quote_volume)}")
+    lines.append("")
     lines.append(header)
-    lines.append("-" * len(header))
+    lines.append("━" * 55)
 
     for symbol in symbols[:50]:
         quote_vol = 0
@@ -3368,15 +3371,50 @@ def generate_cash_flow_migration_report():
 
         intervals = ["15m", "1h", "4h", "12h", "1d"]
         arrow_list = []
+        trend_scores = []
         for inter in intervals:
             kline = sync_fetch_kline_data(symbol, inter, limit=10)
             trend = calculate_cash_flow_trend(kline)
+            trend_scores.append(trend)
             arrow = "▲" if trend > 0 else "▼" if trend < 0 else "="
             arrow_list.append(arrow)
         
+        # Calculate Minor Trend from arrow pattern (weighted - recent matters more)
+        weights = [3, 2, 1, 1, 1]  # 15m weighted most, then 1h
+        weighted_sum = sum(t * w for t, w in zip(trend_scores, weights))
+        minor_trend_score = round(weighted_sum / sum(weights) * 100, 1) if trend_scores else 0
+        
+        # Interpret arrow pattern for trading signal
+        up_count = arrow_list.count("▲")
+        down_count = arrow_list.count("▼")
+        
+        # Determine trend status
+        if up_count >= 4:
+            status = "🚀"  # Strong bullish
+        elif up_count >= 3:
+            status = "📈"  # Bullish
+        elif down_count >= 4:
+            status = "💥"  # Strong bearish
+        elif down_count >= 3:
+            status = "📉"  # Bearish
+        elif arrow_list[0] == "▲" and arrow_list[1] == "▲":
+            status = "⚡"  # Short-term bullish momentum
+        elif arrow_list[0] == "▼" and arrow_list[1] == "▼":
+            status = "⚠️"  # Short-term bearish momentum
+        else:
+            status = "⚖️"  # Mixed/Neutral
+        
         display_symbol = "$" + symbol.replace("USDT", "")
-        line = f"{display_symbol:<12} {buy_power:>6}x {cash_percent:>7}% {minor_trend_score:>7}% {"".join(arrow_list)}"
+        line = f"{display_symbol:<12} {buy_power:>6}x {cash_percent:>7}% {minor_trend_score:>7}% {"".join(arrow_list)} {status}"
         lines.append(line)
+
+    # Add legend at the bottom
+    lines.append("")
+    lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    lines.append("📊 Arrows: 15m→1h→4h→12h→1d")
+    lines.append("🚀 4+ ▲ = Strong Bull | 📈 3+ ▲ = Bull")
+    lines.append("💥 4+ ▼ = Strong Bear | 📉 3+ ▼ = Bear")
+    lines.append("⚡ Short momentum | ⚖️ Mixed")
 
     return "\n".join(lines)
 
