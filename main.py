@@ -12700,7 +12700,8 @@ async def analyze_market():
                         "atr": data.get('atr', 0),
                         "ATR_raw": data.get('atr', 0),
                         "Volume Ratio": data.get('volume_ratio', 1.0),
-                        "Taker Rate": data.get("taker_buy_quote", 0) / data.get("quote_volume", 1) if data.get("quote_volume", 1) > 0 else 0,
+                        # Taker Rate = Buy / (Buy + Sell) * 100 = percentage of buyers
+                        "Taker Rate": round((data.get('buy', 0) / (data.get('buy', 0) + data.get('sell', 1))) * 100, 2) if (data.get('buy', 0) + data.get('sell', 0)) > 0 else 50.0,
                         "Funding Rate": f"{data.get('funding_rate', 0) * 100:.4f}%",
                         "Long/Short Ratio": data.get('long_short_ratio', 1.0),
                         "OI Change %": data.get("oi_change_pct", 0),
