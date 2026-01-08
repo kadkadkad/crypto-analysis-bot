@@ -11618,43 +11618,96 @@ def get_significant_changes_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    significant_changes = detect_significant_changes(ALL_RESULTS)
-    report = f"🚀 <b>Significant Market Changes & Alerts – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
-    report += "<i>Monitoring technical breakouts and structural shifts</i>\n\n"
+    report = f"🚀 <b>Significant Market Changes – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
 
-    events = []
-    # 1. Technical Crossovers from ALL_RESULTS
+    # Categories
+    volume_spikes = []
+    price_movers = []
+    rsi_extremes = []
+    net_accum_leaders = []
+    oi_changes = []
+
     for coin in ALL_RESULTS[:50]:
-        trend = coin.get("EMA Trend", "")
-        if "X-Over" in trend:
-            symbol = "$" + coin["Coin"].replace("USDT", "")
-            events.append(f"• <b>{symbol}</b>: {trend} detected!")
+        symbol = "$" + coin["Coin"].replace("USDT", "")
+        vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+        rsi = extract_numeric(coin.get("RSI", 50))
+        price_1h = extract_numeric(coin.get("1H Change", coin.get("1H Change Raw", 0)))
+        price_24h = extract_numeric(coin.get("24h Change Raw", 0))
+        net_accum = extract_numeric(coin.get("NetAccum_raw", 0))
+        oi_change = extract_numeric(coin.get("OI Change %", 0))
+        
+        # 1. Volume Spikes (>2x)
+        if vol_ratio > 2:
+            volume_spikes.append({"symbol": symbol, "vol": vol_ratio, "rsi": rsi})
+        
+        # 2. Price Movers (>3% 1H or >5% 24H)
+        if abs(price_1h) > 3 or abs(price_24h) > 5:
+            price_movers.append({
+                "symbol": symbol, 
+                "1h": price_1h, 
+                "24h": price_24h, 
+                "rsi": rsi
+            })
+        
+        # 3. RSI Extremes (<30 or >70)
+        if rsi > 70:
+            rsi_extremes.append({"symbol": symbol, "rsi": rsi, "type": "🔴 OVERBOUGHT"})
+        elif rsi < 30:
+            rsi_extremes.append({"symbol": symbol, "rsi": rsi, "type": "🟢 OVERSOLD"})
+        
+        # 4. Net Accumulation Leaders (>20M or <-20M)
+        if abs(net_accum) > 20_000_000:
+            net_accum_leaders.append({
+                "symbol": symbol, 
+                "net": net_accum, 
+                "type": "🟢 BUY" if net_accum > 0 else "🔴 SELL"
+            })
+        
+        # 5. OI Changes (>2%)
+        if abs(oi_change) > 2:
+            oi_changes.append({
+                "symbol": symbol, 
+                "oi": oi_change, 
+                "type": "📈 UP" if oi_change > 0 else "📉 DOWN"
+            })
 
-    if events:
-        report += "⚡ <b>TECHNICAL CROSSOVERS:</b>\n"
-        report += "\n".join(events) + "\n\n"
+    # Build report
+    if volume_spikes:
+        report += f"<b>🔊 VOLUME SPIKES ({len(volume_spikes)})</b>\n"
+        for v in sorted(volume_spikes, key=lambda x: x["vol"], reverse=True)[:8]:
+            report += f"• {v['symbol']}: {v['vol']:.1f}x volume | RSI: {v['rsi']:.0f}\n"
+        report += "\n"
 
-    # 2. Ranking & Momentum Changes
-    report += "📈 <b>SIGNIFICANT MARKET EVENTS:</b>\n"
-    if not significant_changes:
-        report += "No major market shifts detected in this cycle.\n"
-    else:
-        for change in significant_changes[:20]:
-            symbol = "$" + change["Coin"].replace("USDT", "")
-            event_type = change["Type"]
-            details = change["Details"]
-            
-            emoji = "📊"
-            if event_type == "Price Spike": emoji = "⚡"
-            elif event_type == "Volume Spike": emoji = "🔊"
-            elif event_type == "RSI Extreme": emoji = "🌡️"
-            elif event_type == "Trend Shift": emoji = "🔄"
-            elif event_type == "Rank Shift": emoji = "📈"
+    if price_movers:
+        report += f"<b>⚡ PRICE MOVERS ({len(price_movers)})</b>\n"
+        for p in sorted(price_movers, key=lambda x: abs(x["1h"]), reverse=True)[:8]:
+            emoji = "🚀" if p["1h"] > 0 else "💥"
+            report += f"• {p['symbol']}: {p['1h']:+.1f}% (1H) | {p['24h']:+.1f}% (24H) {emoji}\n"
+        report += "\n"
 
-            report += f"{emoji} <b>{symbol}</b> ({event_type}):\n"
-            report += f"   • {details}\n"
-            report += f"   • Vol Ratio: {change.get('VolumeRatio', 'N/A')}x | RSI: {change.get('RSI', 'N/A')}\n\n"
+    if rsi_extremes:
+        report += f"<b>🌡️ RSI EXTREMES ({len(rsi_extremes)})</b>\n"
+        for r in sorted(rsi_extremes, key=lambda x: abs(x["rsi"] - 50), reverse=True)[:8]:
+            report += f"• {r['symbol']}: RSI {r['rsi']:.1f} - {r['type']}\n"
+        report += "\n"
 
+    if net_accum_leaders:
+        report += f"<b>🐋 WHALE MOVES ({len(net_accum_leaders)})</b>\n"
+        for n in sorted(net_accum_leaders, key=lambda x: abs(x["net"]), reverse=True)[:8]:
+            report += f"• {n['symbol']}: {format_money(n['net'])} {n['type']}\n"
+        report += "\n"
+
+    if oi_changes:
+        report += f"<b>📊 OI CHANGES ({len(oi_changes)})</b>\n"
+        for o in sorted(oi_changes, key=lambda x: abs(x["oi"]), reverse=True)[:8]:
+            report += f"• {o['symbol']}: {o['oi']:+.1f}% {o['type']}\n"
+        report += "\n"
+
+    total = len(volume_spikes) + len(price_movers) + len(rsi_extremes) + len(net_accum_leaders) + len(oi_changes)
+    if total == 0:
+        report += "✅ No significant market shifts detected.\n"
+    
+    report += "<i>⚡ Powered by Radar Ultra AI</i>"
     return report
 
 SENT_ALERTS = {} # {symbol: {alert_type: timestamp}}
