@@ -7709,29 +7709,92 @@ def get_liq_heatmap_report_string():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
     
-    report = f"🔥 <b>Global Liquidation Heatmap Summary – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n"
-    report += "<i>Concentrated liquidation clusters in the market (±10% Range)</i>\n\n"
+    report = f"🔥 <b>Liquidation Risk Analysis – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
     
-    hot_zones = []
+    # Categories based on OI, Funding, and leverage indicators
+    long_risk = []   # High risk of LONG liquidations (price drop targets)
+    short_risk = []  # High risk of SHORT liquidations (price pump targets)
+    
     for coin in ALL_RESULTS[:50]:
-        lh = coin.get("Liq Heatmap", "")
-        if lh and ("🔥" in lh or "High Intensity" in lh or "Risk" in lh or "Cluster" in lh):
+        try:
             symbol = "$" + coin["Coin"].replace("USDT", "")
-            # Include much more detail from the full Liq Heatmap report
-            summary = lh.replace("🔥 Liq Heatmap:", "").strip()
-            # If the summary is too long, we take the top few lines
-            summary_lines = summary.split("\n")[:3]
-            short_summary = "\n    ".join(summary_lines)
-            hot_zones.append(f"• <b>{symbol}</b>:\n    {short_summary}")
+            price = extract_numeric(coin.get("Price", 0))
+            oi_value = extract_numeric(coin.get("Open Interest", 0))
+            oi_change = extract_numeric(coin.get("OI Change %", 0))
+            funding = extract_numeric(coin.get("Funding Rate", 0))
+            net_accum = extract_numeric(coin.get("NetAccum_raw", 0))
             
-    if hot_zones:
-        report += "🏮 <b>HIGH INTENSITY LIQUIDITY CLUSTERS:</b>\n"
-        report += "\n\n".join(hot_zones[:10])
-        if len(hot_zones) > 10: report += "\n\n<i>...and more detected in the scan.</i>"
-    else:
-        report += "No major liquidation cascades detected in the current ±10% range."
-        
-    report += "\n\n<b>ℹ️ Note:</b> These are zones where significant liquidations are likely to occur, often acting as magnetic levels for big players to sweep liquidity."
+            if oi_value <= 0 or price <= 0:
+                continue
+            
+            # Calculate leverage ratio (rough estimate)
+            # OI / 24h Volume as proxy for leverage
+            vol_24h = extract_numeric(coin.get("24h Volume", 1))
+            leverage_proxy = oi_value / vol_24h if vol_24h > 0 else 0
+            
+            # LONG LIQUIDATION ZONES (if price drops)
+            # High when: Funding very negative (overleveraged longs) + big OI
+            if funding < -0.0001 and oi_value > 1_000_000:
+                # Calculate likely liquidation targets (5%, 10%, 15% below)
+                long_risk.append({
+                    "symbol": symbol,
+                    "price": price,
+                    "oi": oi_value,
+                    "funding": funding * 100,
+                    "targets": [
+                        round(price * 0.95, 4),  # 5% drop
+                        round(price * 0.90, 4),  # 10% drop
+                        round(price * 0.85, 4),  # 15% drop
+                    ],
+                    "risk_score": abs(funding) * 10000 + (oi_value / 1_000_000)
+                })
+            
+            # SHORT LIQUIDATION ZONES (if price pumps)
+            # High when: Funding very positive (overleveraged shorts) + big OI
+            if funding > 0.0002 and oi_value > 1_000_000:
+                short_risk.append({
+                    "symbol": symbol,
+                    "price": price,
+                    "oi": oi_value,
+                    "funding": funding * 100,
+                    "targets": [
+                        round(price * 1.05, 4),  # 5% pump
+                        round(price * 1.10, 4),  # 10% pump
+                        round(price * 1.15, 4),  # 15% pump
+                    ],
+                    "risk_score": funding * 10000 + (oi_value / 1_000_000)
+                })
+                
+        except Exception as e:
+            continue
+    
+    # LONG LIQUIDATION ZONES (Market may DROP to hunt these)
+    if long_risk:
+        report += "<b>🔴 LONG LIQUIDATION ZONES</b>\n"
+        report += "<i>Price may drop here to liquidate overleveraged longs</i>\n\n"
+        for item in sorted(long_risk, key=lambda x: x["risk_score"], reverse=True)[:8]:
+            report += f"<b>{item['symbol']}</b> @ ${item['price']:,.2f}\n"
+            report += f"  📊 OI: {format_money(item['oi'])} | FR: {item['funding']:.3f}%\n"
+            report += f"  🎯 Targets: ${item['targets'][0]:,.2f} → ${item['targets'][1]:,.2f}\n\n"
+    
+    # SHORT LIQUIDATION ZONES (Market may PUMP to hunt these)
+    if short_risk:
+        report += "<b>🟢 SHORT LIQUIDATION ZONES</b>\n"
+        report += "<i>Price may pump here to liquidate overleveraged shorts</i>\n\n"
+        for item in sorted(short_risk, key=lambda x: x["risk_score"], reverse=True)[:8]:
+            report += f"<b>{item['symbol']}</b> @ ${item['price']:,.2f}\n"
+            report += f"  📊 OI: {format_money(item['oi'])} | FR: {item['funding']:.3f}%\n"
+            report += f"  🎯 Targets: ${item['targets'][0]:,.2f} → ${item['targets'][1]:,.2f}\n\n"
+    
+    if not long_risk and not short_risk:
+        report += "✅ No significant liquidation clusters detected.\n"
+        report += "<i>Market leverage appears balanced.</i>\n"
+    
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<i>💡 How to use: Price often moves towards these zones to sweep liquidity.\n"
+    report += "🔴 LONG zones = potential support becomes trap\n"
+    report += "🟢 SHORT zones = potential resistance breaks</i>"
+    
     return report
 
 
