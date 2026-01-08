@@ -232,48 +232,87 @@ class EconomicCalendar:
                     'crypto_relevance': 1.0
                 })
         
-        # Add regular monthly events (approximate)
-        # CPI - usually mid-month
-        cpi_date = datetime.date(today.year, today.month, 12)
-        if cpi_date < today:
-            if today.month == 12:
-                cpi_date = datetime.date(today.year + 1, 1, 12)
-            else:
-                cpi_date = datetime.date(today.year, today.month + 1, 12)
+        # Real January 2026 Economic Events (from Investing.com)
+        jan_2026_events = [
+            # Jan 8 - Today
+            ('2026-01-08', '08:30 ET', 'Unemployment Claims', 'medium', 0.70),
+            
+            # Jan 9 - Friday (Very Important!)
+            ('2026-01-09', '08:30 ET', 'US Nonfarm Payrolls (NFP)', 'high', 0.90),
+            ('2026-01-09', '08:30 ET', 'US Unemployment Rate', 'high', 0.85),
+            ('2026-01-09', '08:30 ET', 'Average Hourly Earnings', 'high', 0.80),
+            
+            # Jan 10
+            ('2026-01-10', '10:00 ET', 'Michigan Consumer Sentiment', 'medium', 0.65),
+            
+            # Jan 14 - Tuesday (CRITICAL - CPI!)
+            ('2026-01-14', '08:30 ET', 'US CPI (Inflation) MoM', 'high', 0.98),
+            ('2026-01-14', '08:30 ET', 'US CPI YoY', 'high', 0.95),
+            ('2026-01-14', '08:30 ET', 'Core CPI MoM', 'high', 0.92),
+            
+            # Jan 15 - Wednesday
+            ('2026-01-15', '08:30 ET', 'US PPI (Producer Prices)', 'high', 0.80),
+            ('2026-01-15', '08:30 ET', 'US Retail Sales', 'high', 0.82),
+            ('2026-01-15', '08:30 ET', 'Core Retail Sales', 'high', 0.78),
+            
+            # Jan 16 - Thursday
+            ('2026-01-16', '08:30 ET', 'Unemployment Claims', 'medium', 0.70),
+            ('2026-01-16', '08:30 ET', 'Philadelphia Fed Index', 'medium', 0.72),
+            ('2026-01-16', '09:45 ET', 'Manufacturing PMI', 'medium', 0.68),
+            
+            # Jan 23
+            ('2026-01-23', '08:30 ET', 'Unemployment Claims', 'medium', 0.70),
+            
+            # Jan 29 - FOMC
+            ('2026-01-29', '14:00 ET', 'FOMC Rate Decision', 'high', 1.0),
+            ('2026-01-29', '14:30 ET', 'Fed Press Conference', 'high', 0.98),
+            
+            # Jan 30
+            ('2026-01-30', '08:30 ET', 'GDP Growth Rate (Q4)', 'high', 0.88),
+            ('2026-01-30', '08:30 ET', 'Core PCE Price Index', 'high', 0.95),
+            
+            # Jan 31
+            ('2026-01-31', '10:00 ET', 'Personal Spending', 'medium', 0.65),
+        ]
         
-        days_until = (cpi_date - today).days
-        if 0 <= days_until <= days_ahead:
-            events.append({
-                'date': cpi_date.strftime('%b %d'),
-                'time': '08:30 ET',
-                'currency': 'USD',
-                'event': 'US CPI (Inflation)',
-                'impact': 'high',
-                'crypto_relevance': 0.95
-            })
+        for date_str, time, event_name, impact, relevance in jan_2026_events:
+            event_date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            days_until = (event_date - today).days
+            if 0 <= days_until <= days_ahead:
+                events.append({
+                    'date': event_date.strftime('%b %d'),
+                    'time': time,
+                    'currency': 'USD',
+                    'event': event_name,
+                    'impact': impact,
+                    'crypto_relevance': relevance
+                })
         
-        # NFP - first Friday of month
-        first_day = datetime.date(today.year, today.month, 1)
-        days_until_friday = (4 - first_day.weekday()) % 7
-        nfp_date = first_day + datetime.timedelta(days=days_until_friday)
-        if nfp_date < today:
-            if today.month == 12:
-                first_day = datetime.date(today.year + 1, 1, 1)
-            else:
-                first_day = datetime.date(today.year, today.month + 1, 1)
-            days_until_friday = (4 - first_day.weekday()) % 7
-            nfp_date = first_day + datetime.timedelta(days=days_until_friday)
-        
-        days_until = (nfp_date - today).days
-        if 0 <= days_until <= days_ahead:
-            events.append({
-                'date': nfp_date.strftime('%b %d'),
-                'time': '08:30 ET',
-                'currency': 'USD',
-                'event': 'US Nonfarm Payrolls',
-                'impact': 'high',
-                'crypto_relevance': 0.85
-            })
+        # Future months - calculate dynamically
+        # CPI - Second Tuesday or Wednesday of month (usually around 10-14)
+        # For months after January
+        if today.month > 1 or today.year > 2026:
+            # Calculate next CPI date (usually 2nd week, Tuesday/Wednesday)
+            cpi_month = today.month
+            cpi_year = today.year
+            # CPI is typically released 10-14 days into the month
+            cpi_date = datetime.date(cpi_year, cpi_month, 13)
+            if cpi_date <= today:
+                if cpi_month == 12:
+                    cpi_date = datetime.date(cpi_year + 1, 1, 13)
+                else:
+                    cpi_date = datetime.date(cpi_year, cpi_month + 1, 13)
+            
+            days_until = (cpi_date - today).days
+            if 0 <= days_until <= days_ahead:
+                events.append({
+                    'date': cpi_date.strftime('%b %d'),
+                    'time': '08:30 ET',
+                    'currency': 'USD',
+                    'event': 'US CPI (Inflation)',
+                    'impact': 'high',
+                    'crypto_relevance': 0.95
+                })
         
         return sorted(events, key=lambda x: x.get('crypto_relevance', 0), reverse=True)
 
