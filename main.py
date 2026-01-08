@@ -3119,31 +3119,73 @@ def analyze_market_maker_activity(taker_buy_volume, taker_sell_volume, time_buck
         return {"valid": False}
 
 def calculate_cash_flow_trend(kline_data):
+    """
+    Calculate Cash Flow Score (0-100) based on:
+    1. Taker Buy Ratio (50% weight) - Who's buying at market price?
+    2. Price Direction (30% weight) - Is price going up?
+    3. Volume Trend (20% weight) - Is volume increasing?
+    
+    Returns: 0-100 score (50 = neutral, >60 = bullish, <40 = bearish)
+    """
     if kline_data is None:
-        return 0
+        return 50  # Neutral
+    
     if isinstance(kline_data, pd.DataFrame):
-        df = kline_data
-        if df.empty: return 0
+        df = kline_data.copy()
+        if df.empty: return 50
     elif isinstance(kline_data, list):
-         if len(kline_data) < 2: return 0
-         df = pd.DataFrame(kline_data, columns=["timestamp", "open", "high", "low", "close", "volume",
-                                           "close_time", "quote_volume", "trades", "taker_buy_base",
-                                           "taker_buy_quote", "ignore"])
+        if len(kline_data) < 2: return 50
+        df = pd.DataFrame(kline_data, columns=["timestamp", "open", "high", "low", "close", "volume",
+                                          "close_time", "quote_volume", "trades", "taker_buy_base",
+                                          "taker_buy_quote", "ignore"])
     else:
-         return 0
+        return 50
 
-    if "close" not in df.columns: return 0 # Safety check
+    # Ensure numeric columns
+    for col in ["close", "volume", "quote_volume", "taker_buy_quote"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
     
-    # Ensure numeric
-    df["close"] = pd.to_numeric(df["close"], errors="coerce").fillna(0)
+    if len(df) < 2: return 50
     
-    if len(df) < 2: return 0
+    # 1. TAKER BUY RATIO (50% weight) - Most important indicator
+    # Taker buy = Market buys, higher = more buying pressure
+    taker_score = 50  # Default neutral
+    if "taker_buy_quote" in df.columns and "quote_volume" in df.columns:
+        total_taker_buy = df["taker_buy_quote"].sum()
+        total_volume = df["quote_volume"].sum()
+        if total_volume > 0:
+            taker_ratio = total_taker_buy / total_volume
+            # Convert 0.45-0.55 range to 0-100 (most values fall here)
+            # 0.50 = 50, 0.55 = 100, 0.45 = 0
+            taker_score = min(100, max(0, (taker_ratio - 0.45) * 1000))
     
+    # 2. PRICE DIRECTION (30% weight)
+    price_score = 50
     first_close = df["close"].iloc[0]
     last_close = df["close"].iloc[-1]
-    if first_close == 0:
-        return 0
-    return 1 if last_close > first_close else -1 if last_close < first_close else 0
+    if first_close > 0:
+        pct_change = ((last_close - first_close) / first_close) * 100
+        # Clamp to -5% to +5% range, map to 0-100
+        pct_change = max(-5, min(5, pct_change))
+        price_score = 50 + (pct_change * 10)  # +5% = 100, -5% = 0
+    
+    # 3. VOLUME TREND (20% weight) - Is volume increasing?
+    volume_score = 50
+    if "volume" in df.columns and len(df) >= 4:
+        first_half_vol = df["volume"].iloc[:len(df)//2].mean()
+        second_half_vol = df["volume"].iloc[len(df)//2:].mean()
+        if first_half_vol > 0:
+            vol_change = (second_half_vol / first_half_vol - 1) * 100
+            # -50% to +50% range, map to 0-100
+            vol_change = max(-50, min(50, vol_change))
+            volume_score = 50 + vol_change
+    
+    # COMBINE SCORES with weights
+    final_score = (taker_score * 0.50) + (price_score * 0.30) + (volume_score * 0.20)
+    
+    # Clamp to 0-100 and round
+    return round(max(0, min(100, final_score)), 1)
 
 
 def generate_dynamic_cash_flow_report():
@@ -3374,45 +3416,35 @@ def generate_cash_flow_migration_report():
         trend_scores = []
         for inter in intervals:
             kline = sync_fetch_kline_data(symbol, inter, limit=10)
-            trend = calculate_cash_flow_trend(kline)
-            trend_scores.append(trend)
-            arrow = "▲" if trend > 0 else "▼" if trend < 0 else "="
+            score = calculate_cash_flow_trend(kline)  # Now returns 0-100
+            trend_scores.append(score)
+            # Convert score to arrow: >55 = bullish, <45 = bearish
+            if score >= 55:
+                arrow = "▲"
+            elif score <= 45:
+                arrow = "▼"
+            else:
+                arrow = "="
             arrow_list.append(arrow)
+        
+        # Calculate weighted average of all timeframe scores
+        weights = [3, 2, 1, 1, 1]  # 15m=3, 1h=2, rest=1
+        avg_score = sum(s * w for s, w in zip(trend_scores, weights)) / sum(weights)
+        trend_pct = round(avg_score, 0)
         
         # Interpret arrow pattern for trading signal
         up_count = arrow_list.count("▲")
         down_count = arrow_list.count("▼")
-        equal_count = arrow_list.count("=")
         
-        # Calculate Trend% as bullish percentage (0-100%)
-        # Based on weighted arrows: 15m and 1h matter more
-        if up_count + down_count > 0:
-            # Weighted: 15m=3, 1h=2, 4h=1, 12h=1, 1d=1
-            weights = [3, 2, 1, 1, 1]
-            bullish_score = 0
-            for i, arrow in enumerate(arrow_list):
-                if arrow == "▲":
-                    bullish_score += weights[i]
-                elif arrow == "=":
-                    bullish_score += weights[i] * 0.5  # Neutral counts as 50%
-            max_score = sum(weights)
-            trend_pct = round((bullish_score / max_score) * 100, 0)
-        else:
-            trend_pct = 50  # All neutral
-        
-        # Determine trend status
-        if up_count >= 4:
+        # Determine trend status based on score and arrows
+        if avg_score >= 65 or up_count >= 4:
             status = "🚀"  # Strong bullish
-        elif up_count >= 3:
+        elif avg_score >= 55 or up_count >= 3:
             status = "📈"  # Bullish
-        elif down_count >= 4:
+        elif avg_score <= 35 or down_count >= 4:
             status = "💥"  # Strong bearish
-        elif down_count >= 3:
+        elif avg_score <= 45 or down_count >= 3:
             status = "📉"  # Bearish
-        elif arrow_list[0] == "▲" and arrow_list[1] == "▲":
-            status = "⚡"  # Short-term bullish momentum
-        elif arrow_list[0] == "▼" and arrow_list[1] == "▼":
-            status = "⚠️"  # Short-term bearish momentum
         else:
             status = "⚖️"  # Mixed/Neutral
         
