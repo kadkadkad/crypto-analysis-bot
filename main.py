@@ -9460,7 +9460,7 @@ def generate_metric_report(metric, results):
     elif lookup_key == "Net Accum":
         if "4h" in metric.lower(): data_key = "net_accum_4h"
         elif "1d" in metric.lower(): data_key = "net_accum_1d"
-        else: data_key = "net_accum_1d"
+        else: data_key = "NetAccum_raw"  # 1H Net Accumulation
     elif metric in ["Support/Resistance", "S/R", "Levels"]: data_key = "Support_Resistance"
     elif metric in ["Whale Ranking", "Whale Analysis", "Whale Movement"]: data_key = "Whale Activity"
     elif "OI Change" in metric: data_key = "OI Change %"
