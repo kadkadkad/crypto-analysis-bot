@@ -3908,47 +3908,67 @@ def generate_whale_ranking_report():
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"🐳 <b>Whale Ranking Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
-    report += "This report ranks whale activities and net accumulation for the top 50 coins.\n\n"
+    report = f"🐳 <b>Whale Ranking Report – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
 
     valid_data = []
     for coin in ALL_RESULTS[:50]:
         try:
-            activity = extract_numeric(coin.get("Whale Activity", "0"))
-            net_accum_raw = extract_numeric(coin.get("NetAccum_raw", 0))
+            net_accum = extract_numeric(coin.get("NetAccum_raw", 0))
+            whale_buy = extract_numeric(coin.get("Whale_Buy_M", 0))
+            whale_sell = extract_numeric(coin.get("Whale_Sell_M", 0))
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
             valid_data.append({
                 "coin": coin,
-                "activity": activity,
-                "net_accum_raw": net_accum_raw
+                "net_accum": net_accum,
+                "whale_buy": whale_buy,
+                "whale_sell": whale_sell,
+                "vol_ratio": vol_ratio,
+                "total_activity": whale_buy + whale_sell
             })
         except (ValueError, TypeError):
             continue
 
-    # Rank by Activity
-    sorted_by_activity = sorted(valid_data, key=lambda x: x["activity"], reverse=True)
-    report += "<b>Most Active Whales (Trade Count):</b>\n"
-    if not sorted_by_activity:
-        report += "   • Data missing, whale activity not detected.\n"
-    for item in sorted_by_activity:
-        coin = item["coin"]
-        symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"{symbol}:\n"
-        report += f"   • Trade Count: {format_money(item['activity'])} trades\n"
-        report += f"   • Net Accumulation: {coin.get('Net Accum', 'N/A')}\n\n"
+    # Section 1: Top Net Accumulators (Bullish Whales)
+    report += "<b>🟢 TOP ACCUMULATORS (Net Buying)</b>\n"
+    sorted_by_net = sorted(valid_data, key=lambda x: x["net_accum"], reverse=True)
+    count = 0
+    for item in sorted_by_net[:15]:
+        if item["net_accum"] > 0:
+            count += 1
+            coin = item["coin"]
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            report += f"{count}. {symbol}: +{format_money(item['net_accum'])} | Vol: {item['vol_ratio']:.1f}x\n"
+    if count == 0:
+        report += "   No significant accumulation detected.\n"
+    
+    report += "\n"
 
-    # Rank by Net Accumulation
-    sorted_by_net = sorted(valid_data, key=lambda x: x["net_accum_raw"], reverse=True)
-    report += "<b>Highest Net Accumulation (Million USD):</b>\n"
-    if not sorted_by_net:
-        report += "   • Data missing, net accumulation not detected.\n"
-    for item in sorted_by_net:
-        coin = item["coin"]
-        symbol = "$" + coin['Coin'].replace("USDT", "")
-        report += f"{symbol}: {coin.get('Net Accum', 'N/A')}\n"
-        report += f"   • Volume Ratio: {coin.get('Volume Ratio', '0')}x\n"
-        report += f"   • Price: {coin['Price_Display']}\n\n"
+    # Section 2: Top Distributors (Bearish Whales)
+    report += "<b>🔴 TOP DISTRIBUTORS (Net Selling)</b>\n"
+    sorted_by_selling = sorted(valid_data, key=lambda x: x["net_accum"])  # Ascending = most negative first
+    count = 0
+    for item in sorted_by_selling[:15]:
+        if item["net_accum"] < 0:
+            count += 1
+            coin = item["coin"]
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            report += f"{count}. {symbol}: {format_money(item['net_accum'])} | Vol: {item['vol_ratio']:.1f}x\n"
+    if count == 0:
+        report += "   No significant distribution detected.\n"
+    
+    report += "\n"
 
-    report += "Note: Trade count shows whale activity intensity, while net accumulation shows the buy/sell balance."
+    # Section 3: Highest Total Activity (Buy + Sell Volume)
+    report += "<b>🔥 MOST ACTIVE (Buy + Sell Volume)</b>\n"
+    sorted_by_activity = sorted(valid_data, key=lambda x: x["total_activity"], reverse=True)
+    for i, item in enumerate(sorted_by_activity[:10], 1):
+        if item["total_activity"] > 0:
+            coin = item["coin"]
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            buy_pct = (item["whale_buy"] / item["total_activity"] * 100) if item["total_activity"] > 0 else 50
+            report += f"{i}. {symbol}: {format_money(item['total_activity'])} | Buy: {buy_pct:.0f}%\n"
+
+    report += "\n<i>💡 Net Accum = Taker Buy - Taker Sell (1H period)</i>"
     return report
 
 
