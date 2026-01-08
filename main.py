@@ -13172,7 +13172,6 @@ async def analyze_market():
                     
                     try:
                         wh_rep = generate_advanced_whale_trend_report()
-                        web_reports["MM Analysis"] = wh_rep
                         web_reports["Whale Movement"] = wh_rep
                     except Exception as e: print(f"[WARN] MM Analysis report failed: {e}")
                     
