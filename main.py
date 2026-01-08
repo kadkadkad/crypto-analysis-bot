@@ -3848,17 +3848,17 @@ def detect_advanced_whale_strategy(coin_data):
         atr_percent = extract_numeric(coin_data.get("ATR_raw", 0)) / price_value * 100 if price_value != 0 else 0
         
         if net_accum > 10 and volume_ratio > 2 and price_roc > 5 and rsi < 60:
-            return "Sessiz Birikim: Balinalar agresif alımda, pump öncesi olabilir."
+            return "🐋 Stealth Accumulation: Whales buying aggressively, pre-pump phase possible."
         elif net_accum < -10 and atr_percent > 2 and price_roc < -5:
-            return "Panik Satışı: Balinalar stop-loss avcılığı yapıyor."
+            return "🔻 Panic Selling: Whales hunting stop-losses."
         elif abs(net_accum) < 5 and whale_activity > 1000 and volume_ratio > 3:
-            return "Spoofing: Balinalar sahte hacim yaratıyor."
+            return "⚠️ Spoofing: Whales creating fake volume."
         elif net_accum > 5 and price_roc < 2 and rsi < 50:
-            return "Stratejik Toplama: Balinalar dipte birikiyor."
+            return "📦 Strategic Accumulation: Smart money buying the dip."
         else:
-            return "Belirgin strateji yok."
+            return "— No clear strategy detected."
     except Exception as e:
-        return "Strateji tespit edilemedi (Hata)"
+        return "⚠️ Strategy detection error"
 
 
 # ---------------- Vadeli İşlemler Analizi Fonksiyonları ----------------
@@ -3886,15 +3886,18 @@ def generate_advanced_whale_trend_report():
         signal = "🔥 Opportunity" if trend_score > 75 else "⚠️ Risky" if trend_score < 25 else "📈 Watch"
         symbol = coin['Coin'].replace("USDT", "")
         formatted_symbol = f"${symbol}"
-        report += f"{i}. {formatted_symbol} (Score: {trend_score})\n"
-        report += f"   • Whale Strategy: {whale_strategy}\n"
-        report += f"   • Price: {coin['Price_Display']} | RSI: {coin['RSI']} | Vol: {coin.get('Volume Ratio', 'N/A')}x\n"
-        report += f"   • Rec: {signal}\n\n"
+        rsi_val = round(extract_numeric(coin.get('RSI', 50)), 1)
+        vol_ratio = round(extract_numeric(coin.get('Volume Ratio', 1)), 2)
+        
+        report += f"{i}. <b>{formatted_symbol}</b> (Score: {trend_score})\n"
+        report += f"   • {whale_strategy}\n"
+        report += f"   • Price: {coin['Price_Display']} | RSI: {rsi_val} | Vol: {vol_ratio}x\n"
+        report += f"   • Signal: {signal}\n\n"
         
     avg_trend_score = sum(score for _, score in sorted_coins) / len(sorted_coins) if sorted_coins else 50
     report += "<b>Market Summary:</b>\n"
-    report += f"Average Trend Score: {round(avg_trend_score, 2)}\n"
-    report += "Market Sentiment: " + ("Strong 🚀" if avg_trend_score > 75 else "Weak 📉" if avg_trend_score < 25 else "Neutral ⚖️")
+    report += f"Average Trend Score: {round(avg_trend_score, 1)}\n"
+    report += "Market Sentiment: " + ("🚀 Strong Bullish" if avg_trend_score > 75 else "📉 Weak/Bearish" if avg_trend_score < 25 else "⚖️ Neutral")
     return report
 
 
