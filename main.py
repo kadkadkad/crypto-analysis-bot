@@ -12575,6 +12575,14 @@ async def analyze_market():
                     sol_corr_1h = data.get("sol_corr_1h", 0)
                     sol_corr_4h = data.get("sol_corr_4h", 0)
                     sol_corr_1d = data.get("sol_corr_1d", 0)
+                    
+                    # Fix: Self-correlation should be 1.0 for base coins
+                    if coin_symbol == "BTCUSDT":
+                        btc_corr_1h = btc_corr_4h = btc_corr_1d = 1.0
+                    elif coin_symbol == "ETHUSDT":
+                        eth_corr_1h = eth_corr_4h = eth_corr_1d = 1.0
+                    elif coin_symbol == "SOLUSDT":
+                        sol_corr_1h = sol_corr_4h = sol_corr_1d = 1.0
 
                     # 4.5. Bollinger Squeeze Detection
                     try:

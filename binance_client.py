@@ -156,6 +156,10 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         for col in ["open", "high", "low", "close", "volume", "quote_volume", "taker_buy_quote"]:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna(subset=["close"])
+        
+        # FIX: Set datetime index for proper correlation alignment
+        df["close_time"] = pd.to_datetime(df["close_time"], unit='ms')
+        df.set_index("close_time", inplace=True)
 
         def safe_get(val):
             if val is None or pd.isna(val): return 0.0
@@ -165,6 +169,12 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
         ticker_data["macd"] = safe_get(MACD(df["close"]).macd().iloc[-1])
         ticker_data["adx"] = safe_get(calculate_adx(df))
         ticker_data["momentum"] = (ticker_data["rsi"] * 0.3) + (ticker_data["macd"] * 100) + (ticker_data["adx"] * 0.2)
+        
+        # EMA Calculations
+        ticker_data["ema_20"] = safe_get(calculate_ema(df, 20))
+        ticker_data["ema_50"] = safe_get(calculate_ema(df, 50))
+        ticker_data["ema_100"] = safe_get(calculate_ema(df, 100))
+        ticker_data["ema_200"] = safe_get(calculate_ema(df, 200))
         
         # Z-Score 1H
         sma20 = df["close"].rolling(window=20).mean().iloc[-1]
