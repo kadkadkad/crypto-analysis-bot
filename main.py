@@ -9251,9 +9251,9 @@ def generate_detailed_analysis_message(results):
 
         # 5. Correlation & Other Data
         coin_report += "\n<b>📊 Correlation & Other Data:</b>\n"
-        coin_report += f"• BTC Correlation: {fv(coin.get('BTC Correlation'))} (1h), {fv(coin.get('BTC Correlation_4h'))} (4h), {fv(coin.get('BTC Correlation_1d'))} (1d)\n"
-        coin_report += f"• ETH Correlation: {fv(coin.get('ETH Correlation'))} (1h), {fv(coin.get('ETH Correlation_4h'))} (4h), {fv(coin.get('ETH Correlation_1d'))} (1d)\n"
-        coin_report += f"• ATR: {format_money(coin.get('ATR', 0))}$\n"
+        coin_report += f"• BTC Correlation: {fv(coin.get('BTC Correlation 1h', coin.get('btc_corr_1h')))} (1h), {fv(coin.get('BTC Correlation 4h', coin.get('btc_corr_4h')))} (4h), {fv(coin.get('BTC Correlation 1d', coin.get('btc_corr_1d')))} (1d)\n"
+        coin_report += f"• ETH Correlation: {fv(coin.get('ETH Correlation 1h', coin.get('eth_corr_1h')))} (1h), {fv(coin.get('ETH Correlation 4h', coin.get('eth_corr_4h')))} (4h), {fv(coin.get('ETH Correlation 1d', coin.get('eth_corr_1d')))} (1d)\n"
+        coin_report += f"• ATR: {format_money(coin.get('atr', coin.get('ATR', 0)))}$\n"
         coin_report += f"• Support/Resistance: {coin.get('Support_Resistance', 'N/A')}\n"
         coin_report += f"• Bull/Bear Trap: {coin.get('Trap Status', 'None')}\n"
 
@@ -12557,6 +12557,16 @@ async def analyze_market():
                     
                     trades_count = int(data.get("trades", 0))
                     avg_vol = (data.get("quote_volume", 0) / trades_count) if trades_count > 0 else 0
+                    
+                    # Order Book Analysis
+                    bids = data.get("bids", [])
+                    asks = data.get("asks", [])
+                    if bids and asks:
+                        order_book = analyze_order_book(bids, asks, price, coin_symbol)
+                    else:
+                        order_book = {"imbalance": 0, "bid_volume": 0, "ask_volume": 0, "big_bid_wall": False, 
+                                     "big_ask_wall": False, "max_bid_price": 0, "max_ask_price": 0, "spread_pct": 0}
+                    
                     liq_map = analyze_liquidation_heatmap(df_all, price, data["symbol"])
                     pa_results = analyze_price_action(df_all)
                     
@@ -12679,6 +12689,11 @@ async def analyze_market():
                         "Whale Activity": f"{trades_count} (Avg: ${format_money(avg_vol)})",
                         "WhaleActivity": trades_count,
                         "NetAccum_raw": data.get('net_accumulation', 0),
+                        "Whale_Buy_M": data.get('buy', 0) / 1e6,  # from binance_client net_accum
+                        "Whale_Sell_M": data.get('sell', 0) / 1e6,  # from binance_client net_accum
+                        "Avg Trade Size": avg_vol,
+                        "atr": data.get('atr', 0),
+                        "ATR_raw": data.get('atr', 0),
                         "Volume Ratio": data.get('volume_ratio', 1.0),
                         "Taker Rate": data.get("taker_buy_quote", 0) / data.get("quote_volume", 1) if data.get("quote_volume", 1) > 0 else 0,
                         "Funding Rate": f"{data.get('funding_rate', 0) * 100:.4f}%",
@@ -12689,6 +12704,7 @@ async def analyze_market():
                         "EMA_50": data.get('ema_50', 0),
                         "EMA_100": data.get('ema_100', 0),
                         "EMA_200": data.get('ema_200', 0),
+                        "OrderBook": order_book,
                         "Antigravity Strategy": antigravity_pa_report,
                         "Liq Heatmap": liq_map,
                         "BB Squeeze": bb_squeeze_val,
