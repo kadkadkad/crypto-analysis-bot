@@ -9497,24 +9497,33 @@ def generate_metric_report(metric, results):
     except:
         sorted_results = results
 
-    for coin in sorted_results[:50]:
-        symbol = "$" + coin['Coin'].replace("USDT", "")
-        val = coin.get(data_key, "N/A")
-        
-        # Smart formatting
-        if isinstance(val, (int, float)):
-            if "Correlation" in display_name: val_str = f"{val:.2f}"
-            elif "Taker" in display_name: val_str = f"{val:.4f}"
-            elif "Accum" in display_name: val_str = format_money(val)
-            elif "Volume" in display_name: val_str = format_money(val)
-            else: val_str = f"{val:.2f}"
-        elif isinstance(val, tuple):
-            # For 4H/Weekly/Monthly tuples: (old_price_str, change_pct_str)
-            val_str = val[1]
-        else:
-            val_str = str(val)
+    # Special handling for Net Accumulation - show all timeframes
+    if "Accum" in display_name:
+        report += "<code>Pair         1H          4H          1D</code>\n"
+        for coin in sorted_results[:50]:
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            v1h = format_money(extract_numeric(coin.get("NetAccum_raw", 0)))
+            v4h = format_money(extract_numeric(coin.get("net_accum_4h", 0)))
+            v1d = format_money(extract_numeric(coin.get("net_accum_1d", 0)))
+            report += f"<code>{symbol:<12} {v1h:>10} {v4h:>10} {v1d:>10}</code>\n"
+    else:
+        for coin in sorted_results[:50]:
+            symbol = "$" + coin['Coin'].replace("USDT", "")
+            val = coin.get(data_key, "N/A")
             
-        report += f"{symbol}: {val_str}\n"
+            # Smart formatting
+            if isinstance(val, (int, float)):
+                if "Correlation" in display_name: val_str = f"{val:.2f}"
+                elif "Taker" in display_name: val_str = f"{val:.4f}"
+                elif "Volume" in display_name: val_str = format_money(val)
+                else: val_str = f"{val:.2f}"
+            elif isinstance(val, tuple):
+                # For 4H/Weekly/Monthly tuples: (old_price_str, change_pct_str)
+                val_str = val[1]
+            else:
+                val_str = str(val)
+                
+            report += f"{symbol}: {val_str}\n"
 
     report += "\n<i>⚡ Intelligence Feed • Data verified in real-time</i>"
     return report
