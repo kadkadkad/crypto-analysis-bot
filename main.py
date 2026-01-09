@@ -4039,95 +4039,107 @@ def generate_volatility_report():
 
 def generate_bollinger_squeeze_report():
     """
-    Analyzes Bollinger Band squeezes and reports breakout potential for top 50 coins.
+    Analyzes volatility compression for breakout potential.
+    Uses ATR, volume patterns, and price compression as proxies.
     """
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"📏 <b>Bollinger Band Squeeze Report – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
-    report += "This report analyzes coins with narrow Bollinger Bands and potential breakout signals.\n\n"
-
-    squeeze_data = []
+    report = f"📏 <b>Volatility Squeeze Analysis – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
+    
+    squeeze_candidates = []
+    expansion_candidates = []
+    
     for coin in ALL_RESULTS[:50]:
         try:
-            if "df" not in coin or not coin["df"]:
+            symbol = "$" + coin["Coin"].replace("USDT", "")
+            price = extract_numeric(coin.get("Price", 0))
+            
+            # Use available volatility indicators
+            atr = extract_numeric(coin.get("ATR", 0))
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            rsi = extract_numeric(coin.get("RSI", 50))
+            
+            # Price changes as volatility proxy
+            change_1h = extract_numeric(coin.get("1H Change", coin.get("1H Change Raw", 0)))
+            change_24h = extract_numeric(coin.get("24h Change Raw", 0))
+            
+            # OI and funding for direction bias
+            oi_change = extract_numeric(coin.get("OI Change %", 0))
+            funding = extract_numeric(coin.get("Funding Rate", 0))
+            
+            if price <= 0:
                 continue
-
-            df = pd.DataFrame(coin["df"])
-            if len(df) < 20:
-                continue
-
-            # Column mapping for consistency
-            column_names = {str(col).lower(): col for col in df.columns}
-            close_col = column_names.get("kapanış") or column_names.get("close") or df.columns[4]
-            high_col = column_names.get("yüksek") or column_names.get("high") or df.columns[1]
-            low_col = column_names.get("düşük") or column_names.get("low") or df.columns[2]
-
-            df[close_col] = pd.to_numeric(df[close_col], errors="coerce")
-            df[high_col] = pd.to_numeric(df[high_col], errors="coerce")
-            df[low_col] = pd.to_numeric(df[low_col], errors="coerce")
-            df.dropna(subset=[close_col, high_col, low_col], inplace=True)
-
-            if len(df) < 6:
-                continue
-
-            bb_indicator = BollingerBands(close=df[close_col], window=20, window_dev=2)
-            df["bb_upper"] = bb_indicator.bollinger_hband()
-            df["bb_lower"] = bb_indicator.bollinger_lband()
-            df["bb_middle"] = bb_indicator.bollinger_mavg()
-            df["bb_width"] = (df["bb_upper"] - df["bb_lower"]) / df["bb_middle"] * 100
-
-            recent_bw = df["bb_width"].tail(6)
-            current_bw = recent_bw.iloc[-1]
-            min_bw_6 = recent_bw.min()
-
-            is_squeeze = current_bw <= (min_bw_6 * 1.1)
-
+            
+            # Volatility compression detection
+            # Low ATR relative to price + low volume = squeeze
+            atr_pct = (atr / price * 100) if atr > 0 and price > 0 else 0
+            
+            # SQUEEZE: Low volatility, low volume - breakout imminent
+            is_squeeze = (
+                abs(change_1h) < 0.5 and  # Very low 1H movement
+                abs(change_24h) < 2 and   # Low 24H movement
+                vol_ratio < 0.8           # Below average volume
+            )
+            
+            # EXPANSION: High volatility breakout happening
+            is_expansion = (
+                abs(change_1h) > 3 or     # Big 1H move
+                vol_ratio > 2             # Volume spike
+            )
+            
+            # Determine direction bias
+            if oi_change > 1 and funding > 0:
+                direction = "🟢 BULLISH"
+            elif oi_change < -1 or funding < -0.0005:
+                direction = "🔴 BEARISH"
+            else:
+                direction = "⚖️ NEUTRAL"
+            
+            coin_data = {
+                "symbol": symbol,
+                "price": format_money(price),
+                "vol_ratio": vol_ratio,
+                "rsi": rsi,
+                "change_1h": change_1h,
+                "change_24h": change_24h,
+                "direction": direction,
+                "atr_pct": atr_pct
+            }
+            
             if is_squeeze:
-                current_price = float(df[close_col].iloc[-1])
-                upper_band = df["bb_upper"].iloc[-1]
-                lower_band = df["bb_lower"].iloc[-1]
-                breakout_dir = (
-                    "Bullish" if current_price > upper_band else
-                    "Bearish" if current_price < lower_band else
-                    "Pending"
-                )
-
-                volume_ratio = extract_numeric(coin.get("Volume Ratio", 0))
-                rsi_val = extract_numeric(coin.get("RSI", "0"))
-                volume_comment = "Volume support present" if volume_ratio > 1.5 else "Volume is weak"
-                rsi_comment = (
-                    "Overbought" if rsi_val > 70 else
-                    "Oversold" if rsi_val < 30 else
-                    "Neutral"
-                )
-
-                squeeze_data.append({
-                    "Coin": coin["Coin"],
-                    "BandWidth": current_bw,
-                    "Breakout": breakout_dir,
-                    "Price": coin["Price_Display"],
-                    "VolumeRatio": volume_ratio,
-                    "VolumeComment": volume_comment,
-                    "RSI": rsi_val,
-                    "RSIComment": rsi_comment
-                })
-        except Exception:
+                squeeze_candidates.append(coin_data)
+            elif is_expansion:
+                expansion_candidates.append(coin_data)
+                
+        except Exception as e:
             continue
-
-    sorted_squeeze = sorted(squeeze_data, key=lambda x: x["BandWidth"])
-
-    if not sorted_squeeze:
-        report += "No Bollinger Band squeeze detected in top 50 coins currently.\n"
-    else:
-        report += "<b>Squeeze Detected Coins:</b>\n"
-        for item in sorted_squeeze:
-            symbol = "$" + item["Coin"].replace("USDT", "")
-            report += f"<b>{symbol}</b>:\n"
-            report += f"   • BandWidth: {round(item['BandWidth'], 2)}% (Squeeze Intensity)\n"
-            report += f"   • Price: {item['Price']} | Breakout: {item['Breakout']}\n"
-            report += f"   • Vol Ratio: {item['VolumeRatio']}x ({item['VolumeComment']})\n"
-            report += f"   • RSI: {item['RSI']} ({item['RSIComment']})\n\n"
+    
+    # Build report
+    if squeeze_candidates:
+        report += f"<b>🔄 VOLATILITY SQUEEZE ({len(squeeze_candidates)})</b>\n"
+        report += "<i>Low volatility = Breakout imminent!</i>\n\n"
+        for c in squeeze_candidates[:10]:
+            report += f"<b>{c['symbol']}</b> {c['price']}\n"
+            report += f"  📊 1H: {c['change_1h']:+.1f}% | 24H: {c['change_24h']:+.1f}%\n"
+            report += f"  🔊 Vol: {c['vol_ratio']:.1f}x | RSI: {c['rsi']:.0f} | {c['direction']}\n\n"
+    
+    if expansion_candidates:
+        report += f"<b>💥 BREAKOUT IN PROGRESS ({len(expansion_candidates)})</b>\n"
+        report += "<i>High volatility expansion!</i>\n\n"
+        for c in sorted(expansion_candidates, key=lambda x: abs(x["change_1h"]), reverse=True)[:10]:
+            emoji = "🚀" if c["change_1h"] > 0 else "💥"
+            report += f"<b>{c['symbol']}</b> {c['price']} {emoji}\n"
+            report += f"  📊 1H: {c['change_1h']:+.1f}% | 24H: {c['change_24h']:+.1f}%\n"
+            report += f"  🔊 Vol: {c['vol_ratio']:.1f}x | RSI: {c['rsi']:.0f}\n\n"
+    
+    if not squeeze_candidates and not expansion_candidates:
+        report += "✅ Market volatility appears normal.\n"
+        report += "<i>No extreme squeeze or expansion patterns detected.</i>\n\n"
+    
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<i>💡 Squeeze = Low volatility before big move\n"
+    report += "💡 Watch for volume spike to confirm breakout direction</i>"
 
     return report
 
