@@ -6050,37 +6050,40 @@ async def fetch_kline_data_safely(session, symbol, interval, limit=100):
 
 
 def sync_fetch_kline_data(symbol, interval, limit=100):
+    """
+    Fetches kline data synchronously using requests (not asyncio)
+    """
     try:
         cache_key = f"{symbol}_{interval}_{limit}"
 
-        # Önbellek kontrolü
+        # Cache check
         with global_lock:
             cached = KLINE_CACHE.get(cache_key)
             if cached and (get_turkey_time() - cached["timestamp"]).total_seconds() < 300:
                 return cached["data"]
 
-        # Yeni veri çekme
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        async def fetch():
-            async with aiohttp.ClientSession() as session:
-                return await fetch_kline_data_safely(session, symbol, interval, limit)
-
-        result = loop.run_until_complete(fetch())
-        loop.close()
-
-        # Başarılı sonuç önbellekleme
-        if result:
-            with global_lock:
-                KLINE_CACHE[cache_key] = {
-                    "data": result,
-                    "timestamp": get_turkey_time()
-                }
-
-        return result
+        # Simple synchronous request
+        url = f"{BINANCE_API_URL}klines?symbol={symbol}&interval={interval}&limit={limit}"
+        response = requests.get(url, timeout=15)
+        
+        if response.status_code == 429:
+            time.sleep(2)
+            response = requests.get(url, timeout=15)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) >= 3:
+                # Cache successful result
+                with global_lock:
+                    KLINE_CACHE[cache_key] = {
+                        "data": data,
+                        "timestamp": get_turkey_time()
+                    }
+                return data
+        
+        return []
     except Exception as e:
-        print(f"[ERROR] {symbol} için sync_fetch_kline_data hatası: {e}")
+        print(f"[ERROR] {symbol} sync_fetch_kline_data error: {e}")
         return []
 
 def fetch_taker_volumes_from_klines(symbol, interval="1h", limit=24):
