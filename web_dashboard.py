@@ -156,7 +156,14 @@ def get_report(report_type):
                 "24h Volume": "24h Volume",
                 "S/R Levels": "Support/Resistance",
                 "Support/Resistance": "Support/Resistance",
-                "Market Cash Flow Data": "Market Cash Flow Data"
+                "Market Cash Flow Data": "Market Cash Flow Data",
+                "YouTube Alpha": "YouTube Alpha",
+                "TVL Alpha": "TVL Alpha",
+                "Pump Predictions": "Pump Predictions",
+                "Deep Analysis": "Deep Analysis",
+                "ADX": "ADX",
+                "Liq Heatmap Summary": "Liq Heatmap Summary",
+                "Volume Ratio": "Volume Ratio"
             }
             
             key = mapping.get(report_type, report_type)

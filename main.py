@@ -13589,6 +13589,18 @@ async def analyze_market():
                     except Exception as e:
                         print(f"[WARN] Deep Technical Analysis report failed: {e}")
                     
+                    # YOUTUBE ALPHA (cached - only regenerate periodically)
+                    try:
+                        import youtube_analyzer
+                        # Check if we have a cached version
+                        if "YouTube Alpha" not in web_reports or time.time() % 300 < 10:  # Regenerate every 5 min
+                            yt_report = youtube_analyzer.analyze_youtube_alpha("Market overview context")
+                            if yt_report:
+                                web_reports["YouTube Alpha"] = yt_report
+                    except Exception as e:
+                        print(f"[WARN] YouTube Alpha report failed: {e}")
+                        web_reports["YouTube Alpha"] = "⚠️ YouTube Alpha is loading... Please try again in 1-2 minutes."
+                    
                     try: web_reports["Live Ticker"] = get_live_ticker_string()
                     except Exception as e: print(f"[WARN] Live Ticker failed: {e}")
                     try: 
