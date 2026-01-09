@@ -4039,107 +4039,108 @@ def generate_volatility_report():
 
 def generate_bollinger_squeeze_report():
     """
-    Analyzes volatility compression for breakout potential.
-    Uses ATR, volume patterns, and price compression as proxies.
+    Bollinger Band Squeeze Analysis using actual BB indicator values.
+    Squeeze = BB Width below average (bands tightening before breakout)
     """
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"📏 <b>Volatility Squeeze Analysis – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
+    report = f"📏 <b>Bollinger Band Squeeze – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
     
-    squeeze_candidates = []
-    expansion_candidates = []
+    squeeze_coins = []
+    near_band_coins = []
     
     for coin in ALL_RESULTS[:50]:
         try:
             symbol = "$" + coin["Coin"].replace("USDT", "")
             price = extract_numeric(coin.get("Price", 0))
             
-            # Use available volatility indicators
-            atr = extract_numeric(coin.get("ATR", 0))
-            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            # Get BB values
+            bb_upper = extract_numeric(coin.get("BB_Upper", 0))
+            bb_lower = extract_numeric(coin.get("BB_Lower", 0))
+            bb_middle = extract_numeric(coin.get("BB_Middle", 0))
+            bb_width = extract_numeric(coin.get("BB_Width", 0))
+            bb_squeeze = coin.get("BB Squeeze", "N/A")
+            
             rsi = extract_numeric(coin.get("RSI", 50))
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            change_1h = extract_numeric(coin.get("1H Change", 0))
             
-            # Price changes as volatility proxy
-            change_1h = extract_numeric(coin.get("1H Change", coin.get("1H Change Raw", 0)))
-            change_24h = extract_numeric(coin.get("24h Change Raw", 0))
-            
-            # OI and funding for direction bias
-            oi_change = extract_numeric(coin.get("OI Change %", 0))
-            funding = extract_numeric(coin.get("Funding Rate", 0))
-            
-            if price <= 0:
+            if price <= 0 or bb_upper <= 0:
                 continue
             
-            # Volatility compression detection
-            # Low ATR relative to price + low volume = squeeze
-            atr_pct = (atr / price * 100) if atr > 0 and price > 0 else 0
-            
-            # SQUEEZE: Low volatility, low volume - breakout imminent
-            is_squeeze = (
-                abs(change_1h) < 0.5 and  # Very low 1H movement
-                abs(change_24h) < 2 and   # Low 24H movement
-                vol_ratio < 0.8           # Below average volume
-            )
-            
-            # EXPANSION: High volatility breakout happening
-            is_expansion = (
-                abs(change_1h) > 3 or     # Big 1H move
-                vol_ratio > 2             # Volume spike
-            )
-            
-            # Determine direction bias
-            if oi_change > 1 and funding > 0:
-                direction = "🟢 BULLISH"
-            elif oi_change < -1 or funding < -0.0005:
-                direction = "🔴 BEARISH"
+            # Calculate position within bands
+            bb_range = bb_upper - bb_lower
+            if bb_range > 0:
+                bb_position = (price - bb_lower) / bb_range * 100  # 0-100%
             else:
-                direction = "⚖️ NEUTRAL"
+                bb_position = 50
+            
+            # Determine position description
+            if bb_position > 90:
+                position_desc = "🔴 UPPER BAND (Overbought)"
+                near_upper = True
+            elif bb_position < 10:
+                position_desc = "🟢 LOWER BAND (Oversold)"
+                near_upper = False
+            elif bb_position > 70:
+                position_desc = "📈 Upper Half"
+                near_upper = True
+            elif bb_position < 30:
+                position_desc = "📉 Lower Half"
+                near_upper = False
+            else:
+                position_desc = "⚖️ Middle"
+                near_upper = None
             
             coin_data = {
                 "symbol": symbol,
                 "price": format_money(price),
-                "vol_ratio": vol_ratio,
+                "bb_upper": bb_upper,
+                "bb_lower": bb_lower,
+                "bb_middle": bb_middle,
+                "bb_width": bb_width,
+                "bb_position": bb_position,
+                "position_desc": position_desc,
                 "rsi": rsi,
+                "vol_ratio": vol_ratio,
                 "change_1h": change_1h,
-                "change_24h": change_24h,
-                "direction": direction,
-                "atr_pct": atr_pct
+                "is_squeeze": "Squeeze" in bb_squeeze
             }
             
-            if is_squeeze:
-                squeeze_candidates.append(coin_data)
-            elif is_expansion:
-                expansion_candidates.append(coin_data)
+            # Categorize
+            if "Squeeze" in bb_squeeze:
+                squeeze_coins.append(coin_data)
+            elif bb_position > 85 or bb_position < 15:
+                near_band_coins.append(coin_data)
                 
         except Exception as e:
             continue
     
     # Build report
-    if squeeze_candidates:
-        report += f"<b>🔄 VOLATILITY SQUEEZE ({len(squeeze_candidates)})</b>\n"
-        report += "<i>Low volatility = Breakout imminent!</i>\n\n"
-        for c in squeeze_candidates[:10]:
-            report += f"<b>{c['symbol']}</b> {c['price']}\n"
-            report += f"  📊 1H: {c['change_1h']:+.1f}% | 24H: {c['change_24h']:+.1f}%\n"
-            report += f"  🔊 Vol: {c['vol_ratio']:.1f}x | RSI: {c['rsi']:.0f} | {c['direction']}\n\n"
-    
-    if expansion_candidates:
-        report += f"<b>💥 BREAKOUT IN PROGRESS ({len(expansion_candidates)})</b>\n"
-        report += "<i>High volatility expansion!</i>\n\n"
-        for c in sorted(expansion_candidates, key=lambda x: abs(x["change_1h"]), reverse=True)[:10]:
-            emoji = "🚀" if c["change_1h"] > 0 else "💥"
+    if squeeze_coins:
+        report += f"<b>🔥 BB SQUEEZE DETECTED ({len(squeeze_coins)})</b>\n"
+        report += "<i>Bands tightening = Breakout imminent!</i>\n\n"
+        for c in sorted(squeeze_coins, key=lambda x: x["bb_width"])[:10]:
+            emoji = "🔴" if c["bb_position"] > 50 else "🟢"
             report += f"<b>{c['symbol']}</b> {c['price']} {emoji}\n"
-            report += f"  📊 1H: {c['change_1h']:+.1f}% | 24H: {c['change_24h']:+.1f}%\n"
-            report += f"  🔊 Vol: {c['vol_ratio']:.1f}x | RSI: {c['rsi']:.0f}\n\n"
+            report += f"  📊 BB Width: {c['bb_width']:.2f}%\n"
+            report += f"  🎯 Upper: {format_money(c['bb_upper'])} | Lower: {format_money(c['bb_lower'])}\n"
+            report += f"  📍 Position: {c['bb_position']:.0f}% | RSI: {c['rsi']:.0f}\n\n"
+    else:
+        report += "ℹ️ <b>No BB Squeeze detected.</b>\n"
+        report += "<i>Bands are at normal width levels.</i>\n\n"
     
-    if not squeeze_candidates and not expansion_candidates:
-        report += "✅ Market volatility appears normal.\n"
-        report += "<i>No extreme squeeze or expansion patterns detected.</i>\n\n"
+    if near_band_coins:
+        report += f"<b>⚡ NEAR BAND EXTREMES ({len(near_band_coins)})</b>\n"
+        report += "<i>Price touching BB boundaries</i>\n\n"
+        for c in sorted(near_band_coins, key=lambda x: abs(50 - x["bb_position"]), reverse=True)[:8]:
+            report += f"• <b>{c['symbol']}</b>: {c['position_desc']} ({c['bb_position']:.0f}%)\n"
     
-    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    report += "<i>💡 Squeeze = Low volatility before big move\n"
-    report += "💡 Watch for volume spike to confirm breakout direction</i>"
+    report += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<i>📏 BB Width = (Upper - Lower) / Middle × 100\n"
+    report += "💡 Low width = Squeeze (explosion incoming)\n"
+    report += "💡 Position near bands = Potential reversal</i>"
 
     return report
 
@@ -13075,16 +13076,26 @@ async def analyze_market():
                         sol_corr_1h = sol_corr_4h = sol_corr_1d = 1.0
 
                     # 4.5. Bollinger Squeeze Detection
+                    bb_upper_val = bb_lower_val = bb_middle_val = bb_width_pct = 0
                     try:
                         bb = BollingerBands(df_all["close"], window=20, window_dev=2)
                         bb_h = bb.bollinger_hband()
                         bb_l = bb.bollinger_lband()
                         bb_m = bb.bollinger_mavg()
-                        bb_width = (bb_h - bb_l) / bb_m
-                        # Squeeze if current width is 20% below its 100-period average
-                        is_squeeze = bb_width.iloc[-1] < bb_width.rolling(window=100).mean().iloc[-1] * 0.8
+                        bb_width = (bb_h - bb_l) / bb_m * 100  # As percentage
+                        
+                        bb_upper_val = float(bb_h.iloc[-1])
+                        bb_lower_val = float(bb_l.iloc[-1])
+                        bb_middle_val = float(bb_m.iloc[-1])
+                        bb_width_pct = float(bb_width.iloc[-1])
+                        
+                        # Calculate average width for squeeze detection
+                        avg_width = bb_width.rolling(window=50, min_periods=10).mean().iloc[-1]
+                        
+                        # Squeeze if current width is 20% below its average
+                        is_squeeze = bb_width_pct < avg_width * 0.8 if avg_width > 0 else False
                         bb_squeeze_val = "Squeeze 🔥" if is_squeeze else "Normal"
-                    except:
+                    except Exception as e:
                         bb_squeeze_val = "N/A"
 
                     # 5. Build Result Dictionary
@@ -13190,6 +13201,10 @@ async def analyze_market():
                         "Liq Heatmap": liq_map,
                         "BB Squeeze": bb_squeeze_val,
                         "Bollinger Bands": bb_squeeze_val,
+                        "BB_Upper": bb_upper_val,
+                        "BB_Lower": bb_lower_val,
+                        "BB_Middle": bb_middle_val,
+                        "BB_Width": bb_width_pct,
                         "bullish_ob": pa_results.get("bullish_ob", False),
                         "bearish_ob": pa_results.get("bearish_ob", False),
                         "pa_structure": pa_results.get("structure", "Neutral"),
