@@ -140,28 +140,40 @@ def get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data):
         "Morning Star": []
     }
 
-    # Analyze all coins
+    # Analyze coins - limit to top 20 for performance
     total_coins_with_patterns = 0
-    # Process top 50 for efficiency on web
-    for coin in ALL_RESULTS[:50]:
-        symbol = coin["Coin"]
-        klines = sync_fetch_kline_data(symbol, "1h", limit=20)
-        patterns = extract_candlestick_patterns(klines)
+    analyzed_count = 0
+    failed_count = 0
+    
+    for coin in ALL_RESULTS[:20]:  # Reduced from 50 to 20 for speed
+        try:
+            symbol = coin["Coin"]
+            klines = sync_fetch_kline_data(symbol, "1h", limit=20)
+            
+            if not klines or len(klines) < 5:
+                failed_count += 1
+                continue
+                
+            patterns = extract_candlestick_patterns(klines)
+            analyzed_count += 1
 
-        if patterns:
-            total_coins_with_patterns += 1
+            if patterns:
+                total_coins_with_patterns += 1
 
-            for pattern in patterns:
-                pattern_type = pattern["type"]
-                if pattern_type in pattern_groups:
-                    pattern_groups[pattern_type].append({
-                        "symbol": symbol,
-                        "position": pattern["position"]
-                    })
+                for pattern in patterns:
+                    pattern_type = pattern["type"]
+                    if pattern_type in pattern_groups:
+                        pattern_groups[pattern_type].append({
+                            "symbol": symbol,
+                            "position": pattern["position"]
+                        })
+        except Exception as e:
+            failed_count += 1
+            continue
 
     # Summary info
     total_patterns = sum(len(coins) for coins in pattern_groups.values())
-    report += f"<b>Summary:</b> {total_patterns} candlestick patterns detected in {total_coins_with_patterns} out of {min(50, len(ALL_RESULTS))} coins.\n\n"
+    report += f"<b>Summary:</b> {total_patterns} patterns in {total_coins_with_patterns}/{analyzed_count} coins analyzed\n\n"
 
     # Report for each pattern type
     for pattern_type, coins in pattern_groups.items():

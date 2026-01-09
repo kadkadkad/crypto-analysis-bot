@@ -13652,12 +13652,18 @@ async def analyze_market():
                         web_reports["EMA Report"] = ema_rep
                     except Exception as e: print(f"[WARN] EMA Crossings report failed: {e}")
 
-                    # CANDLE PATTERN SIGNALS (using available metrics)
+                    # CANDLE PATTERN SIGNALS (using available metrics - fast)
                     try:
                         cand_rep = generate_pattern_signals_report()
-                        web_reports["Candlestick Patterns"] = cand_rep
-                        web_reports["Candle Patterns"] = cand_rep
+                        web_reports["Pattern Signals"] = cand_rep
                     except Exception as e: print(f"[WARN] Pattern Signals report failed: {e}")
+                    
+                    # REAL CANDLESTICK PATTERNS (from API - slower)
+                    try:
+                        real_cand = get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data)
+                        web_reports["Candlestick Patterns"] = real_cand
+                        web_reports["Candle Patterns"] = real_cand
+                    except Exception as e: print(f"[WARN] Real Candlestick Patterns report failed: {e}")
 
                     try: web_reports["Order Block"] = get_order_block_report_string()
                     except Exception as e: print(f"[WARN] Order Block report failed: {e}")
