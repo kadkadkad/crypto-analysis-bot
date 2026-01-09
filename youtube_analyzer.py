@@ -37,8 +37,9 @@ def get_latest_video_id(channel_id):
 def get_transcript(video_id):
     """Retrieves the text transcript of a YouTube video."""
     try:
-        transcript_list = YouTubeTranscriptApi().fetch(video_id, languages=['en', 'tr'])
-        text = " ".join([i.text for i in transcript_list])
+        # Use the correct API method - get_transcript is a class method
+        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'tr'])
+        text = " ".join([i['text'] for i in transcript_list])
         return text
     except Exception as e:
         print(f"[ERROR] Transcript fetch failed for {video_id}: {e}")
