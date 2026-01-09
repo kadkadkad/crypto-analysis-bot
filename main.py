@@ -10683,136 +10683,118 @@ def analyze_ema_trends(df, windows=[20, 50, 100, 200]):
 
 def get_ema_crossings_report_string():
     """
-    Creates EMA crossover and squeeze report for all coins
+    EMA Trend & Crossover Report using stored EMA values
     """
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
-    report = f"⚖️ <b>EMA Crossover & Squeeze Report – {get_turkey_time().strftime('%Y-%m-%d')}</b>\n\n"
-    report += "This report analyzes EMA crossovers and squeeze status.\n\n"
-
-    # Analyze coins for trend and squeeze
-    trend_results = []
-    squeeze_results = []
-    total_coins = 0
-    trend_types = {"Uptrend": 0, "Downtrend": 0, "Neutral": 0, "Insufficient Data": 0}
-    analyzed_coins = 0
-    failed_coins = 0
-
-    for coin in ALL_RESULTS:
+    report = f"⚖️ <b>EMA Trend & Crossover Report – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
+    
+    bullish_coins = []
+    bearish_coins = []
+    crossover_coins = []
+    
+    for coin in ALL_RESULTS[:50]:
         try:
-            symbol = coin["Coin"]
+            symbol = "$" + coin["Coin"].replace("USDT", "")
+            price = extract_numeric(coin.get("Price", 0))
             
-            if "df" not in coin or not coin["df"]:
-                failed_coins += 1
-                continue
-
-            df = pd.DataFrame(coin["df"])
-
-            # Normalize column names
-            df.columns = [col.lower().replace('ı', 'i').replace('ş', 's').replace('ö', 'o').replace('ü', 'u').replace('ç', 'c').replace('ğ', 'g') for col in df.columns]
-
-            column_mapping = {
-                'open': 'open', 'high': 'high', 'low': 'low', 'close': 'close', 'volume': 'volume',
-                'acilis': 'open', 'yuksek': 'high', 'dusuk': 'low', 'kapanis': 'close', 'hacim': 'volume'
-            }
-
-            for norm_orig, new_col in column_mapping.items():
-                if norm_orig in df.columns:
-                    df.rename(columns={norm_orig: new_col}, inplace=True)
-
-            if 'close' not in df.columns:
-                failed_coins += 1
-                continue
-
-            for col in ['open', 'high', 'low', 'close', 'volume']:
-                if col in df.columns:
-                    df[col] = pd.to_numeric(df[col], errors='coerce')
-
-            df_clean = df.dropna(subset=['close'])
-
-            if len(df_clean) < 20:
-                trend_types["Insufficient Data"] += 1
-                failed_coins += 1
-                continue
-
-            trend_analysis = analyze_ema_trends(df_clean)
+            # Get stored EMA values
+            ema_20 = extract_numeric(coin.get("EMA_20", 0))
+            ema_50 = extract_numeric(coin.get("EMA_50", 0))
+            ema_100 = extract_numeric(coin.get("EMA_100", 0))
+            ema_200 = extract_numeric(coin.get("EMA_200", 0))
             
-            # Translate trend direction
-            direction_map = {"Yükseliş": "Uptrend", "Düşüş": "Downtrend", "Nötr": "Neutral", "Veri Yetersiz": "Insufficient Data"}
-            raw_dir = trend_analysis.get("trend_direction", "Nötr")
-            trend_analysis["trend_direction_en"] = direction_map.get(raw_dir, raw_dir)
-
-            trend_results.append({
-                "symbol": symbol,
-                "trend_analysis": trend_analysis
-            })
-
-            trend_en = trend_analysis["trend_direction_en"]
-            trend_types[trend_en] = trend_types.get(trend_en, 0) + 1
-
-            squeeze_analysis = detect_ema_squeeze(df_clean)
-            if squeeze_analysis["squeeze_type"] not in ["Nötr", "Neutral", "Veri Yetersiz", "Insufficient Data"]:
-                # Translate squeeze type
-                sq_map = {"Yükseliş Kırılımı": "Bullish Breakout", "Düşüş Kırılımı": "Bearish Breakout", "Sıkışma": "Squeeze"}
-                raw_sq = squeeze_analysis.get("squeeze_type", "Nötr")
-                squeeze_analysis["squeeze_type_en"] = sq_map.get(raw_sq, raw_sq)
+            # Get EMA Trend from coin data
+            ema_trend = coin.get("EMA Trend", "")
+            sma_trend = coin.get("SMA Trend", "")
+            
+            rsi = extract_numeric(coin.get("RSI", 50))
+            change_1h = extract_numeric(coin.get("1H Change", 0))
+            
+            if price <= 0:
+                continue
+            
+            # Determine trend from EMA structure
+            bullish_count = 0
+            bearish_count = 0
+            
+            if ema_20 > 0:
+                if price > ema_20: bullish_count += 1
+                else: bearish_count += 1
                 
-                squeeze_results.append({
-                    "symbol": symbol,
-                    "squeeze_analysis": squeeze_analysis
-                })
-
-            total_coins += 1
-            analyzed_coins += 1
-
+            if ema_50 > 0:
+                if price > ema_50: bullish_count += 1
+                else: bearish_count += 1
+                if ema_20 > ema_50: bullish_count += 1
+                else: bearish_count += 1
+                    
+            if ema_100 > 0:
+                if price > ema_100: bullish_count += 1
+                else: bearish_count += 1
+                    
+            if ema_200 > 0:
+                if price > ema_200: bullish_count += 1
+                else: bearish_count += 1
+            
+            # Check for crossover signal in trend string
+            has_crossover = "X-Over" in ema_trend or "Cross" in ema_trend or "Bullish" in ema_trend
+            
+            coin_data = {
+                "symbol": symbol,
+                "price": format_money(price),
+                "ema_20": ema_20,
+                "ema_50": ema_50,
+                "ema_200": ema_200,
+                "trend": ema_trend if ema_trend else sma_trend,
+                "rsi": rsi,
+                "change_1h": change_1h,
+                "bullish_count": bullish_count,
+                "bearish_count": bearish_count
+            }
+            
+            if has_crossover:
+                crossover_coins.append(coin_data)
+            elif bullish_count >= 4:
+                bullish_coins.append(coin_data)
+            elif bearish_count >= 4:
+                bearish_coins.append(coin_data)
+                
         except Exception as e:
-            failed_coins += 1
             continue
-
-    report += f"Analysis Summary: {analyzed_coins} coins analyzed, {failed_coins} coins failed\n\n"
-
-    report += "🔍 <b>EMA Trend Analysis:</b>\n"
-    sorted_trends = sorted(trend_results, key=lambda x: x["trend_analysis"].get("trend_score", 0), reverse=True)
-
-    if not sorted_trends:
-        report += "No trend analysis available.\n\n"
-    else:
-        for coin_trend in sorted_trends[:50]:
-            symbol = "$" + coin_trend["symbol"].replace("USDT", "")
-            analysis = coin_trend["trend_analysis"]
-            report += f"• {symbol}: \n"
-            report += f"  {analysis.get('trend_emoji', '⚠️')} {analysis.get('trend_direction_en', 'Unknown')} Trend\n"
-            if "structure" in analysis and analysis["structure"]:
-                formatted_structure = format_ema_structure(analysis["structure"])
-                report += f"  Structure: {formatted_structure}\n"
-            report += f"  Trend Score: {analysis.get('trend_score', 0):.1f}% {'🚀' if analysis.get('trend_score', 0) > 75 else '⚡' if analysis.get('trend_score', 0) > 50 else '⚖️'}\n\n"
-
-    report += "📊 <b>EMA Squeeze Analysis:</b>\n"
-    if not squeeze_results:
-        report += "No squeeze detected at the moment.\n\n"
-    else:
-        report += "• Squeeze Detected for:\n"
-        sorted_squeeze = sorted(squeeze_results, key=lambda x: x["squeeze_analysis"].get("squeeze_score", 0), reverse=True)
-        for coin_squeeze in sorted_squeeze[:50]:
-            symbol = "$" + coin_squeeze["symbol"].replace("USDT", "")
-            analysis = coin_squeeze["squeeze_analysis"]
-            report += f"  - {symbol}: {analysis.get('squeeze_emoji', '⚠️')} {analysis.get('squeeze_type_en', 'Unknown')} "
-            report += f"(Score: {analysis.get('squeeze_score', 0)})\n"
-
-    report += "\n💡 <b>General Trend Commentary:</b>\n"
-    report += f"• Total Investigated Coins: {total_coins}\n"
-    report += f"• Uptrend: {trend_types.get('Uptrend', 0)} Coins\n"
-    report += f"• Downtrend: {trend_types.get('Downtrend', 0)} Coins\n"
-    report += f"• Neutral: {trend_types.get('Neutral', 0)} Coins\n"
-    report += f"• Insufficient Data: {trend_types.get('Insufficient Data', 0)} Coins\n"
-
-    if trend_types.get("Uptrend", 0) > max(trend_types.get("Downtrend", 0), trend_types.get("Neutral", 0)):
-        report += "\n🚀 <b>Market Outlook:</b> Bullish sentiment prevails. Positive signals observed.\n"
-    elif trend_types.get("Downtrend", 0) > max(trend_types.get("Uptrend", 0), trend_types.get("Neutral", 0)):
-        report += "\n📉 <b>Market Outlook:</b> Downtrend dominant. Caution is advised.\n"
-    else:
-        report += "\n⚖️ <b>Market Outlook:</b> Balanced market view.\n"
+    
+    # Build report
+    if crossover_coins:
+        report += f"<b>⚡ EMA CROSSOVERS ({len(crossover_coins)})</b>\n"
+        report += "<i>Recent trend changes detected</i>\n\n"
+        for c in crossover_coins[:10]:
+            report += f"<b>{c['symbol']}</b> {c['price']}\n"
+            report += f"  📊 {c['trend']}\n"
+            report += f"  RSI: {c['rsi']:.0f} | 1H: {c['change_1h']:+.1f}%\n\n"
+    
+    if bullish_coins:
+        report += f"<b>🟢 BULLISH STRUCTURE ({len(bullish_coins)})</b>\n"
+        report += "<i>Price above key EMAs</i>\n\n"
+        for c in sorted(bullish_coins, key=lambda x: x["bullish_count"], reverse=True)[:10]:
+            report += f"• <b>{c['symbol']}</b>: Price > EMA20/50/100/200\n"
+            report += f"  RSI: {c['rsi']:.0f} | {c['trend'][:25] if c['trend'] else 'N/A'}\n\n"
+    
+    if bearish_coins:
+        report += f"<b>🔴 BEARISH STRUCTURE ({len(bearish_coins)})</b>\n"
+        report += "<i>Price below key EMAs</i>\n\n"
+        for c in sorted(bearish_coins, key=lambda x: x["bearish_count"], reverse=True)[:10]:
+            report += f"• <b>{c['symbol']}</b>: Price < EMA20/50/100/200\n"
+            report += f"  RSI: {c['rsi']:.0f} | {c['trend'][:25] if c['trend'] else 'N/A'}\n\n"
+    
+    if not crossover_coins and not bullish_coins and not bearish_coins:
+        report += "⚖️ <b>Market in neutral zone.</b>\n"
+        report += "<i>No strong EMA signals detected.</i>\n\n"
+    
+    # Summary
+    total = len(bullish_coins) + len(bearish_coins) + len(crossover_coins)
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += f"<b>📊 Summary:</b> {len(crossover_coins)} crossovers | {len(bullish_coins)} bullish | {len(bearish_coins)} bearish\n"
+    report += "<i>💡 EMA Order: 20 > 50 > 100 > 200 = Strong uptrend</i>"
 
     return report
 
