@@ -191,7 +191,8 @@ def get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data):
 
         for coin_data in sorted(coins, key=lambda x: abs(x["position"])):
             position_text = f"{abs(coin_data['position'])} candles ago"
-            report += f"   • {coin_data['symbol']}: {position_text}\n"
+            symbol = "$" + coin_data['symbol'].replace("USDT", "")
+            report += f"   • {symbol}: {position_text}\n"
 
         report += "\n"
 
