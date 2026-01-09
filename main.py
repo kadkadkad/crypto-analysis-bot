@@ -4145,6 +4145,139 @@ def generate_bollinger_squeeze_report():
     return report
 
 
+def generate_pattern_signals_report():
+    """
+    Pattern Signals Report - Detects reversal/continuation patterns
+    using available metrics (RSI extremes, Volume spikes, Price action)
+    """
+    if not ALL_RESULTS:
+        return "⚠️ No analysis data available yet."
+
+    report = f"🕯️ <b>Pattern Signals Report – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
+    
+    bullish_reversals = []
+    bearish_reversals = []
+    momentum_signals = []
+    
+    for coin in ALL_RESULTS[:50]:
+        try:
+            symbol = "$" + coin["Coin"].replace("USDT", "")
+            price = extract_numeric(coin.get("Price", 0))
+            
+            rsi = extract_numeric(coin.get("RSI", 50))
+            rsi_4h = extract_numeric(coin.get("RSI_4h", 50))
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            change_1h = extract_numeric(coin.get("1H Change", 0))
+            change_24h = extract_numeric(coin.get("24h Change Raw", 0))
+            
+            # RSI Divergence proxy
+            rsi_div = coin.get("RSI_Div", "")
+            
+            # Volume Climax
+            vol_climax = coin.get("Vol_Climax", "")
+            
+            # SFP Pattern
+            sfp = coin.get("SFP_Pattern", "")
+            
+            patterns = []
+            
+            # BULLISH REVERSAL SIGNALS
+            # RSI Oversold + Volume Spike = Potential Hammer/Reversal
+            if rsi < 30 and vol_ratio > 1.5:
+                patterns.append("📊 RSI Oversold + Vol Spike")
+            
+            # RSI Bullish Divergence
+            if "Bullish" in str(rsi_div):
+                patterns.append("📈 RSI Bullish Divergence")
+            
+            # Volume Climax Buying
+            if "Buy" in str(vol_climax):
+                patterns.append("🔊 Volume Climax (Buy)")
+            
+            # Price dropped but recovering
+            if change_24h < -5 and change_1h > 1:
+                patterns.append("🔄 Reversal Candle")
+            
+            # BEARISH REVERSAL SIGNALS
+            # RSI Overbought + Volume Spike
+            if rsi > 70 and vol_ratio > 1.5:
+                patterns.append("📊 RSI Overbought + Vol Spike")
+            
+            # RSI Bearish Divergence
+            if "Bearish" in str(rsi_div):
+                patterns.append("📉 RSI Bearish Divergence")
+            
+            # Volume Climax Selling
+            if "Sell" in str(vol_climax):
+                patterns.append("🔊 Volume Climax (Sell)")
+            
+            # Price pumped but dropping
+            if change_24h > 5 and change_1h < -1:
+                patterns.append("🔄 Rejection Candle")
+            
+            # SFP Patterns
+            if sfp:
+                patterns.append(f"⚡ {sfp}")
+            
+            if not patterns:
+                continue
+            
+            coin_data = {
+                "symbol": symbol,
+                "price": format_money(price),
+                "rsi": rsi,
+                "vol_ratio": vol_ratio,
+                "change_1h": change_1h,
+                "patterns": patterns
+            }
+            
+            # Categorize
+            if any("Bullish" in p or "Oversold" in p or "Buy" in p for p in patterns):
+                bullish_reversals.append(coin_data)
+            elif any("Bearish" in p or "Overbought" in p or "Sell" in p for p in patterns):
+                bearish_reversals.append(coin_data)
+            else:
+                momentum_signals.append(coin_data)
+                
+        except Exception as e:
+            continue
+    
+    # Build report
+    total_signals = len(bullish_reversals) + len(bearish_reversals) + len(momentum_signals)
+    report += f"<b>Summary:</b> {total_signals} pattern signals detected\n\n"
+    
+    if bullish_reversals:
+        report += f"<b>🟢 BULLISH SIGNALS ({len(bullish_reversals)})</b>\n"
+        for c in bullish_reversals[:8]:
+            report += f"<b>{c['symbol']}</b> {c['price']}\n"
+            report += f"  RSI: {c['rsi']:.0f} | Vol: {c['vol_ratio']:.1f}x\n"
+            report += f"  Patterns: {', '.join(c['patterns'][:2])}\n\n"
+    
+    if bearish_reversals:
+        report += f"<b>🔴 BEARISH SIGNALS ({len(bearish_reversals)})</b>\n"
+        for c in bearish_reversals[:8]:
+            report += f"<b>{c['symbol']}</b> {c['price']}\n"
+            report += f"  RSI: {c['rsi']:.0f} | Vol: {c['vol_ratio']:.1f}x\n"
+            report += f"  Patterns: {', '.join(c['patterns'][:2])}\n\n"
+    
+    if momentum_signals:
+        report += f"<b>⚡ OTHER SIGNALS ({len(momentum_signals)})</b>\n"
+        for c in momentum_signals[:5]:
+            report += f"• <b>{c['symbol']}</b>: {', '.join(c['patterns'][:2])}\n"
+    
+    if not bullish_reversals and not bearish_reversals and not momentum_signals:
+        report += "✅ No strong pattern signals detected.\n"
+        report += "<i>Market in consolidation.</i>\n"
+    
+    report += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<i>💡 Pattern Types:\n"
+    report += "• RSI Oversold + Volume = Potential reversal\n"
+    report += "• RSI Divergence = Trend exhaustion\n"
+    report += "• Volume Climax = Capitulation signal</i>"
+
+    return report
+
+
 def generate_trust_index_report():
     """
     Evaluates reliability for top 50 coins on a scale of 0-100.
@@ -13519,11 +13652,12 @@ async def analyze_market():
                         web_reports["EMA Report"] = ema_rep
                     except Exception as e: print(f"[WARN] EMA Crossings report failed: {e}")
 
+                    # CANDLE PATTERN SIGNALS (using available metrics)
                     try:
-                        cand_rep = get_candlestick_patterns_report_string(ALL_RESULTS, sync_fetch_kline_data)
+                        cand_rep = generate_pattern_signals_report()
                         web_reports["Candlestick Patterns"] = cand_rep
                         web_reports["Candle Patterns"] = cand_rep
-                    except Exception as e: print(f"[WARN] Candlestick Patterns report failed: {e}")
+                    except Exception as e: print(f"[WARN] Pattern Signals report failed: {e}")
 
                     try: web_reports["Order Block"] = get_order_block_report_string()
                     except Exception as e: print(f"[WARN] Order Block report failed: {e}")
