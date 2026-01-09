@@ -35,10 +35,27 @@ def get_latest_video_id(channel_id):
     return None, None
 
 def get_transcript(video_id):
-    """Retrieves the text transcript of a YouTube video."""
+    """Retrieves the text transcript of a YouTube video with fallbacks."""
     try:
-        # Use the correct API method - get_transcript is a class method
-        transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'tr'])
+        # Try multiple approaches
+        try:
+            # First try English/Turkish
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'tr'])
+        except:
+            try:
+                # Try auto-generated English
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+            except:
+                try:
+                    # Try any available transcript
+                    transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
+                    # Get first available
+                    for transcript in transcripts:
+                        transcript_list = transcript.fetch()
+                        break
+                except:
+                    return None
+        
         text = " ".join([i['text'] for i in transcript_list])
         return text
     except Exception as e:
