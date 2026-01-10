@@ -4294,7 +4294,7 @@ def generate_order_flow_report():
     pullback_longs = []
     weak_candles = []
     
-    for coin in ALL_RESULTS[:30]:
+    for coin in ALL_RESULTS[:50]:
         try:
             symbol = "$" + coin["Coin"].replace("USDT", "")
             raw_symbol = coin["Coin"]
@@ -4502,55 +4502,70 @@ def generate_order_flow_report():
             continue
     
     # ═══════════════════════════════════════════
-    # BUILD REPORT
+    # BUILD REPORT - ALL COINS SORTED
     # ═══════════════════════════════════════════
     
-    # STRONG LONGS
-    if strong_longs:
-        report += f"<b>🚀 STRONG BULLISH FLOW ({len(strong_longs)})</b>\n"
-        report += "<i>4H candle closed strong, follow the train!</i>\n\n"
-        for c in sorted(strong_longs, key=lambda x: x["flow_score"], reverse=True)[:8]:
+    # Combine all analyzed coins
+    all_analyzed = strong_longs + strong_shorts + pullback_longs + weak_candles
+    
+    # Sort by flow score (highest to lowest)
+    all_sorted = sorted(all_analyzed, key=lambda x: x["flow_score"], reverse=True)
+    
+    # Summary
+    bullish_count = len([c for c in all_sorted if c["flow_score"] > 20])
+    bearish_count = len([c for c in all_sorted if c["flow_score"] < -20])
+    neutral_count = len(all_sorted) - bullish_count - bearish_count
+    
+    report += f"<b>📊 OVERVIEW:</b> {len(all_sorted)} coins analyzed\n"
+    report += f"🟢 Bullish: {bullish_count} | 🔴 Bearish: {bearish_count} | ⚖️ Neutral: {neutral_count}\n\n"
+    
+    # TOP BULLISH (Flow > 20)
+    top_bulls = [c for c in all_sorted if c["flow_score"] > 20]
+    if top_bulls:
+        report += f"<b>🚀 TOP BULLISH FLOW ({len(top_bulls)})</b>\n"
+        report += "<i>Strong candle + Multi-TF aligned = Follow the train!</i>\n\n"
+        for i, c in enumerate(top_bulls[:10], 1):
             emoji = "🔥" if c["flow_score"] >= 50 else "✅"
-            report += f"{emoji} <b>{c['symbol']}</b> {c['price']}\n"
-            report += f"   Flow: {c['flow_score']:+d} | 4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}%\n"
-            report += f"   📊 Candle: {c['body_ratio']:.0f}% body | Close {c['close_pos']:.0f}% to High\n"
-            report += f"   Taker: {c['taker']:.0%} | Vol: {c['vol_ratio']:.1f}x\n"
-            if c['signals']:
+            report += f"{i}. {emoji} <b>{c['symbol']}</b> Flow: {c['flow_score']:+d}\n"
+            report += f"   4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}%\n"
+            report += f"   Candle: {c['body_ratio']:.0f}% body | Close {c['close_pos']:.0f}%\n"
+            if c.get('signals'):
                 report += f"   → {c['signals'][0]}\n"
             report += "\n"
     
-    # PULLBACK OPPORTUNITIES
-    if pullback_longs:
-        report += f"<b>📉 PULLBACK ENTRIES ({len(pullback_longs)})</b>\n"
-        report += "<i>Trend up, temporary dip with low volume</i>\n\n"
-        for c in pullback_longs[:5]:
-            report += f"• <b>{c['symbol']}</b>: 4H: {c['change_4h']:+.1f}% → 1H dip: {c['change_1h']:+.1f}%\n"
-            report += f"  Wait for green 5m candle to confirm entry\n\n"
+    # NEUTRAL ZONE (-20 to +20)
+    neutrals = [c for c in all_sorted if -20 <= c["flow_score"] <= 20]
+    if neutrals:
+        report += f"<b>⚖️ NEUTRAL ZONE ({len(neutrals)})</b>\n"
+        report += "<i>No clear direction - wait for confirmation</i>\n\n"
+        for c in neutrals[:8]:
+            report += f"• {c['symbol']}: Flow {c['flow_score']:+d} | 4H: {c['change_4h']:+.1f}%\n"
+        report += "\n"
     
-    # STRONG SHORTS
-    if strong_shorts:
-        report += f"<b>📉 STRONG BEARISH FLOW ({len(strong_shorts)})</b>\n"
-        report += "<i>Sellers dominating, avoid longs</i>\n\n"
-        for c in sorted(strong_shorts, key=lambda x: x["flow_score"])[:5]:
-            report += f"🔴 <b>{c['symbol']}</b>: Flow {c['flow_score']:+d} | 4H: {c['change_4h']:+.1f}%\n"
+    # TOP BEARISH (Flow < -20)
+    top_bears = [c for c in all_sorted if c["flow_score"] < -20]
+    if top_bears:
+        report += f"<b>📉 TOP BEARISH FLOW ({len(top_bears)})</b>\n"
+        report += "<i>Sellers dominating - avoid longs!</i>\n\n"
+        for i, c in enumerate(sorted(top_bears, key=lambda x: x["flow_score"])[:8], 1):
+            report += f"{i}. 🔴 <b>{c['symbol']}</b> Flow: {c['flow_score']:+d}\n"
+            report += f"   4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}%\n"
+            if c.get('signals'):
+                report += f"   → {c['signals'][0]}\n"
+            report += "\n"
     
-    # WEAK CANDLES (High wick - absorption)
-    if weak_candles:
-        report += f"\n<b>⚠️ WEAK CANDLES ({len(weak_candles)})</b>\n"
-        for c in weak_candles[:3]:
-            report += f"• {c['symbol']}: High wick - possible reversal\n"
-    
-    if not strong_longs and not strong_shorts and not pullback_longs:
-        report += "⚖️ <b>No strong Order Flow signals detected.</b>\n"
-        report += "<i>Market in consolidation - wait for breakout.</i>\n"
+    if not all_sorted:
+        report += "⚠️ No coins analyzed yet.\n"
     
     # LEGEND
-    report += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    report += "<b>📊 Order Flow Legend:</b>\n"
-    report += "• <b>Flow Score:</b> -100 to +100\n"
-    report += "• <b>Taker:</b> >55% = Buyers | <45% = Sellers\n"
-    report += "• <b>Strategy:</b> Follow aligned TFs, join pullbacks\n"
-    report += "<i>💡 \"Don't predict, follow the aggressive order flow\"</i>"
+    report += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<b>📊 Order Flow Score:</b>\n"
+    report += "• +50 to +100: 🔥 Very Strong Buy\n"
+    report += "• +20 to +49: ✅ Bullish\n"
+    report += "• -20 to +20: ⚖️ Neutral\n"
+    report += "• -49 to -20: 🔴 Bearish\n"
+    report += "• -100 to -50: 💀 Strong Sell\n"
+    report += "<i>💡 Italian Method: Follow the train!</i>"
 
     return report
 
