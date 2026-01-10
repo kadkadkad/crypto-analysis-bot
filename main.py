@@ -4278,6 +4278,215 @@ def generate_pattern_signals_report():
     return report
 
 
+def generate_order_flow_report():
+    """
+    Order Flow Analysis - Italian Method
+    Analyzes aggressive vs passive order flow across multiple timeframes
+    """
+    if not ALL_RESULTS:
+        return "⚠️ No analysis data available yet."
+
+    report = f"🚂 <b>ORDER FLOW ANALYSIS – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
+    
+    strong_longs = []  # Strong bullish flow
+    strong_shorts = []  # Strong bearish flow
+    pullback_longs = []  # Pullback buy opportunities
+    avoid_list = []  # Conflicting signals
+    
+    for coin in ALL_RESULTS[:30]:
+        try:
+            symbol = "$" + coin["Coin"].replace("USDT", "")
+            price = extract_numeric(coin.get("Price", 0))
+            
+            # Multi-Timeframe Data
+            change_1h = extract_numeric(coin.get("1H Change", 0))
+            change_4h = extract_numeric(coin.get("4H Change", 0))
+            change_24h = extract_numeric(coin.get("24h Change Raw", 0))
+            
+            # Taker Buy/Sell Ratio (Delta Proxy)
+            taker_ratio = extract_numeric(coin.get("Taker Rate", 0.5))
+            
+            # Volume Analysis
+            vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
+            
+            # RSI for momentum
+            rsi = extract_numeric(coin.get("RSI", 50))
+            rsi_4h = extract_numeric(coin.get("RSI_4h", 50))
+            
+            # OI Change (institutional interest)
+            oi_change = extract_numeric(coin.get("OI Change %", 0))
+            
+            # Funding Rate (market sentiment)
+            funding = extract_numeric(coin.get("Funding Rate", 0))
+            
+            if price <= 0:
+                continue
+            
+            # ═══════════════════════════════════════════
+            # ORDER FLOW SCORING SYSTEM
+            # ═══════════════════════════════════════════
+            
+            flow_score = 0
+            signals = []
+            
+            # 1. MULTI-TIMEFRAME ALIGNMENT (Max: 40 points)
+            # 4H and 1H same direction = Strong flow
+            if change_4h > 0 and change_1h > 0:
+                flow_score += 20
+                signals.append("🟢 4H+1H Bullish Aligned")
+            elif change_4h < 0 and change_1h < 0:
+                flow_score -= 20
+                signals.append("🔴 4H+1H Bearish Aligned")
+            elif change_4h > 0 and change_1h < 0:
+                signals.append("⏸️ 4H Bull / 1H Pullback")
+            elif change_4h < 0 and change_1h > 0:
+                signals.append("⏸️ 4H Bear / 1H Bounce")
+            
+            # 24H trend confirmation
+            if change_24h > 2 and change_4h > 0:
+                flow_score += 10
+            elif change_24h < -2 and change_4h < 0:
+                flow_score -= 10
+            
+            # Strong momentum (no fitil)
+            if abs(change_1h) > 2 and vol_ratio > 1.5:
+                if change_1h > 0:
+                    flow_score += 10
+                    signals.append("💪 Strong 1H Candle")
+                else:
+                    flow_score -= 10
+                    signals.append("💪 Strong Bearish 1H")
+            
+            # 2. DELTA PROXY - Taker Analysis (Max: 30 points)
+            # Taker > 0.55 = Aggressive buyers dominating
+            if taker_ratio > 0.55:
+                flow_score += 15
+                signals.append(f"🟢 Taker Buy {taker_ratio:.0%}")
+            elif taker_ratio < 0.45:
+                flow_score -= 15
+                signals.append(f"🔴 Taker Sell {taker_ratio:.0%}")
+            
+            # Volume confirmation
+            if vol_ratio > 2:
+                if change_1h > 0:
+                    flow_score += 15
+                    signals.append(f"🔊 Vol Spike {vol_ratio:.1f}x (Buy)")
+                elif change_1h < 0:
+                    flow_score -= 15
+                    signals.append(f"🔊 Vol Spike {vol_ratio:.1f}x (Sell)")
+            
+            # 3. INSTITUTIONAL FLOW - OI Analysis (Max: 20 points)
+            if oi_change > 3 and change_1h > 0:
+                flow_score += 10
+                signals.append("🏦 OI Rising (Smart Money In)")
+            elif oi_change < -3 and change_1h < 0:
+                flow_score -= 10
+                signals.append("🏦 OI Falling (Smart Money Out)")
+            
+            # Funding extreme = reversal risk
+            if funding > 0.0005:
+                signals.append("⚠️ High Funding (Crowded Long)")
+            elif funding < -0.0003:
+                signals.append("⚠️ Neg Funding (Crowded Short)")
+            
+            # 4. PULLBACK OPPORTUNITY DETECTION
+            is_pullback_long = (
+                change_4h > 1 and  # 4H bullish
+                change_1h < -0.5 and change_1h > -3 and  # Small 1H dip
+                vol_ratio < 1.2 and  # Low volume pullback
+                rsi > 40 and rsi < 60  # Not oversold yet
+            )
+            
+            is_pullback_short = (
+                change_4h < -1 and
+                change_1h > 0.5 and change_1h < 3 and
+                vol_ratio < 1.2 and
+                rsi > 40 and rsi < 60
+            )
+            
+            # ═══════════════════════════════════════════
+            # CATEGORIZE SIGNALS
+            # ═══════════════════════════════════════════
+            
+            coin_data = {
+                "symbol": symbol,
+                "price": format_money(price),
+                "flow_score": flow_score,
+                "signals": signals,
+                "taker": taker_ratio,
+                "vol_ratio": vol_ratio,
+                "change_1h": change_1h,
+                "change_4h": change_4h,
+                "rsi": rsi
+            }
+            
+            if flow_score >= 30:
+                strong_longs.append(coin_data)
+            elif flow_score <= -30:
+                strong_shorts.append(coin_data)
+            elif is_pullback_long:
+                coin_data["signals"] = ["📉 Trend Pullback Entry"]
+                pullback_longs.append(coin_data)
+            elif abs(flow_score) < 10 and vol_ratio > 1.5:
+                coin_data["signals"] = ["⚔️ Conflicting Signals"]
+                avoid_list.append(coin_data)
+                
+        except Exception as e:
+            continue
+    
+    # ═══════════════════════════════════════════
+    # BUILD REPORT
+    # ═══════════════════════════════════════════
+    
+    # STRONG LONGS
+    if strong_longs:
+        report += f"<b>🚀 STRONG BULLISH FLOW ({len(strong_longs)})</b>\n"
+        report += "<i>Multi-TF aligned, aggressive buyers dominating</i>\n\n"
+        for c in sorted(strong_longs, key=lambda x: x["flow_score"], reverse=True)[:8]:
+            emoji = "🔥" if c["flow_score"] >= 50 else "✅"
+            report += f"{emoji} <b>{c['symbol']}</b> {c['price']}\n"
+            report += f"   Flow Score: {c['flow_score']:+d} | Taker: {c['taker']:.0%}\n"
+            report += f"   4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}% | Vol: {c['vol_ratio']:.1f}x\n"
+            if c['signals']:
+                report += f"   → {c['signals'][0]}\n"
+            report += "\n"
+    
+    # PULLBACK OPPORTUNITIES
+    if pullback_longs:
+        report += f"<b>📉 PULLBACK ENTRIES ({len(pullback_longs)})</b>\n"
+        report += "<i>Trend up, temporary dip with low volume</i>\n\n"
+        for c in pullback_longs[:5]:
+            report += f"• <b>{c['symbol']}</b>: 4H: {c['change_4h']:+.1f}% → 1H dip: {c['change_1h']:+.1f}%\n"
+            report += f"  Wait for green 5m candle to confirm entry\n\n"
+    
+    # STRONG SHORTS
+    if strong_shorts:
+        report += f"<b>📉 STRONG BEARISH FLOW ({len(strong_shorts)})</b>\n"
+        report += "<i>Sellers dominating, avoid longs</i>\n\n"
+        for c in sorted(strong_shorts, key=lambda x: x["flow_score"])[:5]:
+            report += f"🔴 <b>{c['symbol']}</b>: Flow {c['flow_score']:+d} | 4H: {c['change_4h']:+.1f}%\n"
+    
+    # AVOID LIST
+    if avoid_list:
+        report += f"\n<b>⚔️ CONFLICTING SIGNALS ({len(avoid_list)})</b>\n"
+        for c in avoid_list[:3]:
+            report += f"• {c['symbol']}: High vol but no direction\n"
+    
+    if not strong_longs and not strong_shorts and not pullback_longs:
+        report += "⚖️ <b>No strong Order Flow signals detected.</b>\n"
+        report += "<i>Market in consolidation - wait for breakout.</i>\n"
+    
+    # LEGEND
+    report += "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    report += "<b>📊 Order Flow Legend:</b>\n"
+    report += "• <b>Flow Score:</b> -100 to +100\n"
+    report += "• <b>Taker:</b> >55% = Buyers | <45% = Sellers\n"
+    report += "• <b>Strategy:</b> Follow aligned TFs, join pullbacks\n"
+    report += "<i>💡 \"Don't predict, follow the aggressive order flow\"</i>"
+
+    return report
+
+
 def generate_trust_index_report():
     """
     Evaluates reliability for top 50 coins on a scale of 0-100.
@@ -13639,6 +13848,9 @@ async def analyze_market():
                     
                     try: web_reports["Bollinger Squeeze"] = generate_bollinger_squeeze_report()
                     except Exception as e: print(f"[WARN] Bollinger Squeeze report failed: {e}")
+                    
+                    try: web_reports["Order Flow"] = generate_order_flow_report()
+                    except Exception as e: print(f"[WARN] Order Flow report failed: {e}")
                     
                     try: web_reports["Flow Migrations"] = generate_cash_flow_migration_report()
                     except Exception as e: print(f"[WARN] Flow Migrations report failed: {e}")
