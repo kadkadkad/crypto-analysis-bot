@@ -398,25 +398,39 @@ def export_data(export_type):
         elif export_type == "YouTube Transcripts":
             import youtube_analyzer
             all_content = []
+            errors = []
+            
             for name, cid in youtube_analyzer.CHANNELS.items():
-                vid, title = youtube_analyzer.get_latest_video_id(cid)
-                if vid:
-                    text = youtube_analyzer.get_transcript(vid)
-                    if text:
-                        all_content.append(
-                            f"=== CHANNEL: {name} ===\n"
-                            f"TITLE: {title}\n"
-                            f"URL: https://www.youtube.com/watch?v={vid}\n\n"
-                            f"TRANSCRIPT:\n{text}\n\n"
-                        )
+                try:
+                    vid, title = youtube_analyzer.get_latest_video_id(cid)
+                    if vid:
+                        text = youtube_analyzer.get_transcript(vid)
+                        if text:
+                            all_content.append(
+                                f"=== CHANNEL: {name} ===\n"
+                                f"TITLE: {title}\n"
+                                f"URL: https://www.youtube.com/watch?v={vid}\n\n"
+                                f"TRANSCRIPT:\n{text}\n\n"
+                            )
+                        else:
+                            errors.append(f"{name}: No subtitles available")
+                    else:
+                        errors.append(f"{name}: Could not get video")
+                except Exception as e:
+                    errors.append(f"{name}: {str(e)[:50]}")
             
             if not all_content:
-                return "No transcripts available", 404
+                # Return detailed error
+                error_msg = "No transcripts available.\n\nErrors:\n" + "\n".join(errors)
+                return error_msg, 404
                 
             filename = f"youtube_transcripts_{int(time.time())}.txt"
             file_path = f"/tmp/{filename}"
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write("\n".join(all_content))
+                if errors:
+                    f.write("\n\n=== CHANNELS WITHOUT SUBTITLES ===\n")
+                    f.write("\n".join(errors))
                 
             return send_file(file_path, as_attachment=True)
 

@@ -15,12 +15,16 @@ import time
 import random
 
 
-# YouTube Channel IDs - Reduced to 3 to prevent IP bans
+# YouTube Channel IDs - Multiple channels for better coverage
 CHANNELS = {
-    # Top 3 Most Important Channels (to avoid YouTube IP blocking)
-    "MoreCryptoOnline": "UCngIhBkikUe6e7tZTjpKK7Q",
+    # Primary Channels
     "Coin Bureau": "UCqK_GSMbpiV8spgD3ZGloSw",
-    "Cilinix Crypto": "UC8QWLZNoN3whQ7QMwoDp78A"
+    "MoreCryptoOnline": "UCngIhBkikUe6e7tZTjpKK7Q",
+    "Cilinix Crypto": "UC8QWLZNoN3whQ7QMwoDp78A",
+    # Backup Channels (usually have subtitles)
+    "DataDash": "UCCatR7nWbYrkVXdxXb4cGXw",
+    "Altcoin Daily": "UCbLhGKVY-bJPcawebgtNfbw",
+    "Crypto Banter": "UCN9Nj4tjXbVTLYWN0EKly_Q"
 }
 
 def get_latest_video_id(channel_id):
