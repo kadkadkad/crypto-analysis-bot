@@ -395,34 +395,7 @@ def init_db():
 # Çalıştırma başında çağır
 init_db()
 
-def sync_fetch_kline_data(symbol, interval, limit=100):
-    """
-    Binance'tan Kline verilerini senkron bir şekilde çeker.
-
-    Args:
-        symbol (str): Coin çifti (ör. 'BTCUSDT')
-        interval (str): Zaman aralığı (ör. '1h')
-        limit (int): Veri limiti (varsayılan 100)
-
-    Returns:
-        list: Kline verileri
-    """
-    try:
-        # Yeni bir olay döngüsü oluştur ve ayarla
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        async def fetch():
-            async with aiohttp.ClientSession() as session:
-                return await fetch_kline_data(session, symbol, interval, limit)
-
-        # Olay döngüsünde asenkron fonksiyonu çalıştır
-        result = loop.run_until_complete(fetch())
-        loop.close()  # Olay döngüsünü kapat
-        return result
-    except Exception as e:
-        print(f"[ERROR] {symbol} için sync_fetch_kline_data hatası: {e}")
-        return []  # Error durumunda boş liste dön
+# Previous sync_fetch_kline_data removed. Using requests-based implementation below.
 
 # ---------------- Yeni Eklenen Fonksiyonlar ----------------
 # Replace current economic data function with reliable API calls
@@ -4307,6 +4280,7 @@ def generate_order_flow_report():
             
             # Taker Buy/Sell Ratio (Delta Proxy)
             taker_ratio = extract_numeric(coin.get("Taker Rate", 0.5))
+            if taker_ratio > 1.0: taker_ratio /= 100  # Normalize percentage to ratio
             
             # Volume Analysis
             vol_ratio = extract_numeric(coin.get("Volume Ratio", 1))
@@ -6372,6 +6346,10 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
                         "timestamp": get_turkey_time()
                     }
                 return data
+            else:
+                 print(f"[WARN] Empty or insufficient kline data in sync_fetch for {symbol}")
+        else:
+            print(f"[WARN] Failed to fetch klines for {symbol}: Status {response.status_code}")
         
         return []
     except Exception as e:
