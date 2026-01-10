@@ -39,29 +39,36 @@ def get_latest_video_id(channel_id):
     return None, None
 
 def get_transcript(video_id):
-    """Retrieves the text transcript of a YouTube video with fallbacks."""
+    """Retrieves the text transcript of a YouTube video (v1.2.3 API)."""
     try:
-        # Try multiple approaches
+        # Create API instance - v1.2.3 uses instance methods
+        api = YouTubeTranscriptApi()
+        
+        # Try to fetch transcript
         try:
-            # First try English/Turkish
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'tr'])
+            # Try with English/Turkish preference
+            transcript = api.fetch(video_id, languages=['en', 'tr'])
         except:
             try:
-                # Try auto-generated English
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en'])
+                # Try English only
+                transcript = api.fetch(video_id, languages=['en'])
             except:
                 try:
-                    # Try any available transcript
-                    transcripts = YouTubeTranscriptApi.list_transcripts(video_id)
-                    # Get first available
-                    for transcript in transcripts:
-                        transcript_list = transcript.fetch()
-                        break
-                except:
+                    # Try any available language
+                    transcript = api.fetch(video_id)
+                except Exception as e:
+                    print(f"[ERROR] All transcript attempts failed for {video_id}: {e}")
                     return None
         
-        text = " ".join([i['text'] for i in transcript_list])
-        return text
+        # Extract text from transcript snippets
+        if hasattr(transcript, 'snippets'):
+            text = " ".join([s.text for s in transcript.snippets])
+        else:
+            # Fallback for different response format
+            text = " ".join([str(s) for s in transcript])
+        
+        return text if text else None
+        
     except Exception as e:
         print(f"[ERROR] Transcript fetch failed for {video_id}: {e}")
         return None
