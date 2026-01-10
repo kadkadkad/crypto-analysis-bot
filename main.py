@@ -4503,6 +4503,7 @@ def generate_order_flow_report():
             report += f"{i}. {emoji} <b>{c['symbol']}</b> Flow: {c['flow_score']:+d}\n"
             report += f"   4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}%\n"
             report += f"   Candle: {c['body_ratio']:.0f}% body | Close {c['close_pos']:.0f}%\n"
+            report += f"   Taker: {c['taker']:.1%} | Vol: {c['vol_ratio']:.1f}x\n"
             if c.get('signals'):
                 report += f"   → {c['signals'][0]}\n"
             report += "\n"
@@ -6330,11 +6331,12 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
 
         # Simple synchronous request
         url = f"{BINANCE_API_URL}klines?symbol={symbol}&interval={interval}&limit={limit}"
-        response = requests.get(url, timeout=15)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code == 429:
             time.sleep(2)
-            response = requests.get(url, timeout=15)
+            response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code == 200:
             data = response.json()
