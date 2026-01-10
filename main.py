@@ -4494,9 +4494,9 @@ def generate_order_flow_report():
             elif is_pullback_long:
                 coin_data["signals"] = ["📉 Trend Pullback Entry"]
                 pullback_longs.append(coin_data)
-            elif abs(flow_score) < 10 and vol_ratio > 1.5:
-                coin_data["signals"] = ["⚔️ Conflicting Signals"]
-                avoid_list.append(coin_data)
+            elif abs(flow_score) < 10 and (candle_quality == "weak_bull" or candle_quality == "weak_bear"):
+                coin_data["signals"] = ["⚠️ Weak Candle (Absorption)"]
+                weak_candles.append(coin_data)
                 
         except Exception as e:
             continue
@@ -4534,11 +4534,11 @@ def generate_order_flow_report():
         for c in sorted(strong_shorts, key=lambda x: x["flow_score"])[:5]:
             report += f"🔴 <b>{c['symbol']}</b>: Flow {c['flow_score']:+d} | 4H: {c['change_4h']:+.1f}%\n"
     
-    # AVOID LIST
-    if avoid_list:
-        report += f"\n<b>⚔️ CONFLICTING SIGNALS ({len(avoid_list)})</b>\n"
-        for c in avoid_list[:3]:
-            report += f"• {c['symbol']}: High vol but no direction\n"
+    # WEAK CANDLES (High wick - absorption)
+    if weak_candles:
+        report += f"\n<b>⚠️ WEAK CANDLES ({len(weak_candles)})</b>\n"
+        for c in weak_candles[:3]:
+            report += f"• {c['symbol']}: High wick - possible reversal\n"
     
     if not strong_longs and not strong_shorts and not pullback_longs:
         report += "⚖️ <b>No strong Order Flow signals detected.</b>\n"
