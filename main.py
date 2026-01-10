@@ -4282,20 +4282,22 @@ def generate_order_flow_report():
     """
     Order Flow Analysis - Italian Method
     Analyzes aggressive vs passive order flow across multiple timeframes
+    Key concepts: Candle Quality, Multi-TF Alignment, Delta Proxy
     """
     if not ALL_RESULTS:
         return "⚠️ No analysis data available yet."
 
     report = f"🚂 <b>ORDER FLOW ANALYSIS – {get_turkey_time().strftime('%H:%M:%S')}</b>\n\n"
     
-    strong_longs = []  # Strong bullish flow
-    strong_shorts = []  # Strong bearish flow
-    pullback_longs = []  # Pullback buy opportunities
-    avoid_list = []  # Conflicting signals
+    strong_longs = []
+    strong_shorts = []
+    pullback_longs = []
+    weak_candles = []
     
     for coin in ALL_RESULTS[:30]:
         try:
             symbol = "$" + coin["Coin"].replace("USDT", "")
+            raw_symbol = coin["Coin"]
             price = extract_numeric(coin.get("Price", 0))
             
             # Multi-Timeframe Data
@@ -4311,26 +4313,88 @@ def generate_order_flow_report():
             
             # RSI for momentum
             rsi = extract_numeric(coin.get("RSI", 50))
-            rsi_4h = extract_numeric(coin.get("RSI_4h", 50))
             
             # OI Change (institutional interest)
             oi_change = extract_numeric(coin.get("OI Change %", 0))
             
-            # Funding Rate (market sentiment)
+            # Funding Rate
             funding = extract_numeric(coin.get("Funding Rate", 0))
             
             if price <= 0:
                 continue
             
             # ═══════════════════════════════════════════
-            # ORDER FLOW SCORING SYSTEM
+            # CANDLE QUALITY ANALYSIS (Italian Method Core)
+            # ═══════════════════════════════════════════
+            
+            candle_quality = "neutral"
+            body_wick_ratio = 50  # Default
+            close_position = 50  # 0-100, 100 = closed at high
+            
+            try:
+                # Fetch last 4H candle for quality analysis
+                klines = sync_fetch_kline_data(raw_symbol, "4h", limit=2)
+                if klines and len(klines) >= 2:
+                    last_candle = klines[-1]
+                    o = float(last_candle[1])  # Open
+                    h = float(last_candle[2])  # High
+                    l = float(last_candle[3])  # Low
+                    c = float(last_candle[4])  # Close
+                    
+                    candle_range = h - l
+                    if candle_range > 0:
+                        body = abs(c - o)
+                        
+                        # Body/Wick Ratio (Italian: %70 gövde = trend)
+                        body_wick_ratio = (body / candle_range) * 100
+                        
+                        # Close Position (Italian: High'a yakın = güçlü)
+                        close_position = ((c - l) / candle_range) * 100
+                        
+                        # Candle Quality Assessment
+                        if c > o:  # Bullish candle
+                            if close_position > 80 and body_wick_ratio > 60:
+                                candle_quality = "strong_bull"  # Güçlü yeşil
+                            elif close_position < 30:
+                                candle_quality = "weak_bull"  # Fitilli yeşil (absorpsiyon)
+                            else:
+                                candle_quality = "moderate_bull"
+                        else:  # Bearish candle
+                            if close_position < 20 and body_wick_ratio > 60:
+                                candle_quality = "strong_bear"  # Güçlü kırmızı
+                            elif close_position > 70:
+                                candle_quality = "weak_bear"  # Fitilli kırmızı (absorpsiyon)
+                            else:
+                                candle_quality = "moderate_bear"
+            except:
+                pass  # Use defaults if kline fetch fails
+            
+            # ═══════════════════════════════════════════
+            # ORDER FLOW SCORING SYSTEM (Enhanced)
             # ═══════════════════════════════════════════
             
             flow_score = 0
             signals = []
             
-            # 1. MULTI-TIMEFRAME ALIGNMENT (Max: 40 points)
-            # 4H and 1H same direction = Strong flow
+            # 1. CANDLE QUALITY (Italian Core - Max 30 points)
+            if candle_quality == "strong_bull":
+                flow_score += 30
+                signals.append(f"💪 Strong Close ({close_position:.0f}% to High)")
+            elif candle_quality == "weak_bull":
+                signals.append(f"⚠️ Weak Bull (Wick {100-close_position:.0f}%)")
+            elif candle_quality == "strong_bear":
+                flow_score -= 30
+                signals.append(f"💪 Strong Bear ({100-close_position:.0f}% to Low)")
+            elif candle_quality == "weak_bear":
+                signals.append(f"⚠️ Weak Bear (Wick {close_position:.0f}%)")
+            
+            # Body/Wick indicator
+            if body_wick_ratio > 70:
+                signals.append(f"📊 Trend Candle ({body_wick_ratio:.0f}% body)")
+            elif body_wick_ratio < 30:
+                signals.append(f"⚖️ Range/Doji ({body_wick_ratio:.0f}% body)")
+            
+            # 2. MULTI-TF ALIGNMENT (Max 25 points)
             if change_4h > 0 and change_1h > 0:
                 flow_score += 20
                 signals.append("🟢 4H+1H Bullish Aligned")
@@ -4417,7 +4481,10 @@ def generate_order_flow_report():
                 "vol_ratio": vol_ratio,
                 "change_1h": change_1h,
                 "change_4h": change_4h,
-                "rsi": rsi
+                "rsi": rsi,
+                "candle_quality": candle_quality,
+                "body_ratio": body_wick_ratio,
+                "close_pos": close_position
             }
             
             if flow_score >= 30:
@@ -4441,12 +4508,13 @@ def generate_order_flow_report():
     # STRONG LONGS
     if strong_longs:
         report += f"<b>🚀 STRONG BULLISH FLOW ({len(strong_longs)})</b>\n"
-        report += "<i>Multi-TF aligned, aggressive buyers dominating</i>\n\n"
+        report += "<i>4H candle closed strong, follow the train!</i>\n\n"
         for c in sorted(strong_longs, key=lambda x: x["flow_score"], reverse=True)[:8]:
             emoji = "🔥" if c["flow_score"] >= 50 else "✅"
             report += f"{emoji} <b>{c['symbol']}</b> {c['price']}\n"
-            report += f"   Flow Score: {c['flow_score']:+d} | Taker: {c['taker']:.0%}\n"
-            report += f"   4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}% | Vol: {c['vol_ratio']:.1f}x\n"
+            report += f"   Flow: {c['flow_score']:+d} | 4H: {c['change_4h']:+.1f}% | 1H: {c['change_1h']:+.1f}%\n"
+            report += f"   📊 Candle: {c['body_ratio']:.0f}% body | Close {c['close_pos']:.0f}% to High\n"
+            report += f"   Taker: {c['taker']:.0%} | Vol: {c['vol_ratio']:.1f}x\n"
             if c['signals']:
                 report += f"   → {c['signals'][0]}\n"
             report += "\n"
