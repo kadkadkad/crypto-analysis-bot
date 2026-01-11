@@ -6361,11 +6361,12 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
 def fetch_taker_volumes_from_klines(symbol, interval="1h", limit=24):
     url = f"{BINANCE_API_URL}klines?symbol={symbol}&interval={interval}&limit={limit}"
     try:
-        response = requests.get(url, timeout=10)
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 429:
             print(f"[WARN] {symbol} için rate limit hatası, 5 saniye bekleniyor...")
             time.sleep(5)
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             data = response.json()
             df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume",
