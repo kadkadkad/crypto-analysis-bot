@@ -6340,7 +6340,7 @@ def sync_fetch_kline_data(symbol, interval, limit=100):
         
         if response.status_code == 200:
             data = response.json()
-            if data and len(data) >= 3:
+            if data and len(data) >= 1:
                 # Cache successful result
                 with global_lock:
                     KLINE_CACHE[cache_key] = {
