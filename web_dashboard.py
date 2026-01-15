@@ -384,6 +384,7 @@ def get_coin_analysis(symbol):
 def generate_coin_analysis_report(coin, all_results):
     """
     Generate a comprehensive analysis report for a single coin.
+    Includes ALL available metrics for thorough analysis.
     
     Returns:
         dict: Structured report with bullish/bearish factors, levels, and strategy
@@ -400,29 +401,134 @@ def generate_coin_analysis_report(coin, all_results):
         except:
             return default
     
+    def parse_support_resistance(val, price, is_support=True):
+        """Parse support/resistance values that might be in K format"""
+        if val is None:
+            return price * (0.97 if is_support else 1.03)
+        if isinstance(val, (int, float)):
+            return float(val)
+        try:
+            val_str = str(val).strip()
+            if 'K' in val_str.upper():
+                return float(val_str.upper().replace('K', '')) * 1000
+            return float(val_str)
+        except:
+            return price * (0.97 if is_support else 1.03)
+    
     symbol = coin.get('Coin', 'UNKNOWN')
     display_symbol = f"${symbol.replace('USDT', '')}"
     
-    # Extract metrics
+    # ============= EXTRACT ALL METRICS =============
+    # Basic Price Info
     price = safe_float(coin.get('Price', coin.get('price', 0)))
+    price_24h_change = safe_float(coin.get('24h Change Raw', 0))
+    
+    # Support/Resistance
+    support = parse_support_resistance(coin.get('Support'), price, is_support=True)
+    resistance = parse_support_resistance(coin.get('Resistance'), price, is_support=False)
+    
+    # Multi-timeframe RSI
     rsi_1h = safe_float(coin.get('RSI', 50))
     rsi_4h = safe_float(coin.get('RSI_4h', 50))
+    rsi_12h = safe_float(coin.get('rsi_12h', 50))
     rsi_1d = safe_float(coin.get('RSI_1d', 50))
+    
+    # Multi-timeframe MACD
     macd_1h = safe_float(coin.get('MACD', 0))
     macd_4h = safe_float(coin.get('MACD_4h', 0))
+    macd_12h = safe_float(coin.get('macd_12h', 0))
+    macd_1d = safe_float(coin.get('MACD_1d', 0))
+    
+    # Multi-timeframe ADX
     adx_1h = safe_float(coin.get('ADX', 0))
-    mfi = safe_float(coin.get('MFI', 50))
-    volume_ratio = safe_float(coin.get('Volume Ratio', 1))
-    net_accum = safe_float(coin.get('NetAccum_raw', 0))
-    oi_change = safe_float(coin.get('OI_Change', 0))
-    order_flow = safe_float(coin.get('Order_Flow_Score', 0))
-    smart_score = safe_float(coin.get('Composite Score', coin.get('Smart Score', 0)))
-    ema_trend = coin.get('EMA_Trend', 'Neutral')
-    support = safe_float(coin.get('Support', price * 0.97))
-    resistance = safe_float(coin.get('Resistance', price * 1.03))
-    taker_ratio = safe_float(coin.get('Taker_Ratio', 0.5))
-    price_spread = safe_float(coin.get('Price_Spread', 0.1))
+    adx_4h = safe_float(coin.get('ADX_4h', 0))
+    adx_12h = safe_float(coin.get('adx_12h', 0))
+    adx_1d = safe_float(coin.get('ADX_1d', 0))
+    
+    # Multi-timeframe MFI
+    mfi_1h = safe_float(coin.get('MFI', 50))
+    mfi_4h = safe_float(coin.get('mfi_4h', 50))
+    mfi_12h = safe_float(coin.get('mfi_12h', 50))
+    mfi_1d = safe_float(coin.get('mfi_1d', 50))
+    
+    # Multi-timeframe Z-Score
+    z_score_1h = safe_float(coin.get('Z-Score', 0))
+    z_score_4h = safe_float(coin.get('z_score_4h', 0))
+    z_score_12h = safe_float(coin.get('z_score_12h', 0))
+    z_score_1d = safe_float(coin.get('z_score_1d', 0))
+    
+    # Multi-timeframe Net Accumulation
+    net_accum_1h = safe_float(coin.get('NetAccum_raw', 0))
+    net_accum_4h = safe_float(coin.get('net_accum_4h', 0))
+    net_accum_12h = safe_float(coin.get('net_accum_12h', 0))
+    net_accum_1d = safe_float(coin.get('net_accum_1d', 0))
+    
+    # Momentum & Trend
     momentum = safe_float(coin.get('Momentum', 0))
+    ema_trend = coin.get('EMA Trend', coin.get('EMA_Trend', 'Neutral'))
+    sma_trend = coin.get('SMA Trend', 'Neutral')
+    ema_crossover = coin.get('EMA Crossover', 'No significant crossover')
+    ema20_cross = coin.get('EMA20 Cross', 'No Crossover')
+    
+    # Volume & Liquidity
+    volume_ratio = safe_float(coin.get('Volume Ratio', 1))
+    volume_24h = safe_float(coin.get('24h Volume', 0))
+    quote_vol_4h = safe_float(coin.get('quote_vol_4h', 0))
+    quote_vol_1d = safe_float(coin.get('quote_vol_1d', 0))
+    price_spread = safe_float(coin.get('Price Spread', 0.1))
+    
+    # Derivatives Data
+    funding_rate = coin.get('Funding Rate', '0%')
+    long_short_ratio = safe_float(coin.get('Long/Short Ratio', 1))
+    oi_change = safe_float(coin.get('OI Change %', 0))
+    open_interest = safe_float(coin.get('Open Interest', 0))
+    
+    # Taker Ratio from Manipulation Results
+    manipulation_data = coin.get('Manipulation_Results', {})
+    manipulation_metrics = manipulation_data.get('metrics', {})
+    taker_ratio_15m = safe_float(manipulation_metrics.get('taker_ratio_15m', 50)) / 100
+    taker_ratio_1h = safe_float(manipulation_metrics.get('taker_ratio_1h', 50)) / 100
+    order_book_imbalance = safe_float(manipulation_metrics.get('order_book_imbalance', 0))
+    
+    # Scores
+    smart_score = safe_float(coin.get('Composite Score', coin.get('Smart Score', 0)))
+    outlier_score = safe_float(coin.get('Outlier Score', 0))
+    
+    # Order Flow (derive from multiple signals)
+    order_flow = 0
+    if macd_1h > 0: order_flow += 15
+    if macd_4h > 0: order_flow += 15
+    if net_accum_1h > 0: order_flow += 20
+    if taker_ratio_1h > 0.52: order_flow += 15
+    if volume_ratio > 1.3: order_flow += 10
+    if order_book_imbalance > 20: order_flow += 10
+    elif order_book_imbalance < -20: order_flow -= 10
+    if net_accum_1h < 0: order_flow -= 20
+    if taker_ratio_1h < 0.48: order_flow -= 15
+    
+    # Correlations
+    btc_corr_1h = safe_float(coin.get('btc_corr_1h', 0))
+    btc_corr_4h = safe_float(coin.get('btc_corr_4h', 0))
+    btc_corr_1d = safe_float(coin.get('btc_corr_1d', 0))
+    eth_corr_1h = safe_float(coin.get('eth_corr_1h', 0))
+    eth_corr_4h = safe_float(coin.get('eth_corr_4h', 0))
+    eth_corr_1d = safe_float(coin.get('eth_corr_1d', 0))
+    sol_corr_1h = safe_float(coin.get('sol_corr_1h', 0))
+    sol_corr_4h = safe_float(coin.get('sol_corr_4h', 0))
+    sol_corr_1d = safe_float(coin.get('sol_corr_1d', 0))
+    
+    # Technical Patterns
+    bb_squeeze = coin.get('BB Squeeze', 'Normal')
+    bullish_ob = coin.get('bullish_ob', False)
+    bearish_ob = coin.get('bearish_ob', False)
+    pa_structure = coin.get('pa_structure', 'Sideways')
+    rsi_div = coin.get('RSI_Div', 'Neutral')
+    vol_climax = coin.get('Vol_Climax', 'Neutral')
+    sfp_pattern = coin.get('SFP_Pattern', 'Neutral')
+    trap_status = coin.get('Trap Status', 'None')
+    
+    # Manipulation Detection
+    detected_strategies = manipulation_data.get('detected_strategies', [])
     
     # Calculate Smart Score rank
     smart_score_rank = 1
@@ -430,7 +536,7 @@ def generate_coin_analysis_report(coin, all_results):
         if safe_float(c.get('Composite Score', c.get('Smart Score', 0))) > smart_score:
             smart_score_rank += 1
     
-    # Build bullish factors
+    # ============= BUILD BULLISH FACTORS (Bullish Confluence) =============
     bullish_factors = []
     
     # EMA Trend
@@ -443,27 +549,38 @@ def generate_coin_analysis_report(coin, all_results):
             "description": f"{strength} bullish alignment across timeframes"
         })
     
-    # MACD
+    # EMA Crossover
+    if 'bullish' in str(ema_crossover).lower():
+        bullish_factors.append({
+            "name": "EMA Crossover",
+            "value": ema_crossover,
+            "emoji": "✨",
+            "description": "Recent bullish EMA cross detected"
+        })
+    
+    # Multi-TF MACD
+    macd_bullish_count = sum([1 for m in [macd_1h, macd_4h, macd_1d] if m > 0])
     if macd_1h > 0:
         bullish_factors.append({
             "name": "MACD (1H)",
-            "value": f"{macd_1h:.2f}",
+            "value": f"{macd_1h:.4f}",
             "emoji": "📈",
-            "description": "Positive momentum, bullish crossover"
+            "description": f"Positive momentum ({macd_bullish_count}/3 TFs bullish)"
         })
     
     # Momentum
-    if momentum > 30:
+    if momentum > 0:
+        strength = "Strong" if momentum > 50 else "Moderate" if momentum > 20 else "Weak"
         bullish_factors.append({
             "name": "Momentum (1H)",
             "value": f"{momentum:.2f}",
             "emoji": "🚀",
-            "description": "Good upward momentum"
+            "description": f"{strength} upward momentum"
         })
     
     # Order Flow
-    if order_flow > 30:
-        flow_desc = "Very strong" if order_flow > 50 else "Strong"
+    if order_flow > 20:
+        flow_desc = "Very strong" if order_flow > 50 else "Strong" if order_flow > 35 else "Moderate"
         bullish_factors.append({
             "name": "Order Flow",
             "value": f"+{order_flow:.0f}",
@@ -472,174 +589,377 @@ def generate_coin_analysis_report(coin, all_results):
         })
     
     # Volume Ratio
-    if volume_ratio > 1.3:
+    if volume_ratio > 1.2:
+        vol_desc = "Very high" if volume_ratio > 2 else "High" if volume_ratio > 1.5 else "Above average"
         bullish_factors.append({
             "name": "Volume Ratio",
-            "value": f"{volume_ratio:.1f}x",
+            "value": f"{volume_ratio:.2f}x",
             "emoji": "📊",
-            "description": "Above average volume, healthy interest"
+            "description": f"{vol_desc} volume, healthy interest"
         })
     
-    # Taker Ratio (buyers)
-    if taker_ratio > 0.52:
+    # Taker Ratio (buyers dominant)
+    if taker_ratio_1h > 0.52:
         bullish_factors.append({
-            "name": "Taker Ratio",
-            "value": f"{taker_ratio*100:.1f}%",
+            "name": "Taker Ratio (1H)",
+            "value": f"{taker_ratio_1h*100:.1f}%",
             "emoji": "🛒",
             "description": "Buyer pressure dominant"
         })
     
-    # Low spread
+    # Price Spread (low = good liquidity)
     if price_spread < 0.1:
         bullish_factors.append({
             "name": "Price Spread",
-            "value": f"{price_spread:.2f}%",
+            "value": f"{price_spread:.4f}%",
             "emoji": "💧",
-            "description": "Low spread, good liquidity"
+            "description": "Low spread, good liquidity (low slippage risk)"
         })
     
-    # Build bearish factors
+    # Positive Net Accumulation
+    if net_accum_1h > 5000000:  # +5M threshold
+        bullish_factors.append({
+            "name": "Net Accumulation (1H)",
+            "value": f"+{net_accum_1h/1e6:.2f}M",
+            "emoji": "🐋",
+            "description": "Whale accumulation detected"
+        })
+    
+    # Order Book Imbalance (buy side)
+    if order_book_imbalance > 20:
+        bullish_factors.append({
+            "name": "Order Book",
+            "value": f"+{order_book_imbalance:.1f}%",
+            "emoji": "📗",
+            "description": "Buy-side order book dominance"
+        })
+    
+    # Long/Short Ratio
+    if long_short_ratio > 1.5:
+        bullish_factors.append({
+            "name": "L/S Ratio",
+            "value": f"{long_short_ratio:.2f}",
+            "emoji": "📈",
+            "description": "Longs dominant in derivatives"
+        })
+    
+    # Bullish Order Block
+    if bullish_ob:
+        bullish_factors.append({
+            "name": "Bullish OB",
+            "value": "Detected",
+            "emoji": "🟩",
+            "description": "Bullish order block nearby"
+        })
+    
+    # Low Correlations (independent mover)
+    avg_btc_corr = (btc_corr_1h + btc_corr_4h + btc_corr_1d) / 3
+    if avg_btc_corr < 0.4:
+        bullish_factors.append({
+            "name": "BTC Independence",
+            "value": f"{avg_btc_corr:.2f}",
+            "emoji": "🔓",
+            "description": "Low BTC correlation - independent mover"
+        })
+    
+    # ============= BUILD BEARISH FACTORS (Bearish Risks) =============
     bearish_factors = []
     
-    # RSI Overbought
-    if rsi_1h > 70 or rsi_4h > 70 or rsi_1d > 70:
-        ob_tfs = []
-        if rsi_1h > 70: ob_tfs.append(f"1H:{rsi_1h:.0f}")
-        if rsi_4h > 70: ob_tfs.append(f"4H:{rsi_4h:.0f}")
-        if rsi_1d > 70: ob_tfs.append(f"1D:{rsi_1d:.0f}")
+    # RSI Overbought (multi-TF)
+    rsi_overbought = []
+    if rsi_1h > 70: rsi_overbought.append(f"1H:{rsi_1h:.0f}")
+    if rsi_4h > 70: rsi_overbought.append(f"4H:{rsi_4h:.0f}")
+    if rsi_1d > 70: rsi_overbought.append(f"1D:{rsi_1d:.0f}")
+    if rsi_overbought:
+        severity = "Critical" if len(rsi_overbought) >= 2 else "Warning"
         bearish_factors.append({
             "name": "RSI Overbought",
-            "value": "/".join(ob_tfs),
-            "emoji": "⚠️",
-            "description": "Approaching or in overbought territory"
+            "value": "/".join(rsi_overbought),
+            "emoji": "⚠️" if len(rsi_overbought) >= 2 else "⚡",
+            "description": f"{severity}: Approaching or in overbought territory"
         })
     
-    # MFI high
-    if mfi > 65:
+    # RSI Oversold (multi-TF) - Potential reversal risk
+    rsi_oversold = []
+    if rsi_1h < 30: rsi_oversold.append(f"1H:{rsi_1h:.0f}")
+    if rsi_4h < 30: rsi_oversold.append(f"4H:{rsi_4h:.0f}")
+    if rsi_1d < 30: rsi_oversold.append(f"1D:{rsi_1d:.0f}")
+    if rsi_oversold:
+        bearish_factors.append({
+            "name": "RSI Oversold",
+            "value": "/".join(rsi_oversold),
+            "emoji": "📉",
+            "description": "Oversold - weak momentum, potential capitulation"
+        })
+    
+    # MFI High (potential exhaustion)
+    if mfi_1h > 65:
         bearish_factors.append({
             "name": "MFI (1H)",
-            "value": f"{mfi:.2f}",
+            "value": f"{mfi_1h:.2f}",
             "emoji": "💦",
-            "description": "High MFI, potential exhaustion signal"
+            "description": "High MFI, potential buying exhaustion signal"
         })
     
-    # ADX peaking
+    # ADX Peaking
     if adx_1h > 40:
         bearish_factors.append({
             "name": "ADX (1H)",
             "value": f"{adx_1h:.2f}",
             "emoji": "📉",
-            "description": "Strong trend but may be peaking"
+            "description": "Strong trend but may be peaking/exhausting"
         })
     
-    # Whale selling
-    if net_accum < -5000000:  # -5M threshold
+    # Whale Selling (Negative Net Accum)
+    if net_accum_1h < -5000000:  # -5M threshold
+        severity = "Heavy" if net_accum_1h < -20000000 else "Moderate"
         bearish_factors.append({
-            "name": "Whale Net Accum",
-            "value": f"{net_accum/1e6:.2f}M",
+            "name": "Whale Net Accum (1H)",
+            "value": f"{net_accum_1h/1e6:.2f}M",
             "emoji": "🐋",
-            "description": "Whale selling pressure detected"
+            "description": f"{severity} whale selling pressure detected"
         })
     
-    # OI divergence
-    if oi_change > 0 and net_accum < 0:
+    # Multi-TF Whale Selling Confirmation
+    if net_accum_4h < -10000000 and net_accum_1h < 0:
+        bearish_factors.append({
+            "name": "Whale Net Accum (4H)",
+            "value": f"{net_accum_4h/1e6:.2f}M",
+            "emoji": "🐋",
+            "description": "Sustained whale distribution on 4H"
+        })
+    
+    # OI Divergence (OI up but whales selling = potential trap)
+    if oi_change > 0.5 and net_accum_1h < -1000000:
         bearish_factors.append({
             "name": "OI Divergence",
-            "value": f"+{oi_change:.2f}%",
+            "value": f"+{oi_change:.2f}% OI",
             "emoji": "🔀",
-            "description": "OI increasing but whales selling - potential trap"
+            "description": "OI increasing but whales selling - potential long trap"
         })
     
     # Low Smart Score
-    if smart_score < 45:
+    if smart_score < 40:
         bearish_factors.append({
             "name": "Smart Score",
             "value": f"{smart_score:.2f}",
             "emoji": "🧠",
-            "description": f"Medium-low score (Rank #{smart_score_rank}/50)"
+            "description": f"Low score (Rank #{smart_score_rank}/{len(all_results)})"
         })
     
     # Bearish EMA
     if 'bearish' in str(ema_trend).lower():
+        strength = "Strong" if 'strong' in str(ema_trend).lower() else "Moderate"
         bearish_factors.append({
             "name": "EMA Trend",
             "value": ema_trend,
             "emoji": "🔴",
-            "description": "Bearish EMA alignment"
+            "description": f"{strength} bearish EMA alignment"
         })
     
-    # Calculate overall sentiment
+    # Death Cross
+    if 'death' in str(sma_trend).lower() or 'death' in str(ema_crossover).lower():
+        bearish_factors.append({
+            "name": "Death Cross",
+            "value": sma_trend,
+            "emoji": "💀",
+            "description": "Death cross detected - bearish signal"
+        })
+    
+    # BB Squeeze (volatility warning)
+    if 'squeeze' in str(bb_squeeze).lower():
+        bearish_factors.append({
+            "name": "BB Squeeze",
+            "value": bb_squeeze,
+            "emoji": "🔥",
+            "description": "Volatility squeeze - big move incoming (direction unclear)"
+        })
+    
+    # Bearish Order Block
+    if bearish_ob:
+        bearish_factors.append({
+            "name": "Bearish OB",
+            "value": "Detected",
+            "emoji": "🟥",
+            "description": "Bearish order block overhead"
+        })
+    
+    # Order Book Imbalance (sell side)
+    if order_book_imbalance < -20:
+        bearish_factors.append({
+            "name": "Order Book",
+            "value": f"{order_book_imbalance:.1f}%",
+            "emoji": "📕",
+            "description": "Sell-side order book pressure"
+        })
+    
+    # Manipulation Detected
+    for strategy in detected_strategies:
+        if strategy.get('score', 0) >= 50:
+            bearish_factors.append({
+                "name": f"⚠️ {strategy.get('type', 'Manipulation')}",
+                "value": f"Score: {strategy.get('score', 0)}",
+                "emoji": strategy.get('danger_level', '⚠️'),
+                "description": strategy.get('recommendation', 'Caution advised')
+            })
+    
+    # Negative Funding Rate (shorts paying longs = bearish pressure)
+    try:
+        funding_val = float(str(funding_rate).replace('%', ''))
+        if funding_val < -0.02:
+            bearish_factors.append({
+                "name": "Negative Funding",
+                "value": funding_rate,
+                "emoji": "📊",
+                "description": "Shorts paying - bearish pressure in derivatives"
+            })
+    except:
+        pass
+    
+    # High Z-Score (overextended)
+    if z_score_1h > 2.5:
+        bearish_factors.append({
+            "name": "Z-Score (1H)",
+            "value": f"{z_score_1h:.2f}",
+            "emoji": "📏",
+            "description": "Price overextended from mean - reversion risk"
+        })
+    
+    # ============= CALCULATE SENTIMENT =============
     bull_score = len(bullish_factors) * 10 + (order_flow if order_flow > 0 else 0)
-    bear_score = len(bearish_factors) * 10 + (abs(order_flow) if order_flow < 0 else 0)
+    bear_score = len(bearish_factors) * 12 + (abs(order_flow) if order_flow < 0 else 0)
+    
+    # Add weight for critical signals
+    for bf in bearish_factors:
+        if 'Whale' in bf['name'] or 'Manipulation' in bf['name']:
+            bear_score += 15
     
     if bull_score > bear_score + 20:
         sentiment = "BULLISH"
         sentiment_emoji = "🟢"
-    elif bear_score > bull_score + 20:
+    elif bear_score > bull_score + 15:
         sentiment = "BEARISH"
         sentiment_emoji = "🔴"
     else:
         sentiment = "NEUTRAL"
         sentiment_emoji = "🟡"
     
-    # Generate strategy recommendation
+    # ============= GENERATE STRATEGY =============
+    # Format support/resistance for display
+    if support >= 1000:
+        support_display = f"${support/1000:.2f}K"
+    else:
+        support_display = f"${support:.4f}"
+    
+    if resistance >= 1000:
+        resistance_display = f"${resistance/1000:.2f}K"
+    else:
+        resistance_display = f"${resistance:.4f}"
+    
+    if price >= 1000:
+        price_display = f"${price/1000:.2f}K"
+    else:
+        price_display = f"${price:.4f}"
+    
+    # Calculate pullback probability
+    pullback_risk = len([f for f in bearish_factors if 'Whale' in f['name'] or 'RSI' in f['name'] or 'MFI' in f['name']])
+    pullback_pct = min(8, 3 + pullback_risk * 2)
+    
     if sentiment == "BULLISH":
-        entry_zone = f"${support:.4f} - ${price*0.99:.4f}"
-        target = f"${resistance:.4f} - ${resistance*1.05:.4f}"
-        stop_loss = f"${support*0.97:.4f}"
-        risk_level = "Medium" if len(bearish_factors) > 2 else "Low-Medium"
-        strategy = f"Wait for dip to {entry_zone} or breakout confirmation above ${resistance:.4f}"
+        entry_low = support
+        entry_high = price * 0.99
+        if entry_low >= 1000:
+            entry_zone = f"${entry_low/1000:.2f}K - ${entry_high/1000:.2f}K"
+        else:
+            entry_zone = f"${entry_low:.4f} - ${entry_high:.4f}"
+        
+        target_low = resistance
+        target_high = resistance * 1.05
+        if target_low >= 1000:
+            target = f"${target_low/1000:.2f}K - ${target_high/1000:.2f}K"
+        else:
+            target = f"${target_low:.4f} - ${target_high:.4f}"
+        
+        stop = support * 0.97
+        if stop >= 1000:
+            stop_loss = f"${stop/1000:.2f}K"
+        else:
+            stop_loss = f"${stop:.4f}"
+        
+        risk_level = "Medium" if len(bearish_factors) > 3 else "Low-Medium"
+        strategy = f"Wait for dip to {entry_zone} or breakout confirmation above {resistance_display}"
+        
     elif sentiment == "BEARISH":
         entry_zone = "Wait for reversal confirmation"
-        target = f"${support:.4f}"
-        stop_loss = f"${resistance*1.02:.4f}"
+        target = support_display
+        stop = resistance * 1.02
+        if stop >= 1000:
+            stop_loss = f"${stop/1000:.2f}K"
+        else:
+            stop_loss = f"${stop:.4f}"
         risk_level = "High"
-        strategy = "Avoid new longs, consider short on rejection at resistance"
-    else:
-        entry_zone = f"${support:.4f} - ${price:.4f}"
-        target = f"${resistance:.4f}"
-        stop_loss = f"${support*0.97:.4f}"
+        strategy = f"Avoid new longs, consider short on rejection at {resistance_display}"
+        
+    else:  # NEUTRAL
+        if support >= 1000:
+            entry_zone = f"${support/1000:.2f}K - {price_display}"
+        else:
+            entry_zone = f"${support:.4f} - {price_display}"
+        target = resistance_display
+        stop = support * 0.97
+        if stop >= 1000:
+            stop_loss = f"${stop/1000:.2f}K"
+        else:
+            stop_loss = f"${stop:.4f}"
         risk_level = "Medium-High" if len(bearish_factors) > len(bullish_factors) else "Medium"
-        strategy = "Wait for clearer direction, watch support/resistance levels"
+        strategy = f"Wait for clearer direction, watch S/R levels ({pullback_pct}% pullback likely)"
     
-    # Build overall assessment
+    # ============= BUILD ASSESSMENT =============
     bull_highlights = ", ".join([f.get('name') for f in bullish_factors[:3]]) if bullish_factors else "None"
     bear_highlights = ", ".join([f.get('name') for f in bearish_factors[:3]]) if bearish_factors else "None"
     
-    assessment = f"{display_symbol} is showing {sentiment.lower()} signals. "
+    assessment = f"{display_symbol} is showing **{sentiment.lower()}** signals. "
     if bullish_factors:
-        assessment += f"Strengths: {bull_highlights}. "
+        assessment += f"**Strengths:** {bull_highlights}. "
     if bearish_factors:
-        assessment += f"Risks: {bear_highlights}. "
+        assessment += f"**Risks:** {bear_highlights}. "
     
     if sentiment == "BULLISH":
-        assessment += f"If ${resistance:.4f} resistance breaks, expect acceleration to higher targets. "
-        assessment += f"Failure to break may lead to pullback towards ${support:.4f}."
+        assessment += f"If {resistance_display} resistance breaks, expect acceleration to higher targets. "
+        assessment += f"Failure to break may lead to pullback towards {support_display} ({pullback_pct}% pullback possible)."
     elif sentiment == "BEARISH":
-        assessment += f"Watch for support at ${support:.4f}. Break below could accelerate selling."
+        assessment += f"Watch for support at {support_display}. Break below could accelerate selling."
     else:
         assessment += "Mixed signals suggest caution. Wait for clearer directional move."
     
+    # ============= BUILD RESPONSE =============
     return {
         "symbol": symbol,
         "display_symbol": display_symbol,
         "timestamp": get_turkey_time().isoformat(),
         "price": {
             "current": price,
+            "current_display": price_display,
             "support": support,
+            "support_display": support_display,
             "resistance": resistance,
-            "range": f"${support:.4f} - ${resistance:.4f}"
+            "resistance_display": resistance_display,
+            "range": f"{support_display} - {resistance_display}",
+            "change_24h": f"{price_24h_change:+.2f}%"
         },
         "scores": {
-            "smart_score": smart_score,
+            "smart_score": round(smart_score, 2),
             "smart_score_rank": smart_score_rank,
-            "order_flow": order_flow
+            "total_coins": len(all_results),
+            "order_flow": order_flow,
+            "outlier_score": outlier_score
         },
         "sentiment": {
             "overall": sentiment,
             "emoji": sentiment_emoji,
             "bull_count": len(bullish_factors),
-            "bear_count": len(bearish_factors)
+            "bear_count": len(bearish_factors),
+            "pullback_risk_pct": pullback_pct
         },
         "bullish_factors": bullish_factors,
         "bearish_factors": bearish_factors,
@@ -652,15 +972,82 @@ def generate_coin_analysis_report(coin, all_results):
             "risk_level": risk_level
         },
         "raw_metrics": {
-            "rsi": {"1h": rsi_1h, "4h": rsi_4h, "1d": rsi_1d},
-            "macd": {"1h": macd_1h, "4h": macd_4h},
-            "adx": adx_1h,
-            "mfi": mfi,
-            "volume_ratio": volume_ratio,
-            "net_accum": net_accum,
-            "oi_change": oi_change,
-            "taker_ratio": taker_ratio,
-            "ema_trend": ema_trend
+            "rsi": {
+                "1h": round(rsi_1h, 2),
+                "4h": round(rsi_4h, 2),
+                "12h": round(rsi_12h, 2),
+                "1d": round(rsi_1d, 2)
+            },
+            "macd": {
+                "1h": round(macd_1h, 4),
+                "4h": round(macd_4h, 4),
+                "12h": round(macd_12h, 4),
+                "1d": round(macd_1d, 4)
+            },
+            "adx": {
+                "1h": round(adx_1h, 2),
+                "4h": round(adx_4h, 2),
+                "12h": round(adx_12h, 2),
+                "1d": round(adx_1d, 2)
+            },
+            "mfi": {
+                "1h": round(mfi_1h, 2),
+                "4h": round(mfi_4h, 2),
+                "12h": round(mfi_12h, 2),
+                "1d": round(mfi_1d, 2)
+            },
+            "z_score": {
+                "1h": round(z_score_1h, 2),
+                "4h": round(z_score_4h, 2),
+                "12h": round(z_score_12h, 2),
+                "1d": round(z_score_1d, 2)
+            },
+            "net_accumulation": {
+                "1h": round(net_accum_1h / 1e6, 2),
+                "4h": round(net_accum_4h / 1e6, 2),
+                "12h": round(net_accum_12h / 1e6, 2),
+                "1d": round(net_accum_1d / 1e6, 2),
+                "unit": "M"
+            },
+            "volume": {
+                "ratio": round(volume_ratio, 2),
+                "24h": round(volume_24h / 1e6, 2),
+                "unit": "M"
+            },
+            "taker_ratio": {
+                "15m": round(taker_ratio_15m * 100, 1),
+                "1h": round(taker_ratio_1h * 100, 1)
+            },
+            "derivatives": {
+                "funding_rate": funding_rate,
+                "long_short_ratio": round(long_short_ratio, 2),
+                "oi_change_pct": round(oi_change, 2),
+                "open_interest": round(open_interest, 2)
+            },
+            "correlations": {
+                "btc": {"1h": btc_corr_1h, "4h": btc_corr_4h, "1d": btc_corr_1d},
+                "eth": {"1h": eth_corr_1h, "4h": eth_corr_4h, "1d": eth_corr_1d},
+                "sol": {"1h": sol_corr_1h, "4h": sol_corr_4h, "1d": sol_corr_1d}
+            },
+            "trends": {
+                "ema_trend": ema_trend,
+                "sma_trend": sma_trend,
+                "ema_crossover": ema_crossover,
+                "momentum": round(momentum, 2)
+            },
+            "patterns": {
+                "bb_squeeze": bb_squeeze,
+                "bullish_ob": bullish_ob,
+                "bearish_ob": bearish_ob,
+                "pa_structure": pa_structure,
+                "rsi_div": rsi_div,
+                "trap_status": trap_status
+            },
+            "manipulation": {
+                "detected": len(detected_strategies) > 0,
+                "strategies": [s.get('type') for s in detected_strategies if s.get('score', 0) >= 40],
+                "order_book_imbalance": round(order_book_imbalance, 2)
+            }
         }
     }
 
