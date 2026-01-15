@@ -338,6 +338,332 @@ def elliott_wave_analysis():
         print(f"[API] Elliott Wave error: {e}")
         return jsonify({"error": str(e)}), 500
 
+# 📊 API: Coin Analysis Report (Comprehensive Single Coin Report)
+@app.route('/api/coin-analysis/<symbol>')
+@limiter.limit("30 per minute")
+@auth.login_required
+def get_coin_analysis(symbol):
+    """
+    Generate comprehensive analysis report for a single coin.
+    Returns bullish/bearish factors, support/resistance, and strategy recommendation.
+    """
+    try:
+        # Normalize symbol
+        symbol = symbol.upper()
+        if not symbol.endswith('USDT'):
+            symbol += 'USDT'
+        
+        # Load current data
+        if not os.path.exists(RESULTS_FILE):
+            return jsonify({"error": "No data available yet"}), 404
+        
+        with open(RESULTS_FILE, "r") as f:
+            results = json.load(f)
+        
+        # Find coin data
+        coin_data = None
+        for coin in results:
+            if coin.get('Coin') == symbol:
+                coin_data = coin
+                break
+        
+        if not coin_data:
+            return jsonify({"error": f"Coin {symbol} not found in top 50"}), 404
+        
+        # Generate comprehensive report
+        report = generate_coin_analysis_report(coin_data, results)
+        
+        return jsonify(report)
+    except Exception as e:
+        print(f"[API] Coin Analysis error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+
+def generate_coin_analysis_report(coin, all_results):
+    """
+    Generate a comprehensive analysis report for a single coin.
+    
+    Returns:
+        dict: Structured report with bullish/bearish factors, levels, and strategy
+    """
+    def safe_float(val, default=0):
+        if val is None:
+            return default
+        if isinstance(val, (int, float)):
+            return float(val)
+        try:
+            # Remove any non-numeric characters except . and -
+            cleaned = ''.join(c for c in str(val) if c.isdigit() or c in '.-')
+            return float(cleaned) if cleaned else default
+        except:
+            return default
+    
+    symbol = coin.get('Coin', 'UNKNOWN')
+    display_symbol = f"${symbol.replace('USDT', '')}"
+    
+    # Extract metrics
+    price = safe_float(coin.get('Price', coin.get('price', 0)))
+    rsi_1h = safe_float(coin.get('RSI', 50))
+    rsi_4h = safe_float(coin.get('RSI_4h', 50))
+    rsi_1d = safe_float(coin.get('RSI_1d', 50))
+    macd_1h = safe_float(coin.get('MACD', 0))
+    macd_4h = safe_float(coin.get('MACD_4h', 0))
+    adx_1h = safe_float(coin.get('ADX', 0))
+    mfi = safe_float(coin.get('MFI', 50))
+    volume_ratio = safe_float(coin.get('Volume Ratio', 1))
+    net_accum = safe_float(coin.get('NetAccum_raw', 0))
+    oi_change = safe_float(coin.get('OI_Change', 0))
+    order_flow = safe_float(coin.get('Order_Flow_Score', 0))
+    smart_score = safe_float(coin.get('Composite Score', coin.get('Smart Score', 0)))
+    ema_trend = coin.get('EMA_Trend', 'Neutral')
+    support = safe_float(coin.get('Support', price * 0.97))
+    resistance = safe_float(coin.get('Resistance', price * 1.03))
+    taker_ratio = safe_float(coin.get('Taker_Ratio', 0.5))
+    price_spread = safe_float(coin.get('Price_Spread', 0.1))
+    momentum = safe_float(coin.get('Momentum', 0))
+    
+    # Calculate Smart Score rank
+    smart_score_rank = 1
+    for c in all_results:
+        if safe_float(c.get('Composite Score', c.get('Smart Score', 0))) > smart_score:
+            smart_score_rank += 1
+    
+    # Build bullish factors
+    bullish_factors = []
+    
+    # EMA Trend
+    if 'bullish' in str(ema_trend).lower():
+        strength = "Strong" if 'strong' in str(ema_trend).lower() else "Moderate"
+        bullish_factors.append({
+            "name": "EMA Trend",
+            "value": ema_trend,
+            "emoji": "🟢",
+            "description": f"{strength} bullish alignment across timeframes"
+        })
+    
+    # MACD
+    if macd_1h > 0:
+        bullish_factors.append({
+            "name": "MACD (1H)",
+            "value": f"{macd_1h:.2f}",
+            "emoji": "📈",
+            "description": "Positive momentum, bullish crossover"
+        })
+    
+    # Momentum
+    if momentum > 30:
+        bullish_factors.append({
+            "name": "Momentum (1H)",
+            "value": f"{momentum:.2f}",
+            "emoji": "🚀",
+            "description": "Good upward momentum"
+        })
+    
+    # Order Flow
+    if order_flow > 30:
+        flow_desc = "Very strong" if order_flow > 50 else "Strong"
+        bullish_factors.append({
+            "name": "Order Flow",
+            "value": f"+{order_flow:.0f}",
+            "emoji": "💹",
+            "description": f"{flow_desc} bullish flow (multi-TF aligned)"
+        })
+    
+    # Volume Ratio
+    if volume_ratio > 1.3:
+        bullish_factors.append({
+            "name": "Volume Ratio",
+            "value": f"{volume_ratio:.1f}x",
+            "emoji": "📊",
+            "description": "Above average volume, healthy interest"
+        })
+    
+    # Taker Ratio (buyers)
+    if taker_ratio > 0.52:
+        bullish_factors.append({
+            "name": "Taker Ratio",
+            "value": f"{taker_ratio*100:.1f}%",
+            "emoji": "🛒",
+            "description": "Buyer pressure dominant"
+        })
+    
+    # Low spread
+    if price_spread < 0.1:
+        bullish_factors.append({
+            "name": "Price Spread",
+            "value": f"{price_spread:.2f}%",
+            "emoji": "💧",
+            "description": "Low spread, good liquidity"
+        })
+    
+    # Build bearish factors
+    bearish_factors = []
+    
+    # RSI Overbought
+    if rsi_1h > 70 or rsi_4h > 70 or rsi_1d > 70:
+        ob_tfs = []
+        if rsi_1h > 70: ob_tfs.append(f"1H:{rsi_1h:.0f}")
+        if rsi_4h > 70: ob_tfs.append(f"4H:{rsi_4h:.0f}")
+        if rsi_1d > 70: ob_tfs.append(f"1D:{rsi_1d:.0f}")
+        bearish_factors.append({
+            "name": "RSI Overbought",
+            "value": "/".join(ob_tfs),
+            "emoji": "⚠️",
+            "description": "Approaching or in overbought territory"
+        })
+    
+    # MFI high
+    if mfi > 65:
+        bearish_factors.append({
+            "name": "MFI (1H)",
+            "value": f"{mfi:.2f}",
+            "emoji": "💦",
+            "description": "High MFI, potential exhaustion signal"
+        })
+    
+    # ADX peaking
+    if adx_1h > 40:
+        bearish_factors.append({
+            "name": "ADX (1H)",
+            "value": f"{adx_1h:.2f}",
+            "emoji": "📉",
+            "description": "Strong trend but may be peaking"
+        })
+    
+    # Whale selling
+    if net_accum < -5000000:  # -5M threshold
+        bearish_factors.append({
+            "name": "Whale Net Accum",
+            "value": f"{net_accum/1e6:.2f}M",
+            "emoji": "🐋",
+            "description": "Whale selling pressure detected"
+        })
+    
+    # OI divergence
+    if oi_change > 0 and net_accum < 0:
+        bearish_factors.append({
+            "name": "OI Divergence",
+            "value": f"+{oi_change:.2f}%",
+            "emoji": "🔀",
+            "description": "OI increasing but whales selling - potential trap"
+        })
+    
+    # Low Smart Score
+    if smart_score < 45:
+        bearish_factors.append({
+            "name": "Smart Score",
+            "value": f"{smart_score:.2f}",
+            "emoji": "🧠",
+            "description": f"Medium-low score (Rank #{smart_score_rank}/50)"
+        })
+    
+    # Bearish EMA
+    if 'bearish' in str(ema_trend).lower():
+        bearish_factors.append({
+            "name": "EMA Trend",
+            "value": ema_trend,
+            "emoji": "🔴",
+            "description": "Bearish EMA alignment"
+        })
+    
+    # Calculate overall sentiment
+    bull_score = len(bullish_factors) * 10 + (order_flow if order_flow > 0 else 0)
+    bear_score = len(bearish_factors) * 10 + (abs(order_flow) if order_flow < 0 else 0)
+    
+    if bull_score > bear_score + 20:
+        sentiment = "BULLISH"
+        sentiment_emoji = "🟢"
+    elif bear_score > bull_score + 20:
+        sentiment = "BEARISH"
+        sentiment_emoji = "🔴"
+    else:
+        sentiment = "NEUTRAL"
+        sentiment_emoji = "🟡"
+    
+    # Generate strategy recommendation
+    if sentiment == "BULLISH":
+        entry_zone = f"${support:.4f} - ${price*0.99:.4f}"
+        target = f"${resistance:.4f} - ${resistance*1.05:.4f}"
+        stop_loss = f"${support*0.97:.4f}"
+        risk_level = "Medium" if len(bearish_factors) > 2 else "Low-Medium"
+        strategy = f"Wait for dip to {entry_zone} or breakout confirmation above ${resistance:.4f}"
+    elif sentiment == "BEARISH":
+        entry_zone = "Wait for reversal confirmation"
+        target = f"${support:.4f}"
+        stop_loss = f"${resistance*1.02:.4f}"
+        risk_level = "High"
+        strategy = "Avoid new longs, consider short on rejection at resistance"
+    else:
+        entry_zone = f"${support:.4f} - ${price:.4f}"
+        target = f"${resistance:.4f}"
+        stop_loss = f"${support*0.97:.4f}"
+        risk_level = "Medium-High" if len(bearish_factors) > len(bullish_factors) else "Medium"
+        strategy = "Wait for clearer direction, watch support/resistance levels"
+    
+    # Build overall assessment
+    bull_highlights = ", ".join([f.get('name') for f in bullish_factors[:3]]) if bullish_factors else "None"
+    bear_highlights = ", ".join([f.get('name') for f in bearish_factors[:3]]) if bearish_factors else "None"
+    
+    assessment = f"{display_symbol} is showing {sentiment.lower()} signals. "
+    if bullish_factors:
+        assessment += f"Strengths: {bull_highlights}. "
+    if bearish_factors:
+        assessment += f"Risks: {bear_highlights}. "
+    
+    if sentiment == "BULLISH":
+        assessment += f"If ${resistance:.4f} resistance breaks, expect acceleration to higher targets. "
+        assessment += f"Failure to break may lead to pullback towards ${support:.4f}."
+    elif sentiment == "BEARISH":
+        assessment += f"Watch for support at ${support:.4f}. Break below could accelerate selling."
+    else:
+        assessment += "Mixed signals suggest caution. Wait for clearer directional move."
+    
+    return {
+        "symbol": symbol,
+        "display_symbol": display_symbol,
+        "timestamp": get_turkey_time().isoformat(),
+        "price": {
+            "current": price,
+            "support": support,
+            "resistance": resistance,
+            "range": f"${support:.4f} - ${resistance:.4f}"
+        },
+        "scores": {
+            "smart_score": smart_score,
+            "smart_score_rank": smart_score_rank,
+            "order_flow": order_flow
+        },
+        "sentiment": {
+            "overall": sentiment,
+            "emoji": sentiment_emoji,
+            "bull_count": len(bullish_factors),
+            "bear_count": len(bearish_factors)
+        },
+        "bullish_factors": bullish_factors,
+        "bearish_factors": bearish_factors,
+        "assessment": assessment,
+        "strategy": {
+            "recommendation": strategy,
+            "entry_zone": entry_zone,
+            "target": target,
+            "stop_loss": stop_loss,
+            "risk_level": risk_level
+        },
+        "raw_metrics": {
+            "rsi": {"1h": rsi_1h, "4h": rsi_4h, "1d": rsi_1d},
+            "macd": {"1h": macd_1h, "4h": macd_4h},
+            "adx": adx_1h,
+            "mfi": mfi,
+            "volume_ratio": volume_ratio,
+            "net_accum": net_accum,
+            "oi_change": oi_change,
+            "taker_ratio": taker_ratio,
+            "ema_trend": ema_trend
+        }
+    }
+
 # 📥 API: Export (şifre korumalı, rate limited)
 @app.route('/api/export/<export_type>')
 @limiter.limit("5 per minute")
