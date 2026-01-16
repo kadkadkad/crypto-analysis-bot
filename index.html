@@ -2066,6 +2066,14 @@
             }
         }
 
+        // Load TV Library dynamically if not present
+        if (!document.getElementById('tv-lib')) {
+            const sc = document.createElement('script');
+            sc.id = 'tv-lib';
+            sc.src = 'https://s3.tradingview.com/tv.js';
+            document.head.appendChild(sc);
+        }
+
         // 🔍 Coin Analysis Report function
         function openCoinAnalysis() {
             const m = document.getElementById('modal');
@@ -2074,51 +2082,77 @@
             document.getElementById('popupSearch').value = '';
             m.style.display = 'flex';
 
-            // Build coin dropdown from current data
+            // Build coin dropdown
             let coinOptions = '<option value="">-- Select a Coin --</option>';
             if (db && db.length > 0) {
-                db.forEach(c => {
+                db.sort((a, b) => parseFloat(b['Composite Score'] || 0) - parseFloat(a['Composite Score'] || 0)).forEach(c => {
                     const sym = c.Coin.replace('USDT', '');
-                    coinOptions += `<option value="${c.Coin}">$${sym}</option>`;
+                    coinOptions += `<option value="${c.Coin}">$${sym} (Score: ${Math.round(c['Composite Score'] || 0)})</option>`;
                 });
             }
 
             b.innerHTML = `
                 <div style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.1), rgba(139, 92, 246, 0.1)); padding: 20px; border-radius: 12px; border-left: 4px solid #ec4899; margin-bottom: 20px;">
                     <h3 style="margin: 0 0 15px 0; color: #ec4899;">📊 Comprehensive Coin Analysis</h3>
-                    <p style="color: #8b949e; margin-bottom: 15px;">Select a coin from the top 50 to get detailed bullish/bearish analysis, support/resistance levels, and strategy recommendations.</p>
                     <div style="display: flex; gap: 15px; align-items: flex-end;">
                         <div style="flex: 1;">
                             <label style="display: block; margin-bottom: 5px; color: #8b949e;">Select Coin</label>
-                            <select id="coinAnalysisSelect" 
+                            <select id="coinAnalysisSelect" onchange="analyzeSelectedCoin()"
                                 style="width: 100%; padding: 12px; background: rgba(0,0,0,0.3); border: 1px solid #ec4899; border-radius: 6px; color: white; font-size: 14px;">
                                 ${coinOptions}
                             </select>
                         </div>
-                        <button onclick="analyzeSelectedCoin()" 
-                            style="padding: 12px 24px; background: linear-gradient(135deg, #ec4899, #8b5cf6); border: none; border-radius: 8px; color: white; font-weight: 600; cursor: pointer;">
-                            🔍 ANALYZE
-                        </button>
                     </div>
                 </div>
+                
+                <!-- TradingView Chart Container -->
+                <div id="tv_chart_container" style="height: 500px; margin-bottom: 20px; border-radius: 12px; overflow: hidden; border: 1px solid #30363d; display: none;"></div>
+
                 <div id="coinAnalysisResult" style="min-height: 200px;"></div>
             `;
         }
 
         async function analyzeSelectedCoin() {
             const select = document.getElementById('coinAnalysisSelect');
-            const symbol = select.value;
+            const symbolRaw = select.value;
             const resultDiv = document.getElementById('coinAnalysisResult');
+            const tvContainer = document.getElementById('tv_chart_container');
 
-            if (!symbol) {
-                resultDiv.innerHTML = '<p style="color: #ef4444; text-align: center;">Please select a coin first</p>';
+            if (!symbolRaw) {
+                resultDiv.innerHTML = '';
+                tvContainer.style.display = 'none';
                 return;
+            }
+
+            const symbol = symbolRaw.replace('USDT', '');
+
+            // Show Chart
+            tvContainer.style.display = 'block';
+            if (window.TradingView) {
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": "BINANCE:" + symbol + "USDT",
+                    "interval": "60",
+                    "timezone": "Europe/Istanbul",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "en",
+                    "toolbar_bg": "#f1f3f6",
+                    "enable_publishing": false,
+                    "hide_side_toolbar": false,
+                    "allow_symbol_change": false,
+                    "container_id": "tv_chart_container",
+                    "studies": [
+                        "RSI@tv-basicstudies",
+                        "MACD@tv-basicstudies"
+                    ]
+                });
             }
 
             resultDiv.innerHTML = '<div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 24px; color: #ec4899;"></i><p style="color: #8b949e; margin-top: 10px;">Generating comprehensive analysis...</p></div>';
 
             try {
-                const res = await fetch(`/api/coin-analysis/${symbol.replace('USDT', '')}`);
+                const res = await fetch(`/api/coin-analysis/${symbol}`);
                 const data = await res.json();
 
                 if (data.error) {
@@ -2322,7 +2356,9 @@
                         </div>
                     </div>
                 `;
+
             } catch (e) {
+                console.error(e);
                 resultDiv.innerHTML = `<span style="color: #ef4444;">Error analyzing coin: ${e.message}</span>`;
             }
         }
