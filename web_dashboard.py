@@ -60,7 +60,8 @@ REPORTS_FILE = "web_reports.json"
 @app.route('/')
 @auth.login_required
 def index():
-    return render_template('index.html')
+    # Cache Buster
+    return render_template('index.html', v=int(time.time()))
 
 # 📊 API: Veri çekme (rate limited)
 @app.route('/api/data')
