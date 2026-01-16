@@ -3,6 +3,7 @@ import json
 import time
 from datetime import datetime
 import pytz
+import ccxt
 from flask import Flask, render_template, jsonify, send_file, request
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
@@ -1156,6 +1157,41 @@ def export_data(export_type):
 @limiter.exempt
 def health():
     return jsonify({"status": "healthy", "timestamp": get_turkey_time().isoformat()}), 200
+
+# 📊 Kline Data Endpoint (Frontend Chart için)
+@app.route('/api/klines/<symbol>')
+@auth.login_required
+def get_klines(symbol):
+    try:
+        limit = request.args.get('limit', 200, type=int)
+        interval = request.args.get('interval', '1h')
+        
+        # Initialize Exchange (Create new or use existing if safe)
+        exchange = ccxt.binance({
+            'enableRateLimit': True,
+            'options': {'defaultType': 'future'} # Use futures data generally
+        })
+        
+        clean_symbol = symbol.replace('USDT', '').upper()
+        
+        # Fetch OHLCV
+        ohlcv = exchange.fetch_ohlcv(f"{clean_symbol}/USDT", interval, limit=limit)
+        
+        # Format for Lightweight Charts
+        data = []
+        for candle in ohlcv:
+            data.append({
+                'time': int(candle[0] / 1000), # Unix Timestamp (Seconds)
+                'open': candle[1],
+                'high': candle[2],
+                'low': candle[3],
+                'close': candle[4]
+            })
+            
+        return jsonify(data)
+    except Exception as e:
+        print(f"Kline Error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # ⚠️ Error handlers
 @app.errorhandler(429)
