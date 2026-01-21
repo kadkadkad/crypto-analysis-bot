@@ -3015,9 +3015,18 @@ def fetch_bybit_futures_data(symbol):
 def calculate_buyer_ratio(kline_data):
     if not kline_data or len(kline_data) < 5:
         return 50.0
-    df = pd.DataFrame(kline_data, columns=["timestamp", "open", "high", "low", "close", "volume",
-                                           "close_time", "quote_volume", "trades", "taker_buy_base",
-                                           "taker_buy_quote", "ignore"])
+    expected_cols = ["timestamp", "open", "high", "low", "close", "volume",
+                     "close_time", "quote_volume", "trades", "taker_buy_base",
+                     "taker_buy_quote", "ignore"]
+    
+    # Handle variable column length (e.g. from different exchanges/fallbacks)
+    if kline_data and len(kline_data) > 0:
+        row_len = len(kline_data[0])
+        cols = expected_cols[:row_len]
+    else:
+        cols = expected_cols
+        
+    df = pd.DataFrame(kline_data, columns=cols)
     df["quote_volume"] = pd.to_numeric(df["quote_volume"], errors="coerce").fillna(0)
     df["taker_buy_quote"] = pd.to_numeric(df["taker_buy_quote"], errors="coerce").fillna(0)
     recent_data = df.tail(5)
