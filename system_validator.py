@@ -512,17 +512,31 @@ class SystemValidator:
             recommendations.append("📊 Hiç sağlıklı sinyal yok - stratejiyi gözden geçir")
         
         # Rapor oluştur
+        # Convert validations to dict with status as string
+        validations_dict = []
+        for v in data_validations:
+            d = asdict(v)
+            d['status'] = v.status.value  # Convert enum to string
+            validations_dict.append(d)
+        
+        # Convert performances to dict with status as string
+        performances_dict = []
+        for p in signal_perfs:
+            d = asdict(p)
+            d['status'] = p.status.value  # Convert enum to string
+            performances_dict.append(d)
+        
         report = SystemHealthReport(
             timestamp=timestamp,
             overall_status=overall_status,
             overall_score=overall_score,
             data_accuracy={
-                'validations': [asdict(v) for v in data_validations],
+                'validations': validations_dict,
                 'healthy_count': sum(1 for v in data_validations if v.status == HealthStatus.HEALTHY),
                 'total_count': len(data_validations)
             },
             signal_performance={
-                'performances': [asdict(p) for p in signal_perfs],
+                'performances': performances_dict,
                 'healthy_signals': healthy_signals,
                 'problem_signals': problem_signals,
                 'total_signal_types': len(signal_perfs)
