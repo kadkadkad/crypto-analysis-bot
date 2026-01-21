@@ -56,6 +56,27 @@
             border-right: 1px solid var(--border);
             display: flex;
             flex-direction: column;
+            height: 100vh;
+            overflow-y: auto;
+            /* Enable vertical scrolling */
+        }
+
+        /* Custom Scrollbar for Sidebar */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--sidebar);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #30363d;
+            border-radius: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: #58a6ff;
         }
 
         .side-head {
