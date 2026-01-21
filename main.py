@@ -237,7 +237,22 @@ def handle_advanced_risk_analysis():
         risk_data = market_analyzer.analyze_market_risks(symbols[:50])
 
         # Generate and send report
+        # Generate and send report
         report = market_analyzer.generate_market_risk_report(risk_data)
+        
+        # Save to Web Dashboard
+        try:
+            with global_lock:
+                ALL_REPORTS["Risk Analysis"] = report
+            
+            # Manual save logic since helper function is missing
+            with open("web_reports.json", "w") as f:
+                import json
+                json.dump(ALL_REPORTS, f)
+                
+        except Exception as save_err:
+            print(f"[WARN] Failed to save Risk Report to web: {save_err}")
+
         send_telegram_message_long(report)
 
     except Exception as e:
