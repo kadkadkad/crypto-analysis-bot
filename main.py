@@ -855,21 +855,22 @@ def calculate_asset_risk(coin_data, macro_context=None):
         momentum_risk = min(abs(macd) * 60, 60)  # MACD'yi normalize et
         volume_risk = min((1 / max(volume_ratio, 0.2)) * 50, 50)  # low hacim = yüksek risk
         correlation_risk = min(abs(btc_corr) * 80, 80)  # high korelasyon = sistematik risk
-        # Whale risk normalization (10M USD threshold for max risk)
-        # Old formula divided by 10, causing instant max out for almost any coin
-        whale_risk = min(abs(net_accum) / 5_000_000 * 70, 70) 
+        # Whale risk normalization (100M USD threshold for max risk)
+        # Increased from 5M to 100M to differentiate between major caps
+        whale_risk = min(abs(net_accum) / 100_000_000 * 70, 70) 
         
         funding_risk = min(abs(funding_rate) * 200, 80)
         
-        # LS Imbalance normalization (max 100)
-        ls_imbalance = min(abs(1 - long_short_ratio) * 100, 100)
+        # LS Imbalance normalization (Softened)
+        # Multiplier reduced to 40. diff=1.0 (LS=2) -> 40 risk. diff=2.5 (LS=3.5) -> 100 risk.
+        ls_imbalance = min(abs(1 - long_short_ratio) * 40, 100)
 
         # Makro risk etkisi
         macro_risk_factor = 0
         if macro_context:
             market_risk_score = macro_context.get("risk_score", 50)
             is_major = symbol in ["BTCUSDT", "ETHUSDT"]
-            macro_risk_factor = (market_risk_score / 100) * (15 if is_major else 25)
+            macro_risk_factor = (market_risk_score / 100) * (20 if is_major else 30)
 
         # Risk bileşenleri
         components = {
@@ -884,17 +885,17 @@ def calculate_asset_risk(coin_data, macro_context=None):
             "macro_risk_factor": round(macro_risk_factor, 2)
         }
 
-        # Ağırlıklar
+        # Ağırlıklar (Balanced)
         weights = {
             "volatility_risk": 0.15,
-            "rsi_risk": 0.10,
+            "rsi_risk": 0.15,
             "momentum_risk": 0.10,
-            "volume_risk": 0.08,
+            "volume_risk": 0.05,
             "correlation_risk": 0.10,
-            "whale_risk": 0.12,
-            "funding_risk": 0.08,
+            "whale_risk": 0.15,
+            "funding_risk": 0.10,
             "ls_imbalance": 0.05,
-            "macro_risk_factor": 0.10
+            "macro_risk_factor": 0.15
         }
 
         # Ağırlıklı toplam hesaplama

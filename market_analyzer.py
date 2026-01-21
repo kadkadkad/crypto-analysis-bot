@@ -199,11 +199,13 @@ async def analyze_market_risks_async(symbols):
         components["funding_risk"] = min(abs(funding_rate) * 200, 80)
         
         ls_ratio = data.get("long_short_ratio", 1.0)
-        components["ls_imbalance"] = abs(1 - ls_ratio) * 100
+        # Softened LS Imbalance (same logic as main.py)
+        components["ls_imbalance"] = min(abs(1 - ls_ratio) * 40, 100)
 
         weights = {
             "volatility_risk": 0.15, "rsi_risk": 0.15, "momentum_risk": 0.15,
-            "volume_risk": 0.15, "funding_risk": 0.20, "ls_imbalance": 0.20
+            "volume_risk": 0.10, "funding_risk": 0.15, "ls_imbalance": 0.10,
+            # Whale risk removed/merged into volume for this simplified analyzer
         }
         
         total_risk = sum(components[k] * weights[k] for k in components)
