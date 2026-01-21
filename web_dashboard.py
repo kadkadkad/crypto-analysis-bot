@@ -1159,6 +1159,108 @@ def export_data(export_type):
 def health():
     return jsonify({"status": "healthy", "timestamp": get_turkey_time().isoformat()}), 200
 
+# 📊 System Health & Validation Endpoint
+@app.route('/api/system-health')
+@limiter.limit("10 per minute")
+@auth.login_required
+def get_system_health():
+    """
+    Comprehensive system health and validation report.
+    Validates data accuracy, signal performance, and API health.
+    """
+    try:
+        from system_validator import SystemValidator, SignalProtector
+        
+        validator = SystemValidator()
+        
+        # Load current results for validation
+        results = []
+        if os.path.exists(RESULTS_FILE):
+            with open(RESULTS_FILE, "r") as f:
+                results = json.load(f)
+        
+        # Run full audit
+        report = validator.full_audit(results=results)
+        
+        # Get signal protection status
+        protector = SignalProtector(validator)
+        protector.update_weights()
+        protection_status = protector.get_protection_status()
+        
+        return jsonify({
+            "timestamp": report.timestamp,
+            "overall_status": report.overall_status.value,
+            "overall_score": round(report.overall_score, 1),
+            "data_accuracy": report.data_accuracy,
+            "signal_performance": report.signal_performance,
+            "api_health": report.api_health,
+            "anomalies": report.anomalies,
+            "recommendations": report.recommendations,
+            "protection": protection_status
+        })
+    except ImportError:
+        return jsonify({
+            "error": "System validator module not found",
+            "message": "Please ensure system_validator.py is deployed"
+        }), 500
+    except Exception as e:
+        print(f"[API] System Health error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+# 📈 Signal Performance Report Endpoint
+@app.route('/api/signal-performance')
+@limiter.limit("30 per minute")
+@auth.login_required
+def get_signal_performance():
+    """Get detailed signal performance statistics"""
+    try:
+        from system_validator import SystemValidator
+        
+        validator = SystemValidator()
+        performances = validator.analyze_signal_performance()
+        
+        # Convert to JSON-serializable format
+        perf_data = []
+        for p in performances:
+            perf_data.append({
+                "signal_type": p.signal_type,
+                "total_trades": p.total_trades,
+                "wins": p.wins,
+                "losses": p.losses,
+                "win_rate": round(p.win_rate, 2),
+                "avg_profit": round(p.avg_profit, 2),
+                "avg_loss": round(p.avg_loss, 2),
+                "expected_value": round(p.expected_value, 2),
+                "risk_reward": round(p.risk_reward, 2),
+                "status": p.status.value,
+                "recommendation": p.recommendation
+            })
+        
+        # Categorize
+        healthy = [p for p in perf_data if p["status"] == "healthy"]
+        warning = [p for p in perf_data if p["status"] == "warning"]
+        critical = [p for p in perf_data if p["status"] == "critical"]
+        
+        return jsonify({
+            "timestamp": get_turkey_time().isoformat(),
+            "total_signal_types": len(perf_data),
+            "healthy_count": len(healthy),
+            "warning_count": len(warning),
+            "critical_count": len(critical),
+            "performances": perf_data,
+            "healthy_signals": healthy,
+            "warning_signals": warning,
+            "critical_signals": critical
+        })
+    except ImportError:
+        return jsonify({"error": "System validator module not found"}), 500
+    except Exception as e:
+        print(f"[API] Signal Performance error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # 📊 Kline Data Endpoint (Frontend Chart için)
 @app.route('/api/klines/<symbol>')
 @auth.login_required
