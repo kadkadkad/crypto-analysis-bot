@@ -10102,8 +10102,10 @@ def generate_notebooklm_export(results):
 
 
 def generate_metric_report(metric, results):
-    # Normalize metric name: remove spaces and 1H suffix for lookup
+    # Normalize metric name: remove spaces and timeframe suffixes for lookup
     lookup_key = metric.replace(" 1H", "").replace("1H", "").strip()
+    # Also handle underscore format: RSI_4h -> RSI, MACD_1d -> MACD
+    lookup_key = lookup_key.replace("_4h", "").replace("_1d", "").replace(" 4h", "").replace(" 1d", "").replace(" 4H", "").replace(" 1D", "").strip()
     
     # Map for display names
     metric_map = {
