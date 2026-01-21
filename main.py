@@ -3422,7 +3422,8 @@ def generate_cash_flow_migration_report():
             status = "⚖️"  # Mixed/Neutral
         
         display_symbol = "$" + symbol.replace("USDT", "")
-        line = f"{display_symbol:<12} {buy_power:>6}x {cash_percent:>7}% {int(trend_pct):>5}% {"".join(arrow_list)} {status}"
+        arrows = "".join(arrow_list)
+        line = f"{display_symbol:<12} {buy_power:>6}x {cash_percent:>7}% {int(trend_pct):>5}% {arrows} {status}"
         lines.append(line)
 
     # Add legend at the bottom
@@ -12388,6 +12389,24 @@ def handle_market_alerts(results):
         final_emoji = "🎯"
         final_insight = ""
         
+        # === BEAR SIGNAL QUALITY FILTER ===
+        # Bear signals require multiple confirmations to avoid false signals in bull markets
+        is_bull_regime = regime_type in ["bull", "bull_strong", "accumulation"]
+        is_bear_regime = regime_type in ["bear", "bear_strong", "distribution"]
+        
+        # Bear confirmation conditions
+        bear_confirmations = [
+            rsi > 65,                    # Overbought condition
+            rsi_4h > 60,                 # Higher TF overbought
+            btc_change < -0.5,           # BTC trending down
+            macd < 0,                    # MACD bearish
+            change_24h > 5,              # Already pumped (profit taking likely)
+            vol_ratio > 2.0,             # High volume for distribution
+            funding_rate > 0.01,         # Crowded longs
+        ]
+        bear_confirmation_count = sum(bear_confirmations)
+        bear_signal_allowed = bear_confirmation_count >= 2 or is_bear_regime
+        
         # === 1. STRUCTURAL SHIFTS (BoS / CHoCH) ===
         if "Bullish CHoCH" in pa_structure or "Bullish BoS" in pa_structure:
             signals.append(f"🏗️ {pa_structure.upper()}")
@@ -12395,10 +12414,12 @@ def handle_market_alerts(results):
             if not final_alert_type: final_alert_type = "struct_bull"
             final_insight += "Market structure shifted to bullish. High-timeframe reversal in progress. "
         elif "Bearish CHoCH" in pa_structure or "Bearish BoS" in pa_structure:
-            signals.append(f"📉 {pa_structure.upper()}")
-            confidence += 35
-            if not final_alert_type: final_alert_type = "struct_bear"
-            final_insight += "Market structure shifted to bearish. Distribution phase confirmed. "
+            # QUALITY FILTER: Bearish structure needs confirmation in bull market
+            if bear_signal_allowed or bear_confirmation_count >= 1:
+                signals.append(f"📉 {pa_structure.upper()}")
+                confidence += 35 if bear_signal_allowed else 20  # Reduced confidence if not confirmed
+                if not final_alert_type: final_alert_type = "struct_bear"
+                final_insight += "Market structure shifted to bearish. Distribution phase confirmed. "
 
         # === 2. ORDER BLOCK INTERACTION ===
         if bull_ob and price <= extract_numeric(coin.get("Support", 0)) * 1.01:
@@ -12407,10 +12428,12 @@ def handle_market_alerts(results):
             if not final_alert_type: final_alert_type = "ob_bull"
             final_insight += "Price testing a major institutional buy zone. Demand expected. "
         elif bear_ob and price >= extract_numeric(coin.get("Resistance", 0)) * 0.99:
-            signals.append("🧱 BEARISH ORDER BLOCK TEST")
-            confidence += 30
-            if not final_alert_type: final_alert_type = "ob_bear"
-            final_insight += "Price testing a major institutional sell zone. Supply expected. "
+            # QUALITY FILTER: Bearish OB needs multiple confirmations in bull market
+            if bear_signal_allowed:
+                signals.append("🧱 BEARISH ORDER BLOCK TEST")
+                confidence += 30
+                if not final_alert_type: final_alert_type = "ob_bear"
+                final_insight += f"Price testing institutional sell zone. Confirmations: {bear_confirmation_count}/7. "
 
         # === 3. COMPOSITE SCORE SURGE ===
         if prev_score > 0 and comp_score > prev_score * 1.25:
@@ -12454,10 +12477,12 @@ def handle_market_alerts(results):
             if not final_alert_type: final_alert_type = "rsi_div_bull"
             final_insight += "Price made a lower low but RSI is rising - exhaustion of sellers detected. "
         elif "Bearish Divergence" in rsi_div:
-            signals.append("🔴 RSI BEARISH DIVERGENCE")
-            confidence += 35
-            if not final_alert_type: final_alert_type = "rsi_div_bear"
-            final_insight += "Price made a higher high but RSI is falling - lack of buyer momentum. "
+            # QUALITY FILTER: RSI divergence needs confirmation
+            if bear_signal_allowed or rsi > 70:  # Allow if RSI is truly overbought
+                signals.append("🔴 RSI BEARISH DIVERGENCE")
+                confidence += 35 if rsi > 70 else 20
+                if not final_alert_type: final_alert_type = "rsi_div_bear"
+                final_insight += "Price made a higher high but RSI is falling - lack of buyer momentum. "
 
         # === 2. VOLUME CLIMAX (Exhaustion/Absorption) ===
         if "Bullish Volume Climax" in vol_climax:
@@ -12466,10 +12491,12 @@ def handle_market_alerts(results):
             if not final_alert_type: final_alert_type = "vol_climax_bull"
             final_insight += "Massive absorption volume at lows detected. Institutional buying likely. "
         elif "Bearish Volume Climax" in vol_climax:
-            signals.append("🚨 BEARISH VOL CLIMAX")
-            confidence += 30
-            if not final_alert_type: final_alert_type = "vol_climax_bear"
-            final_insight += "Exhaustion volume at highs detected. Heavy distribution in play. "
+            # QUALITY FILTER: Bearish volume climax needs confirmation
+            if bear_signal_allowed:
+                signals.append("🚨 BEARISH VOL CLIMAX")
+                confidence += 30
+                if not final_alert_type: final_alert_type = "vol_climax_bear"
+                final_insight += f"Exhaustion volume at highs. Bear confirmations: {bear_confirmation_count}/7. "
 
         # === 3. SFP (Swing Failure Pattern) ===
         if "Bullish SFP" in sfp_pattern:
@@ -12478,10 +12505,12 @@ def handle_market_alerts(results):
             if not final_alert_type: final_alert_type = "sfp_bull"
             final_insight += "Lows swept and recovered. Liquidity hunt complete. "
         elif "Bearish SFP" in sfp_pattern:
-            signals.append("⚠️ BEARISH SFP (STOP HUNT)")
-            confidence += 25
-            if not final_alert_type: final_alert_type = "sfp_bear"
-            final_insight += "Highs swept and rejected. Trapped longs identified. "
+            # QUALITY FILTER: SFP Bear is the most problematic signal - require strong confirmation
+            if bear_signal_allowed and bear_confirmation_count >= 3:
+                signals.append("⚠️ BEARISH SFP (STOP HUNT)")
+                confidence += 25 + (bear_confirmation_count * 5)  # Bonus for more confirmations
+                if not final_alert_type: final_alert_type = "sfp_bear"
+                final_insight += f"Highs swept and rejected. Strong bear setup with {bear_confirmation_count} confirmations. "
 
         # === 4. SMART MONEY CONFLUENCE ===
         whale_buying = net_accum_12h > 5_000_000
@@ -12575,9 +12604,14 @@ def handle_market_alerts(results):
                 final_emoji = "💎"
                 if confidence > 60: final_title = "ELITE BULLISH SIGNAL"
             elif has_bearish:
+                # QUALITY CHECK: Only send bear alerts with sufficient confidence
+                if confidence < 40 and is_bull_regime:
+                    continue  # Skip weak bear signals in bull market
                 final_title = "PRO BEARISH CONFLUENCE"
                 final_emoji = "💥"
                 if confidence > 60: final_title = "ELITE BEARISH SIGNAL"
+                # Add confirmation count to insight
+                final_insight += f" [Bear Confirmations: {bear_confirmation_count}/7]"
 
             # Execute the confluence alert
             if _send_confluence_alert(symbol, final_title, final_emoji, final_insight, price_str, vol_ratio, rsi, regime_str, signals, confidence, final_alert_type, now, cooldown):
