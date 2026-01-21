@@ -57,25 +57,34 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow-y: auto;
-            /* Enable vertical scrolling */
+            overflow: hidden;
+            /* Fix main container */
         }
 
-        /* Custom Scrollbar for Sidebar */
-        .sidebar::-webkit-scrollbar {
+        .side-scroll {
+            flex: 1;
+            /* Fill remaining space */
+            overflow-y: auto;
+            /* Scroll only the content */
+            padding-bottom: 40px;
+            /* Space at bottom */
+        }
+
+        /* Custom Scrollbar for side-scroll */
+        .side-scroll::-webkit-scrollbar {
             width: 6px;
         }
 
-        .sidebar::-webkit-scrollbar-track {
+        .side-scroll::-webkit-scrollbar-track {
             background: var(--sidebar);
         }
 
-        .sidebar::-webkit-scrollbar-thumb {
+        .side-scroll::-webkit-scrollbar-thumb {
             background: #30363d;
             border-radius: 3px;
         }
 
-        .sidebar::-webkit-scrollbar-thumb:hover {
+        .side-scroll::-webkit-scrollbar-thumb:hover {
             background: #58a6ff;
         }
 
