@@ -708,57 +708,61 @@ def calculate_macro_risk_level(custom_data=None):
         # Veri sağlama veya çekme
         macro_data = custom_data or fetch_macro_economic_data()
         if not macro_data:
-            return {"risk_level": "bilinmiyor", "risk_score": 50, "factors": []}
+            return {"risk_level": "unknown", "risk_score": 50, "factors": []}
 
         risk_factors = []
 
-        # VIX Risk faktörü
+        # VIX Risk Factor
         try:
-            # Rate limit ve API sorunları için güvenli veri çekme
+            # Safe data extraction
             vix_value = macro_data.get("market_indices", {}).get("VIX", {}).get("value", 18.45)
+            vix_impact = "high" if vix_value > 25 else "medium" if vix_value > 15 else "low"
             vix_risk = {
-                "factor": "VIX Volatilite",
-                "impact": "yüksek" if vix_value > 25 else "orta" if vix_value > 15 else "düşük",
-                "description": f"VIX endeksi {vix_value}, bu değer piyasa volatilitesini gösterir",
+                "factor": "VIX Volatility",
+                "impact": vix_impact,
+                "description": f"VIX index is {vix_value}, indicating market volatility",
                 "risk_score": min(vix_value * 2, 100)
             }
             risk_factors.append(vix_risk)
         except Exception as e:
-            print(f"[WARN] VIX risk faktörü oluşturulamadı: {e}")
-            # Varsayılan VIX risk
+            print(f"[WARN] VIX risk factor could not be created: {e}")
+            # Default VIX risk
             risk_factors.append({
-                "factor": "VIX Volatilite",
-                "impact": "orta",
-                "description": "VIX verisi alınamadı, orta risk varsayıldı",
+                "factor": "VIX Volatility",
+                "impact": "medium",
+                "description": "VIX data unavailable, assuming medium risk",
                 "risk_score": 50
             })
 
-        # Diğer risk faktörleri
+        # Other risk factors
+        fear_greed_val = macro_data.get('crypto_market', {}).get('fear_greed_index', 50)
+        market_cap_val = macro_data.get('crypto_market', {}).get('total_market_cap', 2.89e12) / 1e12
+        
         additional_factors = [
             {
-                "factor": "Korku & Açgözlülük Endeksi",
-                "impact": "orta",
-                "description": f"Korku & Açgözlülük Endeksi: {macro_data.get('crypto_market', {}).get('fear_greed_index', 50)}/100",
+                "factor": "Fear & Greed Index",
+                "impact": "medium",
+                "description": f"Fear & Greed Index: {fear_greed_val}/100",
                 "risk_score": 40
             },
             {
-                "factor": "Kripto Piyasa Değeri",
-                "impact": "düşük",
-                "description": f"Toplam Kripto Piyasa Değeri: ${macro_data.get('crypto_market', {}).get('total_market_cap', 2.89e12) / 1e12:.2f} Trilyon",
+                "factor": "Total Crypto Market Cap",
+                "impact": "low",
+                "description": f"Total Market Cap: ${market_cap_val:.2f} Trillion",
                 "risk_score": 30
             }
         ]
         risk_factors.extend(additional_factors)
 
-        # Toplam risk hesapla
+        # Calculate Total Risk
         total_risk_score = sum(factor["risk_score"] for factor in risk_factors)
 
-        # En az 1 faktör olduğundan emin ol
+        # Ensure at least 1 factor exists
         if not risk_factors:
             risk_factors.append({
-                "factor": "Genel Piyasa Riski",
-                "impact": "orta",
-                "description": "Veri eksikliği nedeniyle varsayılan orta risk",
+                "factor": "General Market Risk",
+                "impact": "medium",
+                "description": "Default medium risk due to lack of data",
                 "risk_score": 50
             })
             total_risk_score = 50
@@ -766,14 +770,14 @@ def calculate_macro_risk_level(custom_data=None):
         # Normalize risk score (0-100)
         normalized_risk = min(total_risk_score / len(risk_factors), 100)
 
-        # Risk seviyesini belirle
-        risk_level = "düşük"
+        # Determine Risk Level
+        risk_level = "low"
         if normalized_risk >= 70:
-            risk_level = "çok yüksek"
+            risk_level = "very high"
         elif normalized_risk >= 50:
-            risk_level = "yüksek"
+            risk_level = "high"
         elif normalized_risk >= 30:
-            risk_level = "orta"
+            risk_level = "medium"
 
         return {
             "risk_level": risk_level,
@@ -781,10 +785,10 @@ def calculate_macro_risk_level(custom_data=None):
             "factors": sorted(risk_factors, key=lambda x: x["risk_score"], reverse=True)
         }
     except Exception as e:
-        print(f"[ERROR] Makro risk seviyesi hesaplanırken hata: {e}")
+        print(f"[ERROR] Error calculating macro risk level: {e}")
         import traceback
         traceback.print_exc()
-        return {"risk_level": "bilinmiyor", "risk_score": 50, "factors": []}
+        return {"risk_level": "unknown", "risk_score": 50, "factors": []}
 
 
 def calculate_asset_risk(coin_data, macro_context=None):
