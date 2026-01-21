@@ -836,9 +836,14 @@ def calculate_asset_risk(coin_data, macro_context=None):
         momentum_risk = min(abs(macd) * 60, 60)  # MACD'yi normalize et
         volume_risk = min((1 / max(volume_ratio, 0.2)) * 50, 50)  # low hacim = yüksek risk
         correlation_risk = min(abs(btc_corr) * 80, 80)  # high korelasyon = sistematik risk
-        whale_risk = min(abs(net_accum) / 10 * 70, 70)  # Büyük balina hareketleri = risk
-        funding_risk = min(abs(funding_rate) * 200, 80)  # Ekstrem funding = risk
-        ls_imbalance = abs(1 - long_short_ratio) * 100  # Long/short dengesizliği
+        # Whale risk normalization (10M USD threshold for max risk)
+        # Old formula divided by 10, causing instant max out for almost any coin
+        whale_risk = min(abs(net_accum) / 5_000_000 * 70, 70) 
+        
+        funding_risk = min(abs(funding_rate) * 200, 80)
+        
+        # LS Imbalance normalization (max 100)
+        ls_imbalance = min(abs(1 - long_short_ratio) * 100, 100)
 
         # Makro risk etkisi
         macro_risk_factor = 0
@@ -877,15 +882,15 @@ def calculate_asset_risk(coin_data, macro_context=None):
         weighted_risk = sum(components[key] * weights[key] for key in components)
         normalized_risk = min(max(weighted_risk, 0), 100)
 
-        # Risk seviyesi
+        # Risk seviyesi (English for compatibility with report generator)
         if normalized_risk >= 75:
-            risk_level = "çok yüksek"
+            risk_level = "very high"
         elif normalized_risk >= 50:
-            risk_level = "yüksek"
+            risk_level = "high"
         elif normalized_risk >= 30:
-            risk_level = "orta"
+            risk_level = "medium"
         else:
-            risk_level = "düşük"
+            risk_level = "low"
 
         return {
             "risk_score": round(normalized_risk, 2),
@@ -949,7 +954,7 @@ def generate_comprehensive_risk_report(results=None, macro_risk=None):
 
     # Macro Risk Summary
     report += f"🌐 <b>Macro Risk Assessment:</b>\n"
-    report += f"• General Risk Score: {macro_risk['risk_score']}/100\n"
+    report += f"• General Risk Score: {macro_risk['risk_score']:.1f}/100\n"
     report += f"• Risk Level: {macro_risk['risk_level'].upper()}\n\n"
 
     # Risk Factors
