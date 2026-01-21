@@ -57,22 +57,25 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
-            /* Fix main container */
+            overflow: hidden !important;
+            /* Force hidden overflow on container */
         }
 
         .side-scroll {
+            display: flex;
+            flex-direction: column;
             flex: 1;
-            /* Fill remaining space */
-            overflow-y: auto;
-            /* Scroll only the content */
-            padding-bottom: 40px;
-            /* Space at bottom */
+            overflow-y: auto !important;
+            /* Force vertical scroll */
+            padding-bottom: 50px;
+            min-height: 0;
+            /* Crucial for flux box scrolling */
         }
 
         /* Custom Scrollbar for side-scroll */
         .side-scroll::-webkit-scrollbar {
-            width: 6px;
+            width: 8px;
+            /* Slightly wider for ease of use */
         }
 
         .side-scroll::-webkit-scrollbar-track {
@@ -81,7 +84,7 @@
 
         .side-scroll::-webkit-scrollbar-thumb {
             background: #30363d;
-            border-radius: 3px;
+            border-radius: 4px;
         }
 
         .side-scroll::-webkit-scrollbar-thumb:hover {
