@@ -10226,6 +10226,8 @@ def generate_metric_report(metric, results):
                 if "Correlation" in display_name: val_str = f"{val:.2f}"
                 elif "Volume" in display_name: val_str = format_money(val)
                 else: val_str = f"{val:.2f}"
+            elif isinstance(val, bool):
+                val_str = "✅ DETECTED" if val else "No"
             elif isinstance(val, tuple):
                 # For 4H/Weekly/Monthly tuples: (old_price_str, change_pct_str)
                 val_str = val[1]

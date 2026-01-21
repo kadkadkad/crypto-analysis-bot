@@ -122,7 +122,8 @@ async def fetch_binance_data_async(session, symbol, ref_returns=None):
             "price_change_percent": float(t_data["priceChangePercent"]),
             "volume": float(t_data["volume"]),
             "quote_volume": float(t_data["quoteVolume"]),
-            "symbol": symbol
+            "symbol": symbol,
+            "trades": int(t_data["count"])  # Count of trades for Whale Activity
         }
 
         # Parallel Fetch everything else
