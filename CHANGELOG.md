@@ -16,6 +16,10 @@
   - Fixed Whale Risk calculation error (was static at 70/100).
 - **Multi-Timeframe Reports:** Fixed "N/A" bug for RSI 4H, MACD 1D, etc. by improving key normalization logic.
 - **Crash Fix:** Fixed pandas column mismatch crash in `calculate_buyer_ratio`.
+- **Risk Calculation Refinement:**
+  - **Whale Risk:** Increased threshold from 5M to 100M USD to differentiate major coins better.
+  - **LS Imbalance:** Softened the formula (max score reached at 3.5 ratio instead of 2.0) to prevent constant 100/100 scores.
+  - **Logic Sync:** Synchronized logic between `main.py` and `market_analyzer.py` for consistent reporting.
 
 ### 💻 Web UI / Dashboard
 - **Sidebar Fix:** Implemented proper scrolling for the long sidebar menu (CSS overflow fix).
