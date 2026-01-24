@@ -14196,6 +14196,35 @@ async def analyze_market():
                                 
                             if not valid_anomalies and not watchlist:
                                 anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
+
+                            elif valid_anomalies:
+                                anomaly_report += "\n<b>🎯 TOP OPPORTUNITIES (Market Structure Confirmed):</b>\n"
+                                
+                                # Group and Score
+                                coin_scores = {}
+                                for a in valid_anomalies:
+                                    c = a['coin']
+                                    s = a.get('score', 0)
+                                    z = a.get('z_score', 0)
+                                    if c not in coin_scores: coin_scores[c] = {'score': 0, 'z_sum': 0, 'metrics': []}
+                                    coin_scores[c]['score'] += s
+                                    coin_scores[c]['z_sum'] += z
+                                    coin_scores[c]['metrics'].append(a['metric'])
+                                
+                                # Sort by Confirmation Score (Highest Confidence first)
+                                top_opps = sorted(coin_scores.items(), key=lambda x: x[1]['score'], reverse=True)[:3]
+                                
+                                for coin, data in top_opps:
+                                    # Determine bias
+                                    bias = "🟢 LONG" if data['z_sum'] > 0 else "🔴 SHORT"
+                                    
+                                    # Special Logic for OI drops (usually bearish/exit)
+                                    if data['z_sum'] < 0 and any("Open Interest" in m for m in data['metrics']):
+                                        bias = "📉 SHORT / UNWIND"
+                                    
+                                    metric_str = ", ".join(list(set(data['metrics']))[:3])
+                                    anomaly_report += f"👉 <b>${coin}</b> [{bias}]\n"
+                                    anomaly_report += f"   Strength: {data['score']} pts | Driven by: {metric_str}\n"
                         else:
                             anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
                             

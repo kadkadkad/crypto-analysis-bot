@@ -158,14 +158,13 @@ class AnomalyDetector:
                     status = 'watch_only'
                     # Do not discard, user wants to see volatility
                 
-                final_desc = f"{verification_msg}{news_warning}"
-                
                 candidates.append({
                     'metric': key,
                     'desc': config['desc'],
                     'value': curr,
                     'z_score': round(z_velocity, 2),
                     'verification': final_desc,
+                    'score': v_score,
                     'status': status,
                     'timestamp': 'Just Now'
                 })
