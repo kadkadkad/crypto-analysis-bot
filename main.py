@@ -11895,18 +11895,28 @@ def get_summary_report_string():
     # Featured coins (Top Gainers/Losers, Manipulation)
     try:
         # Top Gainers and Losers
-        gainers = sorted(ALL_RESULTS, key=lambda x: float(extract_numeric(x.get("Price ROC", 0))), reverse=True)[:3]
-        losers = sorted(ALL_RESULTS, key=lambda x: float(extract_numeric(x.get("Price ROC", 0))))[:3]
+        # Top Gainers and Losers (Fixed Sorting)
+        def get_chg(x):
+            try: return float(x.get("Change24h", extract_numeric(x.get("24h Change", 0))))
+            except: return 0.0
 
-        report += "\n<b>🚀 TOP GAINERS:</b>\n"
-        for coin in gainers:
-            symbol = "$" + coin['Coin'].replace("USDT", "")
-            report += f"• {symbol}: {coin['Price']} ({coin.get('24h Change', 'N/A')})\n"
+        all_sorted = sorted(ALL_RESULTS, key=get_chg, reverse=True)
+        gainers = [x for x in all_sorted if get_chg(x) > 0][:3]
+        losers = sorted([x for x in all_sorted if get_chg(x) < 0], key=get_chg)[:3] # Most negative first
 
-        report += "\n<b>📉 TOP LOSERS:</b>\n"
-        for coin in losers:
-            symbol = "$" + coin['Coin'].replace("USDT", "")
-            report += f"• {symbol}: {coin['Price']} ({coin.get('24h Change', 'N/A')})\n"
+        if gainers:
+            report += "\n<b>🚀 TOP GAINERS:</b>\n"
+            for coin in gainers:
+                symbol = "$" + coin['Coin'].replace("USDT", "")
+                chg = get_chg(coin)
+                report += f"• {symbol}: {coin['Price']} ({chg:+.2f}%)\n"
+
+        if losers:
+            report += "\n<b>📉 TOP LOSERS:</b>\n"
+            for coin in losers:
+                symbol = "$" + coin['Coin'].replace("USDT", "")
+                chg = get_chg(coin)
+                report += f"• {symbol}: {coin['Price']} ({chg:+.2f}%)\n"
 
         # Performance of analysis
         report += "\n<b>🕵️ Smart Money & Manipulation Summary:</b>\n"
