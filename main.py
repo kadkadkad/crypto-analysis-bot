@@ -11716,8 +11716,15 @@ def get_summary_report_string():
         # Average trend score
         trend_score = sum(trend_scores) / len(trend_scores) if trend_scores else 50
 
-        # Determine market status
-        if trend_score > 60:
+        # Determine market status (Weighted by Money Flow)
+        if total_net_accum < -50_000_000: # Significant Outflow
+            if trend_score > 50:
+                market_status = "⚠️ Fakeout (Price Up / Flow Down)"
+            else:
+                market_status = "Negative (Money Outflow) 🔴"
+        elif total_net_accum > 50_000_000 and trend_score < 50:
+             market_status = "⚠️ Accumulation (Price Down / Flow In)"
+        elif trend_score > 60:
             market_status = "Strong 🚀"
         elif trend_score > 50:
             market_status = "Positive 📈"
