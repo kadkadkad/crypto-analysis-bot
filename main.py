@@ -14160,7 +14160,15 @@ async def analyze_market():
                         anomaly_report = "🚨 <b>MARKET ANOMALY DETECTOR (3-Sigma)</b>\n"
                         anomaly_report += f"<i>🔍 Shield: {shield_status} | Risk: {r_level} {reason_text}{upcoming_text} | Sent: {s_text} ({s_score:.2f})</i>\n"
                         anomaly_report += f"<i>📊 Detecting deviations > 2.0σ (Adjusted for Risk)</i>\n"
-                        anomaly_report += f"<i>🕐 Scan Time: {get_turkey_time().strftime('%H:%M:%S')}</i>\n\n"
+                        anomaly_report += f"<i>🕐 Scan Time: {get_turkey_time().strftime('%H:%M:%S')}</i>\n"
+                        
+                        bn_list = risk_context.get('breaking_news_list', [])
+                        if bn_list:
+                            anomaly_report += "<b>📰 LATEST NEWS (Risk Drivers):</b>\n"
+                            for n in bn_list[:3]:
+                                anomaly_report += f"• {n}\n"
+                            if len(bn_list) > 3: anomaly_report += f"<i>...and {len(bn_list)-3} more</i>\n"
+                        anomaly_report += "\n"
                         
                         if anomalies:
                             valid_anomalies = [a for a in anomalies if a.get('status', 'confirmed') == 'confirmed']

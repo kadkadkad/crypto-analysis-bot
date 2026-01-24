@@ -956,7 +956,8 @@ class MarketImpactAnalyzer:
             'risk_level': daily_risk,   # 'high', 'medium', 'low'
             'risk_reasons': reasons,    # List of strings explaining the ACTIVE risk
             'upcoming_risks': upcoming_risks, # List of FUTURE risks
-            'sentiment_score': sentiment_score,
+            'breaking_news_list': [b.get('title', 'News') for b in report.get('breaking_news', [])], # Titles
+            'sentiment_score': sentiment_score,  # -1.0 (Bearish) to 1.0 (Bullish)
             'breaking_news_count': breaking_stress,
             'is_high_volatility_day': daily_risk == 'high' or breaking_stress > 2
         }
