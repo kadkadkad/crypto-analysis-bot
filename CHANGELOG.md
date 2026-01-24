@@ -23,8 +23,13 @@
 
 ### 💻 Web UI / Dashboard
 - **Sidebar Fix:** Implemented proper scrolling for the long sidebar menu (CSS overflow fix).
-- **Menu Cleanup:** Removed broken/inactive reports (Whale Movement, Order Block) from the menu.
+- **Menu Cleanup:** Removed broken/inactive reports from the menu.
 - **Visuals:** Order Block analysis now displays "✅ DETECTED" instead of "True/False" or "N/A".
+- **New Feature (Glassnode Style):** Added **"Whale Money Flow Heatmap"**.
+  - Visualizes real-time net accumulation for top 50 coins.
+  - Color-coded (Green = Buying, Red = Selling) with intensity based on volume.
+  - Interactive grid allowing click-to-analyze for specific coins.
+  - Replaced the old "Whale Movement" button with this new interactive tool.
 
 ### 🧹 Signal Quality
 - **Removed:** `reversal_bullish` signal (0% win rate).

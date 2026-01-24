@@ -866,6 +866,42 @@ class MarketImpactAnalyzer:
             return 'low'
 
 
+    def get_live_risk_context(self):
+        """Get real-time risk context for the logic engine"""
+        # Ensure we have fresh data (cached internally)
+        report = self.get_daily_impact_report()
+        
+        # 1. Calculate Imminent Risk (Next 2 hours)
+        is_event_imminent = False
+        imminent_event_names = []
+        
+        # Simple time check (assuming server is close to ET or we rely on 'Today' logic)
+        # For now, we rely on the daily risk level as a proxy for "Event Day Risk"
+        # In a real production env, we would parse "14:30 ET" exactly against UTC
+        
+        daily_risk = report.get('risk_level', 'low')
+        
+        # 2. News Sentiment Score (-1.0 to 1.0)
+        ns = report.get('news_sentiment', {})
+        bullish = ns.get('bullish', 0)
+        bearish = ns.get('bearish', 0)
+        total_votes = bullish + bearish
+        
+        sentiment_score = 0.0
+        if total_votes > 0:
+            sentiment_score = (bullish - bearish) / total_votes
+            
+        # 3. Breaking News Impact
+        breaking_stress = len(report.get('breaking_news', []))
+        
+        return {
+            'risk_level': daily_risk,   # 'high', 'medium', 'low'
+            'sentiment_score': sentiment_score,  # -1.0 (Bearish) to 1.0 (Bullish)
+            'breaking_news_count': breaking_stress,
+            'is_high_volatility_day': daily_risk == 'high' or breaking_stress > 2
+        }
+
+
 # ==================== GLOBAL INSTANCE ====================
 
 MARKET_CALENDAR = None

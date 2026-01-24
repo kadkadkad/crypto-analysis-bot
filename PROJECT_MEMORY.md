@@ -1,6 +1,6 @@
 # 🧠 RADAR ULTRA - PROJECT MEMORY (CONTEXT FILE)
-> **Last Updated:** 2026-01-22
-> **Status:** Release Candidate (Stable)
+> **Last Updated:** 2026-01-23
+> **Status:** Live & Stable
 > **Server:** Oracle Cloud (141.144.251.86)
 
 ---
@@ -10,41 +10,31 @@ Bu proje, Binance üzerinden kripto verilerini analiz eden, yapay zeka destekli 
 
 ### 📂 Kritik Dosyalar ve Görevleri
 *   **`main.py`**: Ana beyin. Veri toplama, analiz döngüsü, sinyal üretimi burada döner.
-    *   *Önemli Fonksiyon:* `calculate_asset_risk` (Coin bazlı risk hesabı).
-    *   *Önemli Fonksiyon:* `handle_advanced_risk_analysis` (Raporu tetikler ve kaydeder).
 *   **`market_analyzer.py`**: Piyasayı genel analiz eden modül. **Risk Raporu buradan çıkar.**
-    *   *Önemli Fonksiyon:* `generate_market_risk_report` (Rapor metnini oluşturur).
-*   **`web_dashboard.py`**: Flask sunucusu. `dashboard_v2.html` şablonunu sunar ve API isteklerini karşılar.
-    *   *Port:* 8050
-*   **`binance_client.py`**: Binance API istemcisi. `async` çalışır.
-    *   *Önemli:* `trades` verisini (işlem sayısı) buradan çeker.
-*   **`system_validator.py`**: Veri doğrulama modülü. Sinyal kalitesini denetler.
+*   **`web_dashboard.py`**: Flask sunucusu (Port 8050).
+*   **`binance_client.py`**: Binance API istemcisi.
+*   **`system_validator.py`**: Veri doğrulama modülü.
 
 ---
 
 ## ✅ SON YAPILANLAR (STATUS LOG)
-**2026-01-22 Tarihli Büyük Güncelleme:**
-1.  **Risk Raporu Tamiri:**
-    *   Rapor dili tamamen **İngilizce** yapıldı (`market_analyzer.py`).
-    *   "0 coins" sorunu çözüldü (Dil uyuşmazlığı giderildi).
-    *   Whale Risk eşiği 100M USD'ye çıkarıldı.
-    *   LS Imbalance formülü yumuşatıldı (Sürekli 100/100 vermemesi için).
-    *   Raporun `web_reports.json` dosyasına kaydedilmemesi sorunu çözüldü.
-2.  **Web Arayüzü (Dashboard):**
-    *   Sidebar (Menü) kaydırma sorunu CSS ile çözüldü.
-    *   Çalışmayan menü öğeleri (Whale Movement, Order Block) gizlendi.
-3.  **Sistem Kararlılığı:**
-    *   `calculate_buyer_ratio` fonksiyonundaki çökme (crash) sorunu (pandas kolon hatası) giderildi.
-    *   `reversal_bullish` gibi verimsiz sinyaller kaldırıldı.
-4.  **Veri Doğrulama:**
-    *   Whale Activity verisinin (Trades) gelmeme sorunu çözüldü.
+**2026-01-23 Tarihli Güncelleme:**
+1.  **Yeni Özellik: Whale Money Flow Heatmap**
+    *   Glassnode stili, interaktif bir ısı haritası dashboard'a eklendi.
+    *   "Whale Movement" butonu artık bu haritayı açıyor.
+    *   Veriler `NetAccum_raw` ve `24h Volume` kullanılarak görselleştirildi.
+2.  **Dashboard İyileştirmeleri:**
+    *   Hard restart prosedürü ile dashboard'un güncel versiyonunun (Port 8050) çalışması sağlandı.
+    *   Flask template dizin sorunu (`templates/` klasörü) giderildi.
+3.  **Risk Raporu:**
+    *   Tamamen İngilizceye çevrildi ve stabil hale getirildi.
 
 ---
 
 ## 🚀 DEVAM EDİLECEK İŞLER (TODO)
 Bu projeye geri dönüldüğünde odaklanılması gerekenler:
-1.  **Genel İstekler:** Kullanıcının "genel isteklerini" tamamlamadık. (Detaylandırılmalı).
-2.  **Yeni Özellikler:** Whale Movement ve Order Block raporlarının backend tarafını düzeltip menüye geri eklemek.
+1.  **Genel İstekler:** Kullanıcının henüz detaylandırılmamış genel isteklerini tamamlamak.
+2.  **Eksik Özellikler:** Order Block raporunun backend tarafını düzeltip menüye eklemek.
 3.  **Mobil Uyumluluk:** Dashboard mobilde daha iyi görünebilir.
 
 ---
@@ -63,9 +53,9 @@ pkill -f 'python main.py'
 pkill -f 'python -u web_dashboard.py'
 cd ~/crypto-analysis-bot
 nohup ./venv/bin/python main.py > bot.log 2>&1 &
-nohup ./venv/bin/python -u web_dashboard.py > web.log 2>&1 &
-echo 'Systems Restarted'
+echo 'Main Bot Restarted'
 "
+# Not: Dashboard artık main.py içinden ayrı bir thread olarak 8050 portunda çalışıyor.
 ```
 
 ### 3. Logları İzleme
@@ -76,6 +66,6 @@ ssh -i id_rsa_oracle -o StrictHostKeyChecking=no ubuntu@141.144.251.86 "tail -f 
 ---
 
 ## 📝 ÖZEL NOTLAR
-*   **Tasarım:** Estetik ve "Premium" hissiyat çok önemli. Basit tasarımlardan kaçın.
-*   **Dil:** Raporlar İngilizce olmalı. Kod içindeki Türkçe stringler raporlara sızmamalı.
-*   **Altyapı:** Oracle Cloud kullanılıyor. Dosya yolları `/home/ubuntu/crypto-analysis-bot/`.
+*   **İletişim:** Kullanıcı kesinlikle **PROFESYONEL** bir dil istiyor. "Abim" gibi hitaplar YASAK. Resmi ve teknik konuş.
+*   **Tasarım:** Estetik ve "Premium" hissiyat çok önemli.
+*   **Dil:** Raporlar İngilizce.

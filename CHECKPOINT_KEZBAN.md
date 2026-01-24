@@ -6,10 +6,11 @@ Bu dosya, kullanıcının "Kezban" dediğinde devreye girecek özel bir tetikley
 Eğer kullanıcı "Kezban" derse:
 1.  Hemen `PROJECT_MEMORY.md` dosyasını oku.
 2.  `web_reports.json` ve son commit durumunu kontrol et.
-3.  Kullanıcıya "Hoş geldin abim, Kezban modu aktif! Kaldığımız yerden, Risk Raporu ve Web Dashboard fixleriyle devam ediyoruz..." de.
-4.  Gereksiz soru sorma, doğrudan işe koyul.
+3.  Kullanıcıya sadece **PROFESYONEL** bir dille "Sistem durumu kontrol edildi. En son Whale Heatmap özelliği yayına alınmıştı. Çalışmalara devam etmek için hazırım." de.
+4.  **ASLA "Abim" kelimesini kullanma.** Kullanıcı bu hitabı yasakladı.
+5.  Gereksiz soru sorma, doğrudan işe koyul.
 
-## 📅 Last Saved State (2026-01-22):
-- Risk Raporu İngilizceye çevrildi.
-- Dashboard Sidebar düzeltildi.
-- Sistem Validator aktif.
+## 📅 Last Saved State (2026-01-23):
+- **Whale Heatmap:** Yayına alındı ve stabil.
+- **Risk Raporu:** İngilizce ve stabil.
+- **Dashboard:** Sidebar ve diğer vizüel hatalar giderildi.

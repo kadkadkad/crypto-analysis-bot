@@ -24,9 +24,21 @@ def extract_candlestick_patterns(klines):
         return patterns
 
     # Convert to DataFrame
-    df = pd.DataFrame(klines, columns=["timestamp", "open", "high", "low", "close", "volume",
-                                       "close_time", "quote_volume", "trades", "taker_buy_base",
-                                       "taker_buy_quote", "ignore"])
+    # Determine columns based on data width
+    num_cols = len(klines[0])
+    if num_cols == 11:
+        columns = ["timestamp", "open", "high", "low", "close", "volume",
+                   "close_time", "quote_volume", "trades", "taker_buy_base",
+                   "taker_buy_quote"]
+    elif num_cols == 12:
+        columns = ["timestamp", "open", "high", "low", "close", "volume",
+                   "close_time", "quote_volume", "trades", "taker_buy_base",
+                   "taker_buy_quote", "ignore"]
+    else:
+        print(f"[WARN] Unexpected kline data width: {num_cols}. Skipping pattern analysis.")
+        return patterns
+    
+    df = pd.DataFrame(klines, columns=columns)
 
     # Convert to numeric
     for col in ["open", "high", "low", "close"]:

@@ -82,11 +82,15 @@ PREV_RANKS = config.PREV_RANKS
 TRADE_RECOMMENDATIONS = config.TRADE_RECOMMENDATIONS
 PREV_HOURLY_REPORTS = config.PREV_HOURLY_REPORTS
 
+from anomaly_detector import AnomalyDetector
+
 # Premium Features
 MONEY_FLOW_ANALYZER = MoneyFlowAnalyzer()
 MARKET_REGIME_DETECTOR = MarketRegimeDetector()
 SIGNAL_TRACKER = SignalWinRateTracker()
 PREDICTION_ENGINE = PumpPredictionEngine(TVL_TRACKER)
+ANOMALY_DETECTOR = AnomalyDetector() # [NEW] Anomaly Engine
+MARKET_CALENDAR = init_market_calendar() # [NEW] Context Shield
 # Shared results cache to be populated from the loop
 ALL_RESULTS = []
 LAST_SIGNAL_TIME = 0  # Global tracker for web dashboard
@@ -14108,6 +14112,68 @@ async def analyze_market():
                         web_reports["Risk Analysis"] = generate_comprehensive_risk_report(ALL_RESULTS, m_risk)
                     except: pass
                     
+                    # ⚠️ ANOMALY DETECTION (Significant Changes) - WITH CONTEXT SHIELD
+                    try:
+                        # 0. Get Real-Time Context (The "Risk Shield")
+                        global MARKET_CALENDAR
+                        if MARKET_CALENDAR is None:
+                            print("[RECOVERY] Re-initializing MARKET_CALENDAR...")
+                            MARKET_CALENDAR = init_market_calendar()
+                            
+                        risk_context = MARKET_CALENDAR.get_live_risk_context()
+                        print(f"[DEBUG-RISK] Context: {risk_context}")
+                        
+                        # [DEBUG] Check data structure
+                        if ALL_RESULTS:
+                            print(f"[DEBUG-MAIN] Sample Coin Data Keys: {list(ALL_RESULTS[0].keys())[:10]}")
+                            
+                        # 1. Analyze with Context
+                        anomalies = ANOMALY_DETECTOR.analyze_market_snapshot(ALL_RESULTS, market_context=risk_context)
+                        
+                        # Build Context Header
+                        r_level = risk_context.get('risk_level', 'low').upper()
+                        s_score = risk_context.get('sentiment_score', 0)
+                        s_text = "🐻 Bearish" if s_score < -0.2 else "🐮 Bullish" if s_score > 0.2 else "⚪ Neutral"
+                        
+                        shield_status = "🛡️ ACTIVE" if r_level == "HIGH" else "✅ MONITORING"
+                        
+                        anomaly_report = "🚨 <b>MARKET ANOMALY DETECTOR (3-Sigma)</b>\n"
+                        anomaly_report += f"<i>🔍 Context Shield: {shield_status} | Risk: {r_level} | Sentiment: {s_text} ({s_score:.2f})</i>\n"
+                        anomaly_report += f"<i>📊 Detecting deviations > 2.0σ (Adjusted for Risk)</i>\n"
+                        anomaly_report += f"<i>🕐 Scan Time: {get_turkey_time().strftime('%H:%M:%S')}</i>\n\n"
+                        
+                        if anomalies:
+                            # Group by coin to avoid spam
+                            grouped = {}
+                            for a in anomalies:
+                                c = a['coin']
+                                if c not in grouped: grouped[c] = []
+                                grouped[c].append(a)
+                            
+                            # Sort by most severe anomaly per coin
+                            sorted_coins = sorted(grouped.items(), key=lambda x: max([abs(y['z_score']) for y in x[1]]), reverse=True)
+                            
+                            for coin, problems in sorted_coins[:15]: # Show top 15 affected coins
+                                anomaly_report += f"<b>⚠️ ${coin}</b>\n"
+                                for p in problems:
+                                    # p['prediction'] is actually 'verification' in the new return structure
+                                    # but let's check keys to be safe
+                                    desc = p.get('verification', p.get('desc', 'Anomaly'))
+                                    
+                                    icon = "🔴" if "Drop" in desc or "Fakeout" in desc else "🟢" if "Surge" in desc or "Confirmed" in desc else "⚠️"
+                                    anomaly_report += f"• <b>{p['metric']}:</b> {desc} (Z: {p['z_score']})\n"
+                                anomaly_report += "\n"
+                        else:
+                            anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
+                            
+                        web_reports["Significant Changes"] = anomaly_report
+                        print(f"[INFO] Anomaly Detector found {len(anomalies)} anomalies. Risk Context: {r_level}")
+                    except Exception as e:
+                        print(f"[WARN] Anomaly Detector failed: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        web_reports["Significant Changes"] = "⚠️ Anomaly detection system initializing... Please wait for more data."
+                    
                     indicators = [
                         "RSI", "RSI 4h", "RSI 1d", "MACD", "MACD 4h", "MACD 1d",
                         "ADX", "ADX 4h", "ADX 1d", "MFI", "MFI 4h", "MFI 1d",
@@ -14204,6 +14270,13 @@ if __name__ == "__main__":
     #     print(f"[ERROR] Failed to send main menu: {e}")
 
     print("[INFO] Starting Market Analysis Engine...")
+
+    # Initialize Market Calendar (Context Shield)
+    try:
+        print("[INFO] Initializing Market Risk Calendar...")
+        init_market_calendar()
+    except Exception as e:
+        print(f"[ERROR] Failed to init market calendar: {e}")
     
     # ---------------------------------------------------------
     # 🌍 Start Web Dashboard (Threaded)
