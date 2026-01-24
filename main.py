@@ -14131,14 +14131,19 @@ async def analyze_market():
                         anomalies = ANOMALY_DETECTOR.analyze_market_snapshot(ALL_RESULTS, market_context=risk_context)
                         
                         # Build Context Header
+                        # Build Context Header
                         r_level = risk_context.get('risk_level', 'low').upper()
+                        reasons = risk_context.get('risk_reasons', [])
+                        reason_text = f"({', '.join(reasons[:2])})" if reasons else ""
+                        if len(reasons) > 2: reason_text = reason_text[:-1] + "...)"
+
                         s_score = risk_context.get('sentiment_score', 0)
                         s_text = "🐻 Bearish" if s_score < -0.2 else "🐮 Bullish" if s_score > 0.2 else "⚪ Neutral"
                         
                         shield_status = "🛡️ ACTIVE" if r_level == "HIGH" else "✅ MONITORING"
                         
                         anomaly_report = "🚨 <b>MARKET ANOMALY DETECTOR (3-Sigma)</b>\n"
-                        anomaly_report += f"<i>🔍 Context Shield: {shield_status} | Risk: {r_level} | Sentiment: {s_text} ({s_score:.2f})</i>\n"
+                        anomaly_report += f"<i>🔍 Shield: {shield_status} | Risk: {r_level} {reason_text} | Sent: {s_text} ({s_score:.2f})</i>\n"
                         anomaly_report += f"<i>📊 Detecting deviations > 2.0σ (Adjusted for Risk)</i>\n"
                         anomaly_report += f"<i>🕐 Scan Time: {get_turkey_time().strftime('%H:%M:%S')}</i>\n\n"
                         

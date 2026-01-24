@@ -894,8 +894,24 @@ class MarketImpactAnalyzer:
         # 3. Breaking News Impact
         breaking_stress = len(report.get('breaking_news', []))
         
+        # 4. Compile Risk Reasons
+        reasons = []
+        
+        # High Impact Eco Events
+        high_events = [e.get('event', 'Eco Event') for e in report.get('economic_events', []) if e.get('impact').lower() == 'high']
+        reasons.extend(high_events)
+        
+        # Breaking News
+        if breaking_stress > 0:
+            reasons.append(f"{breaking_stress} Breaking News")
+            
+        # Volatility
+        if not reasons and daily_risk == 'high':
+            reasons.append("High Volatility Detected")
+        
         return {
             'risk_level': daily_risk,   # 'high', 'medium', 'low'
+            'risk_reasons': reasons,    # List of strings explaining the risk
             'sentiment_score': sentiment_score,  # -1.0 (Bearish) to 1.0 (Bullish)
             'breaking_news_count': breaking_stress,
             'is_high_volatility_day': daily_risk == 'high' or breaking_stress > 2
