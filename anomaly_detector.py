@@ -101,13 +101,9 @@ class AnomalyDetector:
             is_high_volatility = market_context.get('is_high_volatility_day', False)
         
         # Dynamic Threshold Adjustment
-        # Logic: If market is risky (e.g. Fed Day), we need STRONGER anomalies to trigger a signal.
-        # "Don't bother me with small stuff when the house is on fire."
-        base_threshold_multiplier = 1.0
-        if risk_level == 'high':
-            base_threshold_multiplier = 1.4 # Requires 40% stronger signal
-        elif risk_level == 'medium':
-            base_threshold_multiplier = 1.2
+        # USER REQUEST: DISABLE RISK FILTERING. SHOW ALL ANOMALIES.
+        base_threshold_multiplier = 1.0 
+        # (Old logic removed: no 1.4x multiplier for high risk)
             
         # 1. Detect Outliers (Velocity & Acceleration)
         candidates = []

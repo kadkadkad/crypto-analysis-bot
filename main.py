@@ -14173,88 +14173,39 @@ async def analyze_market():
                         anomaly_report += "\n"
                         
                         if anomalies:
-                            valid_anomalies = [a for a in anomalies if a.get('status', 'confirmed') == 'confirmed']
-                            watchlist = [a for a in anomalies if a.get('status') == 'watch_only']
+                            anomaly_report += "<b>📋 DETECTED ANOMALIES (Raw List):</b>\n\n"
                             
-                            def format_anomalies_block(items, limit=10):
-                                txt = ""
-                                grouped = {}
-                                for a in items:
-                                    c = a['coin']
-                                    if c not in grouped: grouped[c] = []
-                                    grouped[c].append(a)
-                                
-                                sorted_coins = sorted(grouped.items(), key=lambda x: max([abs(y['z_score']) for y in x[1]]), reverse=True)
-                                
-                                for coin, problems in sorted_coins[:limit]: # Show top affected coins
-                                    txt += f"<b>⚠️ ${coin}</b>\n"
-                                    for p in problems:
-                                        desc = p.get('verification', p.get('desc', 'Anomaly'))
-                                        icon = "🔴" if "Drop" in desc or "Fakeout" in desc else "🟢" if "Surge" in desc or "Confirmed" in desc else "⚠️"
-                                        txt += f"• {icon} <b>{p['metric']}:</b> {desc} (Z: {p['z_score']})\n"
-                                    txt += "\n"
-                                return txt
-
-                            if valid_anomalies:
-                                anomaly_report += format_anomalies_block(valid_anomalies)
+                            grouped = {}
+                            for a in anomalies:
+                                c = a['coin']
+                                if c not in grouped: grouped[c] = []
+                                grouped[c].append(a)
                             
-                            # Show watchlist ONLY if High Risk (to explain volatility) or if user specifically asked (implied by context)
-                            if watchlist and (r_level == 'HIGH' or not valid_anomalies):
-                                anomaly_report += "<b>👁️ VOLATILITY WATCHLIST (Risky / Unconfirmed):</b>\n"
-                                anomaly_report += "<i>Movements detected but not fully confirmed by Market Structure. Trade with caution.</i>\n\n"
-                                anomaly_report += format_anomalies_block(watchlist, limit=10)
-                                
-                            if not valid_anomalies and not watchlist:
-                                anomaly_report += "✅ System Stable (No 3-Sigma Deviations).\n\n"
-                                
-                                try:
-                                    # Show Top Movers as Context
-                                    anomaly_report += "<b>📊 DAILY MOVERS (Context):</b>\n"
-                                    # Filter None values just in case
-                                    valid_results = [x for x in ALL_RESULTS if x.get('Change24h') is not None]
-                                    movers = sorted(valid_results, key=lambda x: x.get('Change24h', 0), reverse=True)
+                            sorted_coins = sorted(grouped.items(), key=lambda x: max([abs(y['z_score']) for y in x[1]]), reverse=True)
+                            
+                            for coin, problems in sorted_coins:
+                                anomaly_report += f"<b>🔹 ${coin}</b>\n"
+                                for p in problems:
+                                    metric = p['metric']
+                                    z = p.get('z_score', 0)
+                                    score = p.get('score', 0)
                                     
-                                    anomaly_report += "🚀 Top Gainers:\n"
-                                    for m in movers[:3]:
-                                        anomaly_report += f"• ${m['Coin']}: +{m.get('Change24h',0):.2f}%\n"
+                                    # Simple Icon Logic
+                                    icon = "✅" if score > 0 else "⚠️"
+                                    msg = "Confirmed" if score > 0 else "Unconfirmed"
                                     
-                                    anomaly_report += "\n📉 Top Losers:\n"
-                                    for m in movers[-3:]:
-                                        anomaly_report += f"• ${m['Coin']}: {m.get('Change24h',0):.2f}%\n"
-                                except Exception as e:
-                                    anomaly_report += f"(Market data initializing...)\n"
-
-                            elif valid_anomalies:
-                                # ... existing code ...
-                                anomaly_report += "\n<b>🎯 TOP OPPORTUNITIES (Market Structure Confirmed):</b>\n"
-                                
-                                # Group and Score
-                                coin_scores = {}
-                                for a in valid_anomalies:
-                                    c = a['coin']
-                                    s = a.get('score', 0)
-                                    z = a.get('z_score', 0)
-                                    if c not in coin_scores: coin_scores[c] = {'score': 0, 'z_sum': 0, 'metrics': []}
-                                    coin_scores[c]['score'] += s
-                                    coin_scores[c]['z_sum'] += z
-                                    coin_scores[c]['metrics'].append(a['metric'])
-                                
-                                # Sort by Confirmation Score (Highest Confidence first)
-                                top_opps = sorted(coin_scores.items(), key=lambda x: x[1]['score'], reverse=True)[:3]
-                                
-                                for coin, data in top_opps:
-                                    # Determine bias
-                                    bias = "🟢 LONG" if data['z_sum'] > 0 else "🔴 SHORT"
-                                    
-                                    # Special Logic for OI drops (usually bearish/exit)
-                                    if data['z_sum'] < 0 and any("Open Interest" in m for m in data['metrics']):
-                                        bias = "📉 SHORT / UNWIND"
-                                    
-                                    metric_str = ", ".join(list(set(data['metrics']))[:3])
-                                    anomaly_report += f"👉 <b>${coin}</b> [{bias}]\n"
-                                    anomaly_report += f"   Strength: {data['score']} pts | Driven by: {metric_str}\n"
+                                    anomaly_report += f"   {icon} <b>{metric}:</b> Z={z} ({msg})\n"
+                                anomaly_report += "\n"
                         else:
-                            anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
+                            anomaly_report += "✅ No anomalies > 3-Sigma.\n\n"
+                            try:
+                                valid_results = [x for x in ALL_RESULTS if x.get('Change24h') is not None]
+                                movers = sorted(valid_results, key=lambda x: x.get('Change24h', 0), reverse=True)
+                                anomaly_report += "<b>📊 MARKET OVERVIEW:</b>\n"
+                                for m in movers[:3]: anomaly_report += f"🚀 ${m['Coin']}: +{m.get('Change24h',0):.2f}%\n"
+                                anomaly_report += "\n"
+                                for m in movers[-3:]: anomaly_report += f"📉 ${m['Coin']}: {m.get('Change24h',0):.2f}%\n"
+                            except: pass
                             
                         web_reports["Significant Changes"] = anomaly_report
                         print(f"[INFO] Anomaly Detector found {len(anomalies)} anomalies. Risk Context: {r_level}")
