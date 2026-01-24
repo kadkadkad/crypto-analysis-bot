@@ -14173,35 +14173,80 @@ async def analyze_market():
                         anomaly_report += "\n"
                         
                         if anomalies:
-                            anomaly_report += "<b>📋 DETECTED ANOMALIES (Raw List):</b>\n\n"
+                            # 1. Process and Categorize Coins
+                            coin_data = []
                             
+                            # Group by coin
                             grouped = {}
                             for a in anomalies:
                                 c = a['coin']
                                 if c not in grouped: grouped[c] = []
                                 grouped[c].append(a)
+                                
+                            for coin, problems in grouped.items():
+                                total_score = sum([p.get('score', 0) for p in problems])
+                                start_z = sum([p.get('z_score', 0) for p in problems])
+                                max_z = max([abs(p.get('z_score', 0)) for p in problems])
+                                
+                                # Determine Bias / Direction
+                                bias = "🟢 LONG" if start_z > 0 else "🔴 SHORT"
+                                # Logic check: If Price is UP but OI is DOWN -> Short Squeeze or Exit -> Nuance
+                                
+                                # Categorize
+                                # If score is positive, it means multiple metrics align -> High Confidence
+                                if total_score > 0:
+                                    cat = 'high_conf'
+                                else:
+                                    cat = 'watchlist'
+                                
+                                # Extract primary drivers
+                                drivers = list(set([p['metric'] for p in problems]))
+                                
+                                # Extract Warnings
+                                warnings = [p.get('verification', '') for p in problems if "Fakeout" in p.get('verification', '') or "Unsupported" in p.get('verification', '')]
+                                primary_warning = warnings[0] if warnings else "Unconfirmed Market Structure"
+                                if "Fakeout" in primary_warning: primary_warning = "⚠️ Fakeout Risk (Divergence)"
+                                elif "Unsupported" in primary_warning: primary_warning = "⚠️ Unsupported Move"
+
+                                coin_data.append({
+                                    'coin': coin,
+                                    'category': cat,
+                                    'score': total_score,
+                                    'bias': bias,
+                                    'drivers': drivers,
+                                    'warning': primary_warning,
+                                    'max_z': max_z
+                                })
+
+                            # Sort lists
+                            high_conf = sorted([c for c in coin_data if c['category'] == 'high_conf'], key=lambda x: x['score'], reverse=True)
+                            watchlist = sorted([c for c in coin_data if c['category'] == 'watchlist'], key=lambda x: x['max_z'], reverse=True)
                             
-                            sorted_coins = sorted(grouped.items(), key=lambda x: max([abs(y['z_score']) for y in x[1]]), reverse=True)
+                            # 2. Build Report Sections
                             
-                            for coin, problems in sorted_coins:
-                                anomaly_report += f"<b>🔹 ${coin}</b>\n"
-                                for p in problems:
-                                    metric = p['metric']
-                                    z = p.get('z_score', 0)
-                                    score = p.get('score', 0)
-                                    
-                                    # Simple Icon Logic
-                                    icon = "✅" if score > 0 else "⚠️"
-                                    msg = "Confirmed" if score > 0 else "Unconfirmed"
-                                    
-                                    anomaly_report += f"   {icon} <b>{metric}:</b> Z={z} ({msg})\n"
-                                anomaly_report += "\n"
+                            # SECTION A: HIGH CONFIDENCE (Trade Ideas)
+                            if high_conf:
+                                anomaly_report += "<b>🎯 HIGH CONFIDENCE SETUPS:</b>\n"
+                                anomaly_report += "<i>Valid anomalies confirmed by multiple metrics.</i>\n\n"
+                                for c in high_conf[:5]:
+                                    drv_str = ", ".join(c['drivers'][:3])
+                                    anomaly_report += f"👉 <b>${c['coin']}</b> [{c['bias']}] (Score: {c['score']})\n"
+                                    anomaly_report += f"   <i>Drivers: {drv_str}</i>\n\n"
+                            
+                            # SECTION B: WATCHLIST (Risks)
+                            if watchlist:
+                                anomaly_report += "<b>👁️ VOLATILITY WATCHLIST (Caution):</b>\n"
+                                anomaly_report += "<i>Big moves but risky/unconfirmed. Potential traps.</i>\n\n"
+                                for c in watchlist[:5]:
+                                    anomaly_report += f"🔹 <b>${c['coin']}</b> [{c['bias']}?]\n" # Question mark on bias implying uncertainty
+                                    anomaly_report += f"   <i>Risk: {c['warning']}</i>\n\n"
+
                         else:
-                            anomaly_report += "✅ No anomalies > 3-Sigma.\n\n"
+                            anomaly_report += "✅ System Stable (No significant anomalies).\n\n"
                             try:
                                 valid_results = [x for x in ALL_RESULTS if x.get('Change24h') is not None]
                                 movers = sorted(valid_results, key=lambda x: x.get('Change24h', 0), reverse=True)
-                                anomaly_report += "<b>📊 MARKET OVERVIEW:</b>\n"
+                                anomaly_report += "<b>📊 MARKET CONTEXT:</b>\n"
                                 for m in movers[:3]: anomaly_report += f"🚀 ${m['Coin']}: +{m.get('Change24h',0):.2f}%\n"
                                 anomaly_report += "\n"
                                 for m in movers[-3:]: anomaly_report += f"📉 ${m['Coin']}: {m.get('Change24h',0):.2f}%\n"
