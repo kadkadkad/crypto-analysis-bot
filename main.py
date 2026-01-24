@@ -14255,6 +14255,11 @@ async def analyze_market():
                             import traceback
                             print(f"[ERROR] Reporting failed: {traceback.format_exc()}")
                             
+                            
+                        # Add Diagnostics Footer
+                        feed_status = f"{len(ALL_RESULTS)} coins" if ALL_RESULTS else "⚠️ NO DATA (Feed Stalled)"
+                        anomaly_report += f"\n\n<i>🔧 Diag: Feed: {feed_status} | Risk: {r_level}</i>"
+                        
                         web_reports["Significant Changes"] = anomaly_report
                         print(f"[INFO] Anomaly Detector found {len(anomalies)} anomalies. Risk Context: {r_level}")
                     except Exception as e:
