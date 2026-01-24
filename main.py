@@ -14261,7 +14261,11 @@ async def analyze_market():
                         print(f"[WARN] Anomaly Detector failed: {e}")
                         import traceback
                         traceback.print_exc()
-                        web_reports["Significant Changes"] = "⚠️ Anomaly detection system initializing... Please wait for more data."
+                        err_msg = str(e)
+                        if "initializing" in err_msg.lower():
+                             web_reports["Significant Changes"] = f"⚠️ System Initializing: {err_msg}"
+                        else:
+                             web_reports["Significant Changes"] = f"⚠️ Anomaly Detection CRITICAL FAILURE: {err_msg}\n(Please report this error)"
                     
                     indicators = [
                         "RSI", "RSI 4h", "RSI 1d", "MACD", "MACD 4h", "MACD 1d",
