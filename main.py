@@ -194,6 +194,8 @@ def force_refresh_if_stale(max_age_seconds=60):
                                 "ADX": extract_numeric(data.get('adx', 0)),
                                 "ADX_4h": extract_numeric(data.get('adx_4h', 0)),
                                 "ADX_1d": extract_numeric(data.get('adx_1d', 0)),
+                                "Change24h": float(data.get("priceChangePercent", 0)),
+                                "Volume": float(data.get("quoteVolume", 0)),
                                 # Add other critical fields as needed
                             }
                             results.append(res)
@@ -14203,9 +14205,27 @@ async def analyze_market():
                                 anomaly_report += format_anomalies_block(watchlist, limit=10)
                                 
                             if not valid_anomalies and not watchlist:
-                                anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
+                                anomaly_report += "✅ System Stable (No 3-Sigma Deviations).\n\n"
+                                
+                                try:
+                                    # Show Top Movers as Context
+                                    anomaly_report += "<b>📊 DAILY MOVERS (Context):</b>\n"
+                                    # Filter None values just in case
+                                    valid_results = [x for x in ALL_RESULTS if x.get('Change24h') is not None]
+                                    movers = sorted(valid_results, key=lambda x: x.get('Change24h', 0), reverse=True)
+                                    
+                                    anomaly_report += "🚀 Top Gainers:\n"
+                                    for m in movers[:3]:
+                                        anomaly_report += f"• ${m['Coin']}: +{m.get('Change24h',0):.2f}%\n"
+                                    
+                                    anomaly_report += "\n📉 Top Losers:\n"
+                                    for m in movers[-3:]:
+                                        anomaly_report += f"• ${m['Coin']}: {m.get('Change24h',0):.2f}%\n"
+                                except Exception as e:
+                                    anomaly_report += f"(Market data initializing...)\n"
 
                             elif valid_anomalies:
+                                # ... existing code ...
                                 anomaly_report += "\n<b>🎯 TOP OPPORTUNITIES (Market Structure Confirmed):</b>\n"
                                 
                                 # Group and Score
