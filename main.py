@@ -14132,10 +14132,25 @@ async def analyze_market():
                         
                         # Build Context Header
                         # Build Context Header
+                        # Build Context Header
                         r_level = risk_context.get('risk_level', 'low').upper()
                         reasons = risk_context.get('risk_reasons', [])
-                        reason_text = f"({', '.join(reasons[:2])})" if reasons else ""
-                        if len(reasons) > 2: reason_text = reason_text[:-1] + "...)"
+                        upcoming = risk_context.get('upcoming_risks', [])
+
+                        # Active Reasons (Why is it risky NOW?)
+                        reason_text = ""
+                        if reasons:
+                             rt = ", ".join(reasons[:2])
+                             if len(reasons) > 2: rt += "..."
+                             reason_text = f"({rt})"
+                        
+                        # Upcoming Text (Calendar preview)
+                        # Only show if we are not already overwhelmed by active risks
+                        upcoming_text = ""
+                        if upcoming:
+                             up_str = ", ".join(upcoming[:2])
+                             if len(upcoming) > 2: up_str += "..."
+                             upcoming_text = f" | 📅 Next: {up_str}"
 
                         s_score = risk_context.get('sentiment_score', 0)
                         s_text = "🐻 Bearish" if s_score < -0.2 else "🐮 Bullish" if s_score > 0.2 else "⚪ Neutral"
@@ -14143,7 +14158,7 @@ async def analyze_market():
                         shield_status = "🛡️ ACTIVE" if r_level == "HIGH" else "✅ MONITORING"
                         
                         anomaly_report = "🚨 <b>MARKET ANOMALY DETECTOR (3-Sigma)</b>\n"
-                        anomaly_report += f"<i>🔍 Shield: {shield_status} | Risk: {r_level} {reason_text} | Sent: {s_text} ({s_score:.2f})</i>\n"
+                        anomaly_report += f"<i>🔍 Shield: {shield_status} | Risk: {r_level} {reason_text}{upcoming_text} | Sent: {s_text} ({s_score:.2f})</i>\n"
                         anomaly_report += f"<i>📊 Detecting deviations > 2.0σ (Adjusted for Risk)</i>\n"
                         anomaly_report += f"<i>🕐 Scan Time: {get_turkey_time().strftime('%H:%M:%S')}</i>\n\n"
                         

@@ -846,16 +846,35 @@ class MarketImpactAnalyzer:
     def _calculate_risk_level(self, report):
         """Calculate market risk level"""
         risk_score = 0
+        today = datetime.date.today()
+        today_strs = [today.strftime('%Y-%m-%d'), today.strftime('%b %d')]
         
-        # High impact events
-        high_events = [e for e in report.get('economic_events', []) if e.get('impact') == 'high']
-        risk_score += len(high_events) * 2
+        # High impact events - Time filtered
+        for e in report.get('economic_events', []):
+            if str(e.get('impact')).lower() != 'high':
+                continue
+                
+            # Date Check
+            e_date = e.get('date')
+            is_today = False
+            
+            if isinstance(e_date, (datetime.date, datetime.datetime)):
+                if isinstance(e_date, datetime.datetime): e_date = e_date.date()
+                if e_date == today:
+                    is_today = True
+            elif isinstance(e_date, str):
+                # Check against known string formats
+                if any(ts in e_date for ts in today_strs):
+                    is_today = True
+                    
+            if is_today:
+                risk_score += 3  # Increase weight for TODAY's high events
         
-        # Near token unlocks
-        near_unlocks = [u for u in report.get('token_unlocks', []) if u.get('days_until', 99) <= 3]
-        risk_score += len(near_unlocks)
+        # Near token unlocks (Keep as is, immediate supply shock)
+        near_unlocks = [u for u in report.get('token_unlocks', []) if u.get('days_until', 99) <= 1]
+        risk_score += len(near_unlocks) * 2
         
-        # Breaking news
+        # Breaking news (Immediate)
         risk_score += len(report.get('breaking_news', []))
         
         if risk_score >= 5:
@@ -896,23 +915,48 @@ class MarketImpactAnalyzer:
         
         # 4. Compile Risk Reasons
         reasons = []
+        upcoming_risks = []
         
-        # High Impact Eco Events
-        high_events = [e.get('event', 'Eco Event') for e in report.get('economic_events', []) if e.get('impact').lower() == 'high']
-        reasons.extend(high_events)
+        today = datetime.date.today()
+        today_strs = [today.strftime('%Y-%m-%d'), today.strftime('%b %d')]
         
+        # Logic for event sorting
+        for e in report.get('economic_events', []):
+            if str(e.get('impact')).lower() != 'high': continue
+            
+            e_name = e.get('event', 'Eco Event')
+            e_date = e.get('date')
+            is_today = False
+            
+            if isinstance(e_date, (datetime.date, datetime.datetime)):
+                if isinstance(e_date, datetime.datetime): val_date = e_date.date()
+                else: val_date = e_date
+                if val_date == today: is_today = True
+            elif isinstance(e_date, str):
+                if any(ts in e_date for ts in today_strs): is_today = True
+                
+            if is_today:
+                if e_name not in reasons: reasons.append(e_name)
+            else:
+                # Format date string for upcoming
+                d_str = str(e_date)
+                if isinstance(e_date, (datetime.date, datetime.datetime)): d_str = e_date.strftime('%b %d')
+                if e_name not in [u.split(' (')[0] for u in upcoming_risks]: # Avoid dupes
+                     upcoming_risks.append(f"{e_name} ({d_str})")
+
         # Breaking News
         if breaking_stress > 0:
             reasons.append(f"{breaking_stress} Breaking News")
             
-        # Volatility
+        # Volatility check if risk is high but no explicit reasons found (fallback)
         if not reasons and daily_risk == 'high':
             reasons.append("High Volatility Detected")
         
         return {
             'risk_level': daily_risk,   # 'high', 'medium', 'low'
-            'risk_reasons': reasons,    # List of strings explaining the risk
-            'sentiment_score': sentiment_score,  # -1.0 (Bearish) to 1.0 (Bullish)
+            'risk_reasons': reasons,    # List of strings explaining the ACTIVE risk
+            'upcoming_risks': upcoming_risks, # List of FUTURE risks
+            'sentiment_score': sentiment_score,
             'breaking_news_count': breaking_stress,
             'is_high_volatility_day': daily_risk == 'high' or breaking_stress > 2
         }
