@@ -14163,26 +14163,39 @@ async def analyze_market():
                         anomaly_report += f"<i>🕐 Scan Time: {get_turkey_time().strftime('%H:%M:%S')}</i>\n\n"
                         
                         if anomalies:
-                            # Group by coin to avoid spam
-                            grouped = {}
-                            for a in anomalies:
-                                c = a['coin']
-                                if c not in grouped: grouped[c] = []
-                                grouped[c].append(a)
+                            valid_anomalies = [a for a in anomalies if a.get('status', 'confirmed') == 'confirmed']
+                            watchlist = [a for a in anomalies if a.get('status') == 'watch_only']
                             
-                            # Sort by most severe anomaly per coin
-                            sorted_coins = sorted(grouped.items(), key=lambda x: max([abs(y['z_score']) for y in x[1]]), reverse=True)
+                            def format_anomalies_block(items, limit=10):
+                                txt = ""
+                                grouped = {}
+                                for a in items:
+                                    c = a['coin']
+                                    if c not in grouped: grouped[c] = []
+                                    grouped[c].append(a)
+                                
+                                sorted_coins = sorted(grouped.items(), key=lambda x: max([abs(y['z_score']) for y in x[1]]), reverse=True)
+                                
+                                for coin, problems in sorted_coins[:limit]: # Show top affected coins
+                                    txt += f"<b>⚠️ ${coin}</b>\n"
+                                    for p in problems:
+                                        desc = p.get('verification', p.get('desc', 'Anomaly'))
+                                        icon = "🔴" if "Drop" in desc or "Fakeout" in desc else "🟢" if "Surge" in desc or "Confirmed" in desc else "⚠️"
+                                        txt += f"• {icon} <b>{p['metric']}:</b> {desc} (Z: {p['z_score']})\n"
+                                    txt += "\n"
+                                return txt
+
+                            if valid_anomalies:
+                                anomaly_report += format_anomalies_block(valid_anomalies)
                             
-                            for coin, problems in sorted_coins[:15]: # Show top 15 affected coins
-                                anomaly_report += f"<b>⚠️ ${coin}</b>\n"
-                                for p in problems:
-                                    # p['prediction'] is actually 'verification' in the new return structure
-                                    # but let's check keys to be safe
-                                    desc = p.get('verification', p.get('desc', 'Anomaly'))
-                                    
-                                    icon = "🔴" if "Drop" in desc or "Fakeout" in desc else "🟢" if "Surge" in desc or "Confirmed" in desc else "⚠️"
-                                    anomaly_report += f"• <b>{p['metric']}:</b> {desc} (Z: {p['z_score']})\n"
-                                anomaly_report += "\n"
+                            # Show watchlist ONLY if High Risk (to explain volatility) or if user specifically asked (implied by context)
+                            if watchlist and (r_level == 'HIGH' or not valid_anomalies):
+                                anomaly_report += "<b>👁️ VOLATILITY WATCHLIST (Risky / Unconfirmed):</b>\n"
+                                anomaly_report += "<i>Movements detected but not fully confirmed by Market Structure. Trade with caution.</i>\n\n"
+                                anomaly_report += format_anomalies_block(watchlist, limit=10)
+                                
+                            if not valid_anomalies and not watchlist:
+                                anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
                         else:
                             anomaly_report += "✅ No significant market anomalies detected at this moment. System stable.\n"
                             

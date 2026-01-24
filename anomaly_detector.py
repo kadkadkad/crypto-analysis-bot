@@ -152,9 +152,11 @@ class AnomalyDetector:
                     v_score -= 2 # Penalty
                     
                 # Final filtering based on Verification Score & Context
-                # If High Risk Day, we strictly require POSITIVE verification
+                # If High Risk Day, we normally require POSITIVE verification
+                status = 'confirmed'
                 if risk_level == 'high' and v_score <= 0:
-                    continue # Discard unverified signals on risky days
+                    status = 'watch_only'
+                    # Do not discard, user wants to see volatility
                 
                 final_desc = f"{verification_msg}{news_warning}"
                 
@@ -164,6 +166,7 @@ class AnomalyDetector:
                     'value': curr,
                     'z_score': round(z_velocity, 2),
                     'verification': final_desc,
+                    'status': status,
                     'timestamp': 'Just Now'
                 })
 
