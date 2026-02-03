@@ -76,7 +76,8 @@ def run_background_cache_updater():
 
             # 4. Sentiment (Heavy)
             try:
-                news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=20)
+                # Increased limit for better coverage
+                news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=50)
                 REPORT_CACHE["sentiment"]["data"] = get_sentiment_report(data, news_data=news)
                 REPORT_CACHE["sentiment"]["timestamp"] = time.time()
             except Exception as e: print(f"[CACHE] Sentiment failed: {e}")
@@ -350,7 +351,7 @@ def sentiment_endpoint():
 
         data = get_data_internal()
         # Fetch news using the global analyzer
-        news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=20)
+        news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=50)
         report = get_sentiment_report(data, news_data=news)
         REPORT_CACHE["sentiment"]["data"] = report
         REPORT_CACHE["sentiment"]["timestamp"] = time.time()

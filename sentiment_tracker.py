@@ -60,16 +60,43 @@ class SentimentTracker:
         
         neutral_keywords = ["stable", "holds", "consolidates", "ranging"]
         
+        # Mapping for better matching
+        NAME_MAPPING = {
+            "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "XRP": "ripple",
+            "DOGE": "dogecoin", "SHIB": "shiba", "ADA": "cardano", "AVAX": "avalanche",
+            "DOT": "polkadot", "LINK": "chainlink", "UNI": "uniswap", "MATIC": "polygon",
+            "LTC": "litecoin", "BCH": "bitcoin cash", "XLM": "stellar", "TRX": "tron",
+            "PEPE": "pepe"
+        }
+        
         positive_count = 0
         negative_count = 0
         neutral_count = 0
         mention_count = 0
         
+        coin_name = NAME_MAPPING.get(symbol_clean, "").lower()
+        
         for news_item in news_data:
             title = news_item.get("title", "").lower()
+            summary = news_item.get("summary", "").lower() 
+            text_content = title + " " + summary
             
-            # Check if coin is mentioned
-            if symbol_clean.lower() in title or symbol_clean.lower() in news_item.get("summary", "").lower():
+            # Check if coin is mentioned (Symbol OR Name)
+            # Add spaces to avoid matching 'ETH' in 'method'
+            # But kept simple for now as symbols are usually distinct enough in context
+            is_match = False
+            
+            # 1. Direct symbol check
+            if symbol_clean.lower() in text_content.split():
+                 is_match = True
+            # 2. Name check
+            elif coin_name and coin_name in text_content:
+                 is_match = True
+            # 3. Fallback loose check
+            elif symbol_clean.lower() in text_content:
+                 is_match = True
+                 
+            if is_match:
                 mention_count += 1
                 
                 # Count sentiment keywords
