@@ -213,14 +213,14 @@ def get_whale_heatmap_report(coins_data):
         active_coins = [c for c in coins_data if abs(get_valid_accum(c)) > 1000]
         sorted_results = sorted(active_coins, key=lambda x: abs(get_valid_accum(x)), reverse=True)
         
-        # UNIFORM GRID STYLE (No Tetris)
+        # SEAMLESS GRID STYLE (No Gaps)
         html = """
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h4 style="margin:0;">🐋 Whale Market Map</h4>
             <span style="font-size:0.8em; opacity:0.7;">Sorted by Volume Magnitude</span>
         </div>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 10px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1px; background: #1e293b; border: 1px solid #334155; margin-top: 10px;">
         """
         
         for coin in sorted_results[:50]:
@@ -231,17 +231,17 @@ def get_whale_heatmap_report(coins_data):
                 
                 # Determine Color
                 bg_color = "#16c784" if net_accum > 0 else "#ea3943" # Binance Green/Red
-                if abs(net_accum) < 50000: bg_color = "#5e6673" # Neutral gray for small moves
+                if abs(net_accum) < 50000: bg_color = "#5e6673" # Neutral gray
                 
-                # Uniform Style for all boxes
-                style = f"display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 10px; border-radius: 6px; text-align: center; height: 110px; background-color: {bg_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.2s;"
+                # Seamless Style (No Radius, No Gap)
+                style = f"display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 10px; text-align: center; height: 110px; background-color: {bg_color}; transition: opacity 0.2s;"
                 
                 # Format Value
                 val_fmt = f"{net_accum/1_000_000:.1f}M"
                 if abs(net_accum) < 1_000_000: val_fmt = f"{net_accum/1_000:.0f}K"
                 
                 html += f"""
-                <div style="{style}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                <div style="{style}" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
                     <div style="font-weight: 800; font-size: 1.1em; margin-bottom:4px;">{symbol}</div>
                     <div style="font-weight: 600; font-size: 1em; opacity: 0.95;">${val_fmt}</div>
                     <div style="font-size: 0.75em; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 10px; margin-top: 6px;">{price_change}</div>
