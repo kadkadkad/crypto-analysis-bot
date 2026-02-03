@@ -21,13 +21,100 @@ from token_supply_tracker import get_token_supply_report
 from orderbook_depth import get_orderbook_report
 from market_calendar import MarketImpactAnalyzer
 
+import threading
+import time
+import copy
+
 # Initialize Global Analyzer for Caching
 MARKET_ANALYZER = MarketImpactAnalyzer()
 
-# ... (aradaki kodlar değişmeyecek, sadece sentiment endpoint değişecek - ama replace tool için contiguous blok lazım) ...
-# ... Bu yüzden sadece endpoint change yapacağım ve importu ayrı düzelteceğim ...
+# ==================== BACKGROUND CACHING SYSTEM ====================
+# Cache storage
+REPORT_CACHE = {
+    "funding": {"data": None, "timestamp": 0},
+    "cvd": {"data": None, "timestamp": 0},
+    "arbitrage": {"data": None, "timestamp": 0},
+    "sentiment": {"data": None, "timestamp": 0},
+    "cascade": {"data": None, "timestamp": 0},
+    "ls_ratio": {"data": None, "timestamp": 0},
+    "token_supply": {"data": None, "timestamp": 0},
+    "orderbook": {"data": None, "timestamp": 0}
+}
 
-# O yüzden şimdilik SADECE IMPORT DÜZELTME yapıyorum, aşağıda endpoint'i ayrıca düzelteceğim.
+CACHE_UPDATE_INTERVAL = 300  # Update every 5 minutes
+
+def run_background_cache_updater():
+    """Background thread to pre-calculate reports"""
+    print("🚀 [SYSTEM] Background Report Cache Updater Started")
+    while True:
+        try:
+            # Load fresh data
+            data = get_data_internal()
+            if not data:
+                time.sleep(10)
+                continue
+                
+            print(f"🔄 [CACHE] Updating reports at {time.strftime('%H:%M:%S')}...")
+            
+            # 1. Funding Rate
+            try:
+                REPORT_CACHE["funding"]["data"] = get_funding_rate_report(data)
+                REPORT_CACHE["funding"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] Funding failed: {e}")
+            
+            # 2. CVD (Heavy)
+            try:
+                REPORT_CACHE["cvd"]["data"] = get_cvd_report(data)
+                REPORT_CACHE["cvd"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] CVD failed: {e}")
+            
+            # 3. Arbitrage
+            try:
+                REPORT_CACHE["arbitrage"]["data"] = get_arbitrage_report(data)
+                REPORT_CACHE["arbitrage"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] Arbitrage failed: {e}")
+
+            # 4. Sentiment (Heavy)
+            try:
+                news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=20)
+                REPORT_CACHE["sentiment"]["data"] = get_sentiment_report(data, news_data=news)
+                REPORT_CACHE["sentiment"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] Sentiment failed: {e}")
+
+            # 5. Cascade Liquidation
+            try:
+                REPORT_CACHE["cascade"]["data"] = get_cascade_liquidation_report(data)
+                REPORT_CACHE["cascade"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] Cascade failed: {e}")
+
+            # 6. LS Ratio
+            try:
+                REPORT_CACHE["ls_ratio"]["data"] = get_ls_ratio_report(data)
+                REPORT_CACHE["ls_ratio"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] LS Ratio failed: {e}")
+
+            # 7. Token Supply (Heavy)
+            try:
+                REPORT_CACHE["token_supply"]["data"] = get_token_supply_report(data)
+                REPORT_CACHE["token_supply"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] Supply failed: {e}")
+
+            # 8. Orderbook
+            try:
+                REPORT_CACHE["orderbook"]["data"] = get_orderbook_report(data)
+                REPORT_CACHE["orderbook"]["timestamp"] = time.time()
+            except Exception as e: print(f"[CACHE] Orderbook failed: {e}")
+            
+            print("✅ [CACHE] All reports updated successfully.")
+            
+        except Exception as e:
+            print(f"❌ [CACHE] Updater loop error: {e}")
+        
+        time.sleep(CACHE_UPDATE_INTERVAL)
+
+# Start background thread
+cache_thread = threading.Thread(target=run_background_cache_updater, daemon=True)
+cache_thread.start()
 
 # Turkey timezone (GMT+3)
 TURKEY_TZ = pytz.timezone('Europe/Istanbul')
@@ -204,8 +291,16 @@ def get_report(report_type):
 @limiter.limit("10 per minute")
 def funding_rate_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["funding"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+            
+        # Fallback
         data = get_data_internal()
         report = get_funding_rate_report(data)
+        REPORT_CACHE["funding"]["data"] = report
+        REPORT_CACHE["funding"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating funding rate report: {e}"}), 500
@@ -214,8 +309,15 @@ def funding_rate_endpoint():
 @limiter.limit("10 per minute")
 def cvd_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["cvd"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+            
         data = get_data_internal()
         report = get_cvd_report(data)
+        REPORT_CACHE["cvd"]["data"] = report
+        REPORT_CACHE["cvd"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating CVD report: {e}"}), 500
@@ -224,8 +326,15 @@ def cvd_endpoint():
 @limiter.limit("5 per minute")
 def arbitrage_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["arbitrage"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+
         data = get_data_internal()
         report = get_arbitrage_report(data)
+        REPORT_CACHE["arbitrage"]["data"] = report
+        REPORT_CACHE["arbitrage"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating arbitrage report: {e}"}), 500
@@ -234,11 +343,17 @@ def arbitrage_endpoint():
 @limiter.limit("10 per minute")
 def sentiment_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["sentiment"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+
         data = get_data_internal()
         # Fetch news using the global analyzer
-        # Note: MARKET_ANALYZER is initialized at module level
         news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=20)
         report = get_sentiment_report(data, news_data=news)
+        REPORT_CACHE["sentiment"]["data"] = report
+        REPORT_CACHE["sentiment"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating sentiment report: {e}"}), 500
@@ -247,8 +362,15 @@ def sentiment_endpoint():
 @limiter.limit("10 per minute")
 def cascade_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["cascade"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+
         data = get_data_internal()
         report = get_cascade_liquidation_report(data)
+        REPORT_CACHE["cascade"]["data"] = report
+        REPORT_CACHE["cascade"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating cascade liquidation report: {e}"}), 500
@@ -257,8 +379,15 @@ def cascade_endpoint():
 @limiter.limit("10 per minute")
 def ls_ratio_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["ls_ratio"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+
         data = get_data_internal()
         report = get_ls_ratio_report(data)
+        REPORT_CACHE["ls_ratio"]["data"] = report
+        REPORT_CACHE["ls_ratio"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating L/S ratio report: {e}"}), 500
@@ -267,8 +396,15 @@ def ls_ratio_endpoint():
 @limiter.limit("5 per minute")
 def token_supply_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["token_supply"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+
         data = get_data_internal()
         report = get_token_supply_report(data)
+        REPORT_CACHE["token_supply"]["data"] = report
+        REPORT_CACHE["token_supply"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating token supply report: {e}"}), 500
@@ -277,8 +413,15 @@ def token_supply_endpoint():
 @limiter.limit("5 per minute")
 def orderbook_endpoint():
     try:
+        # Try Cache
+        cached = REPORT_CACHE["orderbook"]["data"]
+        if cached:
+            return jsonify({"report": cached})
+
         data = get_data_internal()
         report = get_orderbook_report(data)
+        REPORT_CACHE["orderbook"]["data"] = report
+        REPORT_CACHE["orderbook"]["timestamp"] = time.time()
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating order book report: {e}"}), 500
