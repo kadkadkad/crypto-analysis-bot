@@ -11,6 +11,12 @@ ENV/
 # Environment variables
 .env
 
+# SSH Keys (Security)
+id_rsa_oracle
+oracle_key
+*.pem
+*.key
+
 # Logs
 *.log
 bot_nohup.log

@@ -10,6 +10,16 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
 
+# New Advanced Analyzers for Dashboard
+from funding_rate_tracker import get_funding_rate_report
+from cvd_tracker import get_cvd_report
+from arbitrage_tracker import get_arbitrage_report
+from sentiment_tracker import get_sentiment_report
+from cascade_liquidation import get_cascade_liquidation_report
+from ls_ratio_tracker import get_ls_ratio_report
+from token_supply_tracker import get_token_supply_report
+from orderbook_depth import get_orderbook_report
+
 # Turkey timezone (GMT+3)
 TURKEY_TZ = pytz.timezone('Europe/Istanbul')
 
@@ -178,6 +188,100 @@ def get_report(report_type):
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ------------------ NEW ADVANCED REPORT ENDPOINTS ------------------
+
+@app.route('/api/report/funding-rate')
+@limiter.limit("10 per minute")
+def funding_rate_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_funding_rate_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating funding rate report: {e}"}), 500
+
+@app.route('/api/report/cvd-analysis')
+@limiter.limit("10 per minute")
+def cvd_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_cvd_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating CVD report: {e}"}), 500
+
+@app.route('/api/report/arbitrage')
+@limiter.limit("5 per minute")
+def arbitrage_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_arbitrage_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating arbitrage report: {e}"}), 500
+
+@app.route('/api/report/sentiment')
+@limiter.limit("10 per minute")
+def sentiment_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_sentiment_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating sentiment report: {e}"}), 500
+
+@app.route('/api/report/cascade-liquidation')
+@limiter.limit("10 per minute")
+def cascade_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_cascade_liquidation_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating cascade liquidation report: {e}"}), 500
+
+@app.route('/api/report/ls-ratio')
+@limiter.limit("10 per minute")
+def ls_ratio_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_ls_ratio_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating L/S ratio report: {e}"}), 500
+
+@app.route('/api/report/token-supply')
+@limiter.limit("5 per minute")
+def token_supply_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_token_supply_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating token supply report: {e}"}), 500
+
+@app.route('/api/report/orderbook')
+@limiter.limit("5 per minute")
+def orderbook_endpoint():
+    try:
+        data = get_data_internal()
+        report = get_orderbook_report(data)
+        return jsonify({"report": report})
+    except Exception as e:
+        return jsonify({"report": f"Error generating order book report: {e}"}), 500
+
+# Helper to get data for internal use without jsonify
+def get_data_internal():
+    try:
+        if os.path.exists(RESULTS_FILE):
+             with open(RESULTS_FILE, 'r') as f:
+                return json.load(f)
+    except:
+        pass
+    return []
+
+# -------------------------------------------------------------------
 
 # 🔔 API: Alert durumu (public - rate limited)
 @app.route('/api/alerts/status')

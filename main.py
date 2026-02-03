@@ -58,6 +58,16 @@ from signal_tracker import SignalWinRateTracker
 from smart_money_report import generate_smart_money_indicators_report
 from market_calendar import get_market_calendar_report, init_market_calendar
 
+# New Advanced Trackers
+from funding_rate_tracker import get_funding_rate_report
+from cvd_tracker import get_cvd_report
+from arbitrage_tracker import get_arbitrage_report
+from sentiment_tracker import get_sentiment_report
+from cascade_liquidation import get_cascade_liquidation_report
+from ls_ratio_tracker import get_ls_ratio_report
+from token_supply_tracker import get_token_supply_report
+from orderbook_depth import get_orderbook_report
+
 
 # Start Menu Manager
 MENU_STATE = telegram_bot.MENU_STATE
@@ -14400,7 +14410,10 @@ if __name__ == "__main__":
         try:
             print("[INFO] Starting Flask Web Dashboard on port 8050...")
             # Import here to avoid circular dependencies if any
+            import web_dashboard
             from web_dashboard import app
+            print(f"[DEBUG-TRACE] web_dashboard file: {web_dashboard.__file__}")
+            print(f"[DEBUG-TRACE] Flask template folder: {app.template_folder}")
             # Run on 0.0.0.0 to be accessible externally
             app.run(host='0.0.0.0', port=8050, debug=False, use_reloader=False)
         except Exception as e:

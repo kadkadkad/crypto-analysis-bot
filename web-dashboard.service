@@ -1,0 +1,15 @@
+[Unit]
+Description=Web Dashboard for Crypto Bot
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/crypto-analysis-bot
+ExecStart=/home/ubuntu/crypto-analysis-bot/venv/bin/python web_dashboard.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=PORT=8050
+
+[Install]
+WantedBy=multi-user.target
