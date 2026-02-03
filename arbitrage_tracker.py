@@ -118,12 +118,12 @@ class ArbitrageTracker:
         # Check top coins by volume
         sorted_coins = sorted(
             coins_data,
-            key=lambda x: float(str(x.get("24h Volume (USDT)", 0)).replace(",", "")),
+            key=lambda x: float(str(x.get("24h Volume", 0)).replace(",", "")),  # Changed field
             reverse=True
         )[:30]  # Top 30 by volume
         
         for coin in sorted_coins:
-            symbol = coin.get("Symbol", "")
+            symbol = coin.get("Coin", "")  # Changed from "Symbol"
             if not symbol:
                 continue
             

@@ -131,9 +131,9 @@ class SentimentTracker:
         active_coins = []
         
         for coin in coins_data:
-            symbol = coin.get("Symbol", "")
-            price_change = coin.get("24h Change (%)", 0)
-            volume = coin.get("24h Volume (USDT)", 0)
+            symbol = coin.get("Coin", "")  # Changed from "Symbol"
+            price_change = coin.get("24h Change Raw", 0)  # Use numeric field
+            volume = coin.get("24h Volume", 0)  # Simplified field name
             
             try:
                 price_change_val = float(str(price_change).replace("%", ""))

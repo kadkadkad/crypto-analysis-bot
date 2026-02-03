@@ -89,7 +89,7 @@ class OrderBookAnalyzer:
         report += "⚖️ Real-time Bid/Ask pressure from Depth 100\n\n"
         
         # Get symbols
-        symbols = [c.get("Symbol") for c in coins_data if c.get("Symbol")]
+        symbols = [c.get("Coin") for c in coins_data if c.get("Coin")]
         symbols = symbols[:20] # Limit to top 20 to be fast
         
         analyzed = asyncio.run(self.run_analysis(symbols))

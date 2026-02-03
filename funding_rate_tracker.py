@@ -83,11 +83,15 @@ class FundingRateTracker:
         extreme_negative = []  # < -0.1%
         
         for coin in coins_data:
-            symbol = coin.get("Symbol", "UNKNOWN")
-            funding = coin.get("Funding Rate", 0)
+            symbol = coin.get("Coin", "UNKNOWN")  # Changed from "Symbol" to "Coin"
+            funding = coin.get("Funding Rate", "0.0000%")
             
             try:
-                funding_val = float(funding)
+                # Parse funding rate - remove % sign and convert to float
+                if isinstance(funding, str):
+                    funding_val = float(funding.replace('%', ''))
+                else:
+                    funding_val = float(funding)
             except:
                 funding_val = 0
             

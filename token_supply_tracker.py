@@ -100,12 +100,12 @@ class TokenSupplyTracker:
         # Sort by volume to prioritize relevant coins
         sorted_coins = sorted(
             coins_data, 
-            key=lambda x: float(str(x.get("24h Volume (USDT)", 0)).replace(",", "")), 
+            key=lambda x: float(str(x.get("24h Volume", 0)).replace(",", "")), 
             reverse=True
         )[:20]
         
         for coin in sorted_coins:
-            symbol = coin.get("Symbol", "")
+            symbol = coin.get("Coin", "")  # Changed from "Symbol"
             if not symbol: continue
             
             # Simple rate limit prevention

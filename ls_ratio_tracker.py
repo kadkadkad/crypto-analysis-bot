@@ -228,7 +228,7 @@ class LongShortRatioTracker:
         high_oi_coins = []
         
         for coin in coins_data[:30]:  # Top 30 by volume
-            symbol = coin.get("Symbol", "")
+            symbol = coin.get("Coin", "")  # Changed from "Symbol"
             if not symbol:
                 continue
             

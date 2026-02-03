@@ -99,15 +99,33 @@ class CascadeLiquidationAnalyzer:
         high_risk_coins = []
         
         for coin in coins_data:
-            symbol = coin.get("Symbol", "")
-            price = coin.get("Current Price", 0)
+            symbol = coin.get("Coin", "")  # Changed from "Symbol"
+            # Get data with fallbacks for different key names that might exist
+            price = coin.get("Current Price", coin.get("Price", 0))
             oi = coin.get("Open Interest", 0)
-            volatility = coin.get("ATR", 0)
+            volatility = coin.get("ATR", coin.get("atr", 0))
             
             try:
-                price_val = float(price)
-                oi_val = float(oi)
-                vol_val = float(volatility) if volatility else price_val * 0.03  # Default 3% volatility
+                # Handle price (might be string "$123" or float)
+                if isinstance(price, str):
+                    price_val = float(str(price).replace('$', '').replace(',', ''))
+                else:
+                    price_val = float(price)
+
+                # Handle Open Interest (might be string or float)
+                if isinstance(oi, str):
+                    oi_val = float(str(oi).replace('$', '').replace(',', ''))
+                else:
+                    oi_val = float(oi)
+                
+                # Handle Volatility
+                if isinstance(volatility, str):
+                    vol_val = float(str(volatility).replace('$', '').replace(',', ''))
+                else:
+                    vol_val = float(volatility)
+                
+                if vol_val == 0:
+                     vol_val = price_val * 0.03 # Default 3%
             except:
                 continue
             
