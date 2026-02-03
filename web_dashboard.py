@@ -202,7 +202,6 @@ def get_data():
 def get_whale_heatmap_report(coins_data):
     if not coins_data:
         return "<div class='alert alert-warning'>⚠️ No data available yet.</div>"
-
     try:
         def get_valid_accum(c):
              val = c.get("NetAccum_raw", 0)
@@ -210,63 +209,49 @@ def get_whale_heatmap_report(coins_data):
              try: return float(val)
              except: return 0
              
-        # Sort by absolute net flow
         sorted_results = sorted(coins_data, key=lambda x: abs(get_valid_accum(x)), reverse=True)
         
-        # Grid layout matching RSI heatmap logic (compact, clearly visible)
-        html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; width: 100%;">'
+        # Grid layout (No newlines to prevent dashboard.js from breaking tags)
+        html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; width: 100%;">'
         
         for coin in sorted_results[:60]:
             try:
                 net_accum = get_valid_accum(coin)
                 symbol = coin.get("Coin", "???").replace("USDT", "")
-                
-                # Sharp Green/Red colors with intensity
                 abs_val = abs(net_accum)
-                intensity = min(abs_val / 5000000, 1)
                 
+                # Colors matching RSI Heatmap logic
                 if net_accum > 0:
-                    bg = f"rgba(16, 185, 129, {0.3 + (intensity * 0.7)})"
+                    color = "#10b981" # Green
                     status = "ACCUM"
                 else:
-                    bg = f"rgba(239, 68, 68, {0.3 + (intensity * 0.7)})"
+                    color = "#ef4444" # Red
                     status = "DISTR"
                 
-                val_display = f"{net_accum / 1000000:.2f}M"
-                if abs_val < 1000000:
-                    val_display = f"{net_accum / 1000:.0f}K"
+                val_display = f"{net_accum / 1000000:.1f}M"
+                if abs_val < 1000000: val_display = f"{net_accum / 1000:.0f}K"
                 
-                # Exact style matching RSI card but for whales
-                html += f"""
-                <div style="background: {bg}; padding: 12px 5px; border-radius: 8px; text-align: center; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;"
-                     onclick="openCoinAnalysisV2('{coin.get('Coin')}')">
-                    <div style="font-size: 13px; font-weight: 700; color: white; margin-bottom: 5px;">${symbol}</div>
-                    <div style="font-size: 18px; font-weight: 900; color: white;">{val_display}</div>
-                    <div style="font-size: 10px; color: rgba(255,255,255,0.7); font-weight: 700; text-transform: uppercase;">{status}</div>
-                </div>
-                """
+                # Card structure matching RSI Heatmap EXACTLY: Dark bg, top border color, colored value
+                card_html = (
+                    f'<div style="background: #161b22; padding: 12px 5px; border-radius: 8px; text-align: center; border: 1px solid #30363d; border-top: 3px solid {color}; cursor: pointer;" '
+                    f'onclick="openCoinAnalysisV2(\'{coin.get("Coin")}\')">'
+                    f'<div style="font-size: 12px; font-weight: 600; color: #fff; margin-bottom: 4px;">${symbol}</div>'
+                    f'<div style="font-size: 18px; font-weight: bold; color: {color}; display: block; margin: 2px 0;">{val_display}</div>'
+                    f'<div style="font-size: 10px; opacity: 0.7; color: #fff;">{status}</div>'
+                    f'</div>'
+                )
+                html += card_html
             except: continue
             
-
         html += '</div>'
         
-        # Legend (Matches RSI legend style)
-        html += """
-        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; font-size: 11px; color: #8b949e; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
-                <span>Whale Accumulation (Buy)</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
-                <span>Whale Distribution (Sell)</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 5px;">
-                <span style="width: 10px; height: 10px; border-radius: 50%; background: #475569; display: inline-block;"></span>
-                <span>Low Activity</span>
-            </div>
-        </div>
-        """
+        # Legend
+        html += (
+            '<div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; font-size: 11px; color: #8b949e; border-top: 1px solid #30363d; padding-top: 15px;">'
+            '<div style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981;"></span><span>Accumulation</span></div>'
+            '<div style="display: flex; align-items: center; gap: 5px;"><span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444;"></span><span>Distribution</span></div>'
+            '</div>'
+        )
         return html
     except Exception as e:
         return f"Error: {e}"
