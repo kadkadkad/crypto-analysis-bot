@@ -12254,7 +12254,7 @@ def get_whale_movement_report_html():
             
             html += f"""
             <div class="whale-card {card_class}">
-                <div class="w-sym">{icon} ${{symbol}}</div>
+                <div class="w-sym">{icon} ${symbol}</div>
                 <div class="w-val">{net_accum:+.2f}M</div>
                 <div class="w-lbl">Change: {price_change}%</div>
                 <div class="w-lbl">{score}</div>
