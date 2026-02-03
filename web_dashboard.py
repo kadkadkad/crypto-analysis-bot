@@ -213,51 +213,38 @@ def get_whale_heatmap_report(coins_data):
         active_coins = [c for c in coins_data if abs(get_valid_accum(c)) > 1000]
         sorted_results = sorted(active_coins, key=lambda x: abs(get_valid_accum(x)), reverse=True)
         
-        # INLINE STYLES FOR RELIABILITY
+        # UNIFORM GRID STYLE (No Tetris)
         html = """
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h4 style="margin:0;">🐋 Whale Market Map</h4>
-            <span style="font-size:0.8em; opacity:0.7;">Size = Volume Magnitude | Color = Net Flow</span>
+            <span style="font-size:0.8em; opacity:0.7;">Sorted by Volume Magnitude</span>
         </div>
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 4px; margin-top: 10px; grid-auto-flow: dense;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-top: 10px;">
         """
         
-        for i, coin in enumerate(sorted_results[:40]):
+        for coin in sorted_results[:50]:
             try:
                 net_accum = get_valid_accum(coin)
                 symbol = coin.get("Coin", "UNK").replace("USDT", "")
                 price_change = coin.get("24h Change", "0%")
                 
-                # Base Style
-                # height is important for grid packing
-                style = "display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 4px; border-radius: 4px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"
-                
-                # Determine Size (Grid Span) and Height
-                # 3x3 for #1, 2x2 for top 4, etc.
-                if i == 0: 
-                    style += "grid-column: span 4; grid-row: span 3; font-size: 2em; min-height: 300px;"
-                elif i < 5: 
-                    style += "grid-column: span 2; grid-row: span 2; font-size: 1.4em; min-height: 200px;"
-                elif i < 15: 
-                    style += "grid-column: span 2; grid-row: span 1; font-size: 1.1em; min-height: 100px;"
-                else: 
-                    style += "grid-column: span 1; grid-row: span 1; font-size: 0.85em; min-height: 100px;"
-                
                 # Determine Color
-                bg_color = "#16c784" if net_accum > 0 else "#ea3943"
-                if abs(net_accum) < 50000: bg_color = "#5e6673"
-                style += f"background-color: {bg_color};"
+                bg_color = "#16c784" if net_accum > 0 else "#ea3943" # Binance Green/Red
+                if abs(net_accum) < 50000: bg_color = "#5e6673" # Neutral gray for small moves
+                
+                # Uniform Style for all boxes
+                style = f"display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 10px; border-radius: 6px; text-align: center; height: 110px; background-color: {bg_color}; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: transform 0.2s;"
                 
                 # Format Value
                 val_fmt = f"{net_accum/1_000_000:.1f}M"
                 if abs(net_accum) < 1_000_000: val_fmt = f"{net_accum/1_000:.0f}K"
                 
                 html += f"""
-                <div style="{style}">
-                    <div style="font-weight: 800; margin-bottom:2px;">{symbol}</div>
-                    <div style="font-weight: 600; opacity: 0.9;">${val_fmt}</div>
-                    <div style="font-size: 0.6em; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 10px; margin-top: 4px;">{price_change}</div>
+                <div style="{style}" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                    <div style="font-weight: 800; font-size: 1.1em; margin-bottom:4px;">{symbol}</div>
+                    <div style="font-weight: 600; font-size: 1em; opacity: 0.95;">${val_fmt}</div>
+                    <div style="font-size: 0.75em; background: rgba(0,0,0,0.2); padding: 2px 8px; border-radius: 10px; margin-top: 6px;">{price_change}</div>
                 </div>
                 """
             except: continue
@@ -265,7 +252,7 @@ def get_whale_heatmap_report(coins_data):
         html += "</div>"
         return html
     except Exception as e:
-        return f"Error generating treemap: {e}"
+        return f"Error generating heatmap: {e}"
 
 @app.route('/api/report/<path:report_type>')
 @limiter.limit("100 per minute")
