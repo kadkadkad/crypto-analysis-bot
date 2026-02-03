@@ -102,14 +102,14 @@ class TokenSupplyTracker:
             coins_data, 
             key=lambda x: float(str(x.get("24h Volume", 0)).replace(",", "")), 
             reverse=True
-        )[:20]
+        )[:8]  # Limit to top 8 to prevent timeout
         
         for coin in sorted_coins:
             symbol = coin.get("Coin", "")  # Changed from "Symbol"
             if not symbol: continue
             
             # Simple rate limit prevention
-            time.sleep(0.5) 
+            time.sleep(0.2)  # Reduced sleep time 
             
             supply_data = self.get_token_supply_data(symbol)
             if not supply_data: continue

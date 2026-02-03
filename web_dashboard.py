@@ -19,6 +19,15 @@ from cascade_liquidation import get_cascade_liquidation_report
 from ls_ratio_tracker import get_ls_ratio_report
 from token_supply_tracker import get_token_supply_report
 from orderbook_depth import get_orderbook_report
+from market_calendar import MarketImpactAnalyzer
+
+# Initialize Global Analyzer for Caching
+MARKET_ANALYZER = MarketImpactAnalyzer()
+
+# ... (aradaki kodlar değişmeyecek, sadece sentiment endpoint değişecek - ama replace tool için contiguous blok lazım) ...
+# ... Bu yüzden sadece endpoint change yapacağım ve importu ayrı düzelteceğim ...
+
+# O yüzden şimdilik SADECE IMPORT DÜZELTME yapıyorum, aşağıda endpoint'i ayrıca düzelteceğim.
 
 # Turkey timezone (GMT+3)
 TURKEY_TZ = pytz.timezone('Europe/Istanbul')
@@ -226,7 +235,10 @@ def arbitrage_endpoint():
 def sentiment_endpoint():
     try:
         data = get_data_internal()
-        report = get_sentiment_report(data)
+        # Fetch news using the global analyzer
+        # Note: MARKET_ANALYZER is initialized at module level
+        news = MARKET_ANALYZER.news_aggregator.fetch_all_news(limit=20)
+        report = get_sentiment_report(data, news_data=news)
         return jsonify({"report": report})
     except Exception as e:
         return jsonify({"report": f"Error generating sentiment report: {e}"}), 500
