@@ -47,6 +47,7 @@ All modules MUST use the following keys when reading `web_results.json`:
 ### 🚀 Optimization Settings
 - **Token Supply**: Limited to **Top 8** coins per request to avoid CoinGecko timeouts (Free tier limits).
 - **Sentiment**: `web_dashboard.py` uses global `MARKET_ANALYZER` to fetch news ONCE and passes it to `sentiment_tracker`.
+- **Zero-Latency UI (New)**: `web_dashboard.py` now runs a **Background Thread** (`run_background_cache_updater`) that pre-calculates heavy reports (Funding, CVD, Token Supply, etc.) every 5 minutes. Endpoints serve from RAM cache instantly.
 
 ## 4. Deployment Workflow (Oracle VM)
 The production environment runs on Oracle VM.
