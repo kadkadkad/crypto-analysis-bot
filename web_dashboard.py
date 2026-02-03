@@ -204,47 +204,43 @@ def get_whale_heatmap_report(coins_data):
         return "<div class='alert alert-warning'>⚠️ No data available yet.</div>"
 
     try:
-        # Sort by Absolute Net Accumulation magnitude
         def get_valid_accum(c):
-             try: return float(str(c.get("NetAccum_raw", 0)).replace(",",""))
+             val = c.get("NetAccum_raw", 0)
+             if val is None: val = 0
+             try: return float(str(val).replace(",",""))
              except: return 0.0
         
-        # Filter out tiny values
-        active_coins = [c for c in coins_data if abs(get_valid_accum(c)) > 1000]
+        # Fill the grid: Show all coins with movement > 0 (No "black boxes" / empty slots)
+        active_coins = [c for c in coins_data if abs(get_valid_accum(c)) > 0]
         sorted_results = sorted(active_coins, key=lambda x: abs(get_valid_accum(x)), reverse=True)
         
-        # COMPACT & HIGH VISIBILITY STYLE
-        html = """
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
-            <h4 style="margin:0;">🐋 Whale Market Map</h4>
-            <span style="font-size:0.8em; opacity:0.7;">Sorted by Volume Magnitude</span>
-        </div>
+        # NO TITLE/HEADER to fix "üstte çok boşluk var"
+        html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 1px; width: 100%; box-sizing: border-box; margin: 0; padding: 0;">'
         
-        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1px; background: #0f172a; border: 1px solid #334155;">
-        """
-        
-        for coin in sorted_results[:50]:
+        # Show top 60 to fill the view
+        for coin in sorted_results[:60]:
             try:
                 net_accum = get_valid_accum(coin)
-                symbol = coin.get("Coin", "UNK").replace("USDT", "")
+                # Robust symbol fetching
+                symbol = str(coin.get("Coin") or coin.get("Symbol") or coin.get("symbol") or "???").replace("USDT", "").strip()
+                if not symbol: symbol = "???"
+                
                 price_change = coin.get("24h Change", "0%")
+                bg_color = "#10b981" if net_accum > 0 else "#ef4444"
+                if abs(net_accum) < 10000: bg_color = "#475569"
                 
-                # Determine Color (Vibrant solid colors)
-                bg_color = "#10b981" if net_accum > 0 else "#ef4444" # Vivid Green/Red
-                if abs(net_accum) < 50000: bg_color = "#64748b" # Slate Gray for neutral
+                # Style with !important to force visibility and remove any default padding
+                style = f"display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; color: #ffffff !important; background-color: {bg_color} !important; height: 110px !important; width: 100% !important; text-align: center !important; overflow: hidden; border-radius: 0px; box-sizing: border-box; padding: 2px;"
                 
-                # Compact Style: Centered, No Padding, High Contract
-                style = f"display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ffffff; padding: 2px; text-align: center; height: 100px; background-color: {bg_color}; transition: opacity 0.2s; overflow: hidden;"
-                
-                # Format Value
-                val_fmt = f"{net_accum/1_000_000:.1f}M"
-                if abs(net_accum) < 1_000_000: val_fmt = f"{net_accum/1_000:.0f}K"
+                val_abs = abs(net_accum)
+                sign = "-" if net_accum < 0 else ""
+                val_text = f"{sign}${val_abs/1_000_000:.1f}M" if val_abs >= 1_000_000 else f"{sign}${val_abs/1_000:.0f}K"
                 
                 html += f"""
-                <div style="{style}" onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'">
-                    <div style="font-weight: 900; font-size: 1.3em; margin-bottom:0px; line-height:1.1; text-shadow: 0 1px 3px rgba(0,0,0,0.6);">{symbol}</div>
-                    <div style="font-weight: 700; font-size: 1em; margin-bottom:2px; text-shadow: 0 1px 2px rgba(0,0,0,0.4);">${val_fmt}</div>
-                    <div style="font-size: 0.75em; background: rgba(0,0,0,0.25); padding: 1px 6px; border-radius: 4px; font-weight: 500;">{price_change}</div>
+                <div style="{style}">
+                    <div style="font-weight: 900 !important; font-size: 1.35rem !important; color: #ffffff !important; display: block !important; visibility: visible !important; line-height: 1.1 !important; margin: 0 0 2px 0 !important; text-shadow: 1px 1px 3px rgba(0,0,0,0.8) !important;">{symbol}</div>
+                    <div style="font-weight: 700 !important; font-size: 1.0rem !important; color: #ffffff !important; margin: 0 0 3px 0 !important;">{val_text}</div>
+                    <div style="font-size: 0.75rem !important; background: rgba(0,0,0,0.3) !important; padding: 1px 6px !important; border-radius: 4px !important; font-weight: 600 !important; color: #ffffff !important;">{price_change}</div>
                 </div>
                 """
             except: continue
@@ -252,7 +248,7 @@ def get_whale_heatmap_report(coins_data):
         html += "</div>"
         return html
     except Exception as e:
-        return f"Error generating heatmap: {e}"
+        return f"Error: {e}"
 
 @app.route('/api/report/<path:report_type>')
 @limiter.limit("100 per minute")
