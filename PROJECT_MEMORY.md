@@ -18,24 +18,23 @@ Bu proje, Binance üzerinden kripto verilerini analiz eden, yapay zeka destekli 
 ---
 
 ## ✅ SON YAPILANLAR (STATUS LOG)
-**2026-01-23 Tarihli Güncelleme:**
-1.  **Yeni Özellik: Whale Money Flow Heatmap**
-    *   Glassnode stili, interaktif bir ısı haritası dashboard'a eklendi.
-    *   "Whale Movement" butonu artık bu haritayı açıyor.
-    *   Veriler `NetAccum_raw` ve `24h Volume` kullanılarak görselleştirildi.
-2.  **Dashboard İyileştirmeleri:**
-    *   Hard restart prosedürü ile dashboard'un güncel versiyonunun (Port 8050) çalışması sağlandı.
-    *   Flask template dizin sorunu (`templates/` klasörü) giderildi.
-3.  **Risk Raporu:**
-    *   Tamamen İngilizceye çevrildi ve stabil hale getirildi.
+**2026-02-04 Tarihli Güncelleme:**
+1.  **Whale Heatmap Revizyonu:**
+    *   "Whale Movement" raporu, görsel olarak **RSI Heatmap** stiline (kartlı yapı) dönüştürüldü.
+    *   HTML bozulmasına neden olan satır atlaması hatası giderildi.
+    *   Tasarım: Koyu kartlar, renkli border-top (Yeşil/Kırmızı), büyük renkli rakamlar ve net coin sembolleri.
+    *   "Accumulation" ve "Distribution" durumları renk kodlu olarak netleştirildi.
+2.  **Deployment:**
+    *   Yerel değişiklikler GitHub'a pushlandı.
+    *   Oracle VM üzerinde `git pull` ve `systemctl restart crypto-bot` komutları ile canlıya alındı.
 
 ---
 
 ## 🚀 DEVAM EDİLECEK İŞLER (TODO)
 Bu projeye geri dönüldüğünde odaklanılması gerekenler:
-1.  **Genel İstekler:** Kullanıcının henüz detaylandırılmamış genel isteklerini tamamlamak.
-2.  **Eksik Özellikler:** Order Block raporunun backend tarafını düzeltip menüye eklemek.
-3.  **Mobil Uyumluluk:** Dashboard mobilde daha iyi görünebilir.
+1.  **Genel Performans Kontrolü:** Yeni eklenen heatmap'in veri akış hızının takibi.
+2.  **Order Block Raporu:** Backend entegrasyonunun tamamlanması.
+3.  **Mobil Responsive:** Dashboard'un mobil cihazlarda görünüm optimizasyonu.
 
 ---
 
