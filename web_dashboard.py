@@ -206,46 +206,67 @@ def get_whale_heatmap_report(coins_data):
     try:
         def get_valid_accum(c):
              val = c.get("NetAccum_raw", 0)
-             if val is None: val = 0
-             try: return float(str(val).replace(",",""))
-             except: return 0.0
+             if isinstance(val, str): val = val.replace(",", "")
+             try: return float(val)
+             except: return 0
+             
+        # Sort by absolute net flow
+        sorted_results = sorted(coins_data, key=lambda x: abs(get_valid_accum(x)), reverse=True)
         
-        # Fill the grid: Show all coins with movement > 0 (No "black boxes" / empty slots)
-        active_coins = [c for c in coins_data if abs(get_valid_accum(c)) > 0]
-        sorted_results = sorted(active_coins, key=lambda x: abs(get_valid_accum(x)), reverse=True)
+        # Grid layout matching RSI heatmap logic (compact, clearly visible)
+        html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 8px; width: 100%;">'
         
-        # NO TITLE/HEADER to fix "üstte çok boşluk var"
-        html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(115px, 1fr)); gap: 1px; width: 100%; box-sizing: border-box; margin: 0; padding: 0;">'
-        
-        # Show top 60 to fill the view
         for coin in sorted_results[:60]:
             try:
                 net_accum = get_valid_accum(coin)
-                # Robust symbol fetching
-                symbol = str(coin.get("Coin") or coin.get("Symbol") or coin.get("symbol") or "???").replace("USDT", "").strip()
-                if not symbol: symbol = "???"
+                symbol = coin.get("Coin", "???").replace("USDT", "")
                 
-                price_change = coin.get("24h Change", "0%")
-                bg_color = "#10b981" if net_accum > 0 else "#ef4444"
-                if abs(net_accum) < 10000: bg_color = "#475569"
+                # Sharp Green/Red colors with intensity
+                abs_val = abs(net_accum)
+                intensity = min(abs_val / 5000000, 1)
                 
-                # Style with !important to force visibility and remove any default padding
-                style = f"display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; color: #ffffff !important; background-color: {bg_color} !important; height: 110px !important; width: 100% !important; text-align: center !important; overflow: hidden; border-radius: 0px; box-sizing: border-box; padding: 2px;"
+                if net_accum > 0:
+                    bg = f"rgba(16, 185, 129, {0.3 + (intensity * 0.7)})"
+                    status = "ACCUM"
+                else:
+                    bg = f"rgba(239, 68, 68, {0.3 + (intensity * 0.7)})"
+                    status = "DISTR"
                 
-                val_abs = abs(net_accum)
-                sign = "-" if net_accum < 0 else ""
-                val_text = f"{sign}${val_abs/1_000_000:.1f}M" if val_abs >= 1_000_000 else f"{sign}${val_abs/1_000:.0f}K"
+                val_display = f"{net_accum / 1000000:.2f}M"
+                if abs_val < 1000000:
+                    val_display = f"{net_accum / 1000:.0f}K"
                 
+                # Exact style matching RSI card but for whales
                 html += f"""
-                <div style="{style}">
-                    <div style="font-weight: 900 !important; font-size: 1.35rem !important; color: #ffffff !important; display: block !important; visibility: visible !important; line-height: 1.1 !important; margin: 0 0 2px 0 !important; text-shadow: 1px 1px 3px rgba(0,0,0,0.8) !important;">{symbol}</div>
-                    <div style="font-weight: 700 !important; font-size: 1.0rem !important; color: #ffffff !important; margin: 0 0 3px 0 !important;">{val_text}</div>
-                    <div style="font-size: 0.75rem !important; background: rgba(0,0,0,0.3) !important; padding: 1px 6px !important; border-radius: 4px !important; font-weight: 600 !important; color: #ffffff !important;">{price_change}</div>
+                <div style="background: {bg}; padding: 12px 5px; border-radius: 8px; text-align: center; border: 1px solid rgba(255,255,255,0.1); cursor: pointer;"
+                     onclick="openCoinAnalysisV2('{coin.get('Coin')}')">
+                    <div style="font-size: 13px; font-weight: 700; color: white; margin-bottom: 5px;">${symbol}</div>
+                    <div style="font-size: 18px; font-weight: 900; color: white;">{val_display}</div>
+                    <div style="font-size: 10px; color: rgba(255,255,255,0.7); font-weight: 700; text-transform: uppercase;">{status}</div>
                 </div>
                 """
             except: continue
             
-        html += "</div>"
+
+        html += '</div>'
+        
+        # Legend (Matches RSI legend style)
+        html += """
+        <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px; font-size: 11px; color: #8b949e; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px;">
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+                <span>Whale Accumulation (Buy)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: #ef4444; display: inline-block;"></span>
+                <span>Whale Distribution (Sell)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 5px;">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: #475569; display: inline-block;"></span>
+                <span>Low Activity</span>
+            </div>
+        </div>
+        """
         return html
     except Exception as e:
         return f"Error: {e}"
