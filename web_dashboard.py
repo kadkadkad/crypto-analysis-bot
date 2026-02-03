@@ -204,100 +204,60 @@ def get_whale_heatmap_report(coins_data):
         return "<div class='alert alert-warning'>⚠️ No data available yet.</div>"
 
     try:
-        # Sort by Absolute Net Accumulation magnitude (Biggest movers first, regardless of direction)
+        # Sort by Absolute Net Accumulation magnitude
         def get_valid_accum(c):
              try: return float(str(c.get("NetAccum_raw", 0)).replace(",",""))
              except: return 0.0
         
-        # Filter out zero/tiny values for cleaner map
+        # Filter out tiny values
         active_coins = [c for c in coins_data if abs(get_valid_accum(c)) > 1000]
         sorted_results = sorted(active_coins, key=lambda x: abs(get_valid_accum(x)), reverse=True)
         
-        # 🎨 TREEMAP MODERN STYLE CSS
+        # INLINE STYLES FOR RELIABILITY
         html = """
-        <style>
-            .treemap-container {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-                grid-auto-rows: 100px;
-                grid-auto-flow: dense; /* Crucial for packing different sizes */
-                gap: 4px;
-                margin-top: 10px;
-                font-family: 'Inter', sans-serif;
-            }
-            
-            .t-block {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-                border-radius: 4px;
-                padding: 8px;
-                text-align: center;
-                transition: transform 0.2s;
-                position: relative;
-                overflow: hidden;
-            }
-            .t-block:hover { transform: scale(1.02); z-index: 10; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-            
-            /* SIZES */
-            .size-huge { grid-column: span 3; grid-row: span 3; font-size: 1.8em; }
-            .size-big  { grid-column: span 2; grid-row: span 2; font-size: 1.4em; }
-            .size-med  { grid-column: span 2; grid-row: span 1; font-size: 1.1em; }
-            .size-std  { grid-column: span 1; grid-row: span 1; font-size: 0.9em; }
-            
-            /* COLORS (Solid Backgrounds) */
-            .bg-bullish { background: #16c784; } /* Binance Green */
-            .bg-bearish { background: #ea3943; } /* Binance Red */
-            .bg-neutral { background: #5e6673; }
-            
-            .t-sym { font-weight: 800; letter-spacing: 0.5px; }
-            .t-val { font-weight: 600; font-size: 0.8em; opacity: 0.95; margin-top: 2px; }
-            .t-chg { font-size: 0.6em; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 10px; margin-top: 5px; }
-            
-            /* Mobile adjustment */
-            @media (max-width: 600px) {
-                .treemap-container { grid-template-columns: repeat(2, 1fr); }
-                .size-huge, .size-big { grid-column: span 2; grid-row: span 1; }
-            }
-        </style>
-        
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
             <h4 style="margin:0;">🐋 Whale Market Map</h4>
             <span style="font-size:0.8em; opacity:0.7;">Size = Volume Magnitude | Color = Net Flow</span>
         </div>
         
-        <div class="treemap-container">
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 4px; margin-top: 10px; grid-auto-flow: dense;">
         """
         
-        # Rank and assign sizes (Top 1=Huge, 2-4=Big, 5-10=Med, Rest=Std)
-        for i, coin in enumerate(sorted_results[:40]): # Limit to top 40 for clean UI
+        for i, coin in enumerate(sorted_results[:40]):
             try:
                 net_accum = get_valid_accum(coin)
                 symbol = coin.get("Coin", "UNK").replace("USDT", "")
                 price_change = coin.get("24h Change", "0%")
                 
-                # Determine Size Class
-                if i == 0: size_cls = "size-huge"
-                elif i < 4: size_cls = "size-big"
-                elif i < 12: size_cls = "size-med"
-                else: size_cls = "size-std"
+                # Base Style
+                # height is important for grid packing
+                style = "display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 4px; border-radius: 4px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"
                 
-                # Determine Color (Green/Red)
-                bg_cls = "bg-bullish" if net_accum > 0 else "bg-bearish"
-                if abs(net_accum) < 100000: bg_cls = "bg-neutral" # Too small to matter
+                # Determine Size (Grid Span) and Height
+                # 3x3 for #1, 2x2 for top 4, etc.
+                if i == 0: 
+                    style += "grid-column: span 4; grid-row: span 3; font-size: 2em; min-height: 300px;"
+                elif i < 5: 
+                    style += "grid-column: span 2; grid-row: span 2; font-size: 1.4em; min-height: 200px;"
+                elif i < 15: 
+                    style += "grid-column: span 2; grid-row: span 1; font-size: 1.1em; min-height: 100px;"
+                else: 
+                    style += "grid-column: span 1; grid-row: span 1; font-size: 0.85em; min-height: 100px;"
+                
+                # Determine Color
+                bg_color = "#16c784" if net_accum > 0 else "#ea3943"
+                if abs(net_accum) < 50000: bg_color = "#5e6673"
+                style += f"background-color: {bg_color};"
                 
                 # Format Value
                 val_fmt = f"{net_accum/1_000_000:.1f}M"
                 if abs(net_accum) < 1_000_000: val_fmt = f"{net_accum/1_000:.0f}K"
                 
                 html += f"""
-                <div class="t-block {size_cls} {bg_cls}">
-                    <div class="t-sym">{symbol}</div>
-                    <div class="t-val">${val_fmt}</div>
-                    <div class="t-chg">{price_change}</div>
+                <div style="{style}">
+                    <div style="font-weight: 800; margin-bottom:2px;">{symbol}</div>
+                    <div style="font-weight: 600; opacity: 0.9;">${val_fmt}</div>
+                    <div style="font-size: 0.6em; background: rgba(0,0,0,0.2); padding: 2px 6px; border-radius: 10px; margin-top: 4px;">{price_change}</div>
                 </div>
                 """
             except: continue
