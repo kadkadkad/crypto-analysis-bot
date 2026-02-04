@@ -2909,44 +2909,71 @@
                         <h4 style="color: #ec4899; margin: 0 0 15px 0;">${data.symbol} Analysis</h4>
                         
                         <div style="margin-bottom: 15px;">
-                            <div style="font-size: 20px; font-weight: 700;">$${data.current_price}</div>
-                            <div style="font-size: 13px; color: var(--text-dim);">Smart Score: ${data.smart_score}/100 (Rank #${data.rank})</div>
+                            <div style="font-size: 20px; font-weight: 700;">${data.price.current_display}</div>
+                            <div style="font-size: 13px; color: var(--text-dim);">Smart Score: ${data.scores.smart_score}/100 (Rank #${data.scores.smart_score_rank})</div>
+                            <div style="font-size: 13px; color: ${data.price.change_24h.includes('+') ? '#10b981' : '#ef4444'};">${data.price.change_24h} (24h)</div>
                         </div>
 
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
                             <div style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #10b981;">
                                 <div style="color: var(--text-dim); font-size: 11px;">SUPPORT</div>
-                                <div style="font-size: 16px; font-weight: 700; color: #10b981;">$${data.support}</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #10b981;">${data.price.support_display}</div>
                             </div>
                             <div style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #ef4444;">
                                 <div style="color: var(--text-dim); font-size: 11px;">RESISTANCE</div>
-                                <div style="font-size: 16px; font-weight: 700; color: #ef4444;">$${data.resistance}</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #ef4444;">${data.price.resistance_display}</div>
                             </div>
                         </div>
 
-                        ${data.bullish_signals && data.bullish_signals.length > 0 ? `
+                        <div style="background: rgba(59,130,246,0.1); padding: 12px; border-radius: 8px; margin-bottom: 15px; text-align: center;">
+                            <div style="font-size: 14px; font-weight: 600; color: ${data.sentiment.emoji === '🟢' ? '#10b981' : data.sentiment.emoji === '🔴' ? '#ef4444' : '#f59e0b'};">
+                                ${data.sentiment.emoji} ${data.sentiment.overall}
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-dim); margin-top: 5px;">
+                                ${data.sentiment.bull_count} Bullish • ${data.sentiment.bear_count} Bearish
+                            </div>
+                        </div>
+
+                        ${data.bullish_factors && data.bullish_factors.length > 0 ? `
                             <div style="background: rgba(16,185,129,0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                                <div style="font-weight: 600; margin-bottom: 10px; color: #10b981;">🟢 BULLISH SIGNALS (${data.bullish_signals.length})</div>
-                                ${data.bullish_signals.map(s => `<div style="padding: 3px 0; font-size: 13px;">• ${s}</div>`).join('')}
+                                <div style="font-weight: 600; margin-bottom: 10px; color: #10b981;">🟢 BULLISH SIGNALS (${data.bullish_factors.length})</div>
+                                ${data.bullish_factors.map(s => `
+                                    <div style="padding: 5px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                        <div style="font-weight: 600;">${s.emoji} ${s.name}: ${s.value}</div>
+                                        <div style="color: var(--text-dim); font-size: 12px;">${s.description}</div>
+                                    </div>
+                                `).join('')}
                             </div>
                         ` : ''}
 
-                        ${data.bearish_risks && data.bearish_risks.length > 0 ? `
+                        ${data.bearish_factors && data.bearish_factors.length > 0 ? `
                             <div style="background: rgba(239,68,68,0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                                <div style="font-weight: 600; margin-bottom: 10px; color: #ef4444;">🔴 BEARISH RISKS (${data.bearish_risks.length})</div>
-                                ${data.bearish_risks.map(r => `<div style="padding: 3px 0; font-size: 13px;">• ${r}</div>`).join('')}
+                                <div style="font-weight: 600; margin-bottom: 10px; color: #ef4444;">🔴 BEARISH RISKS (${data.bearish_factors.length})</div>
+                                ${data.bearish_factors.map(r => `
+                                    <div style="padding: 5px 0; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                        <div style="font-weight: 600;">${r.emoji} ${r.name}: ${r.value}</div>
+                                        <div style="color: var(--text-dim); font-size: 12px;">${r.description}</div>
+                                    </div>
+                                `).join('')}
                             </div>
                         ` : ''}
 
                         ${data.strategy ? `
                             <div style="background: var(--dark-mid); padding: 15px; border-radius: 8px;">
-                                <div style="font-weight: 600; margin-bottom: 10px;">📊 STRATEGY</div>
-                                <div style="font-size: 13px; line-height: 1.6;">
-                                    ${data.strategy.entry ? `<div><b>Entry:</b> ${data.strategy.entry}</div>` : ''}
-                                    ${data.strategy.target ? `<div><b>Target:</b> ${data.strategy.target}</div>` : ''}
-                                    ${data.strategy.stop_loss ? `<div><b>Stop Loss:</b> ${data.strategy.stop_loss}</div>` : ''}
-                                    ${data.strategy.risk ? `<div><b>Risk:</b> ${data.strategy.risk}</div>` : ''}
+                                <div style="font-weight: 600; margin-bottom: 10px;">📊 TRADING STRATEGY</div>
+                                <div style="font-size: 13px; line-height: 1.8;">
+                                    ${data.strategy.recommendation ? `<div style="margin-bottom: 10px; padding: 10px; background: rgba(59,130,246,0.1); border-radius: 6px;"><b>💡 ${data.strategy.recommendation}</b></div>` : ''}
+                                    ${data.strategy.entry_zone ? `<div>🎯 <b>Entry Zone:</b> ${data.strategy.entry_zone}</div>` : ''}
+                                    ${data.strategy.target ? `<div>🚀 <b>Target:</b> ${data.strategy.target}</div>` : ''}
+                                    ${data.strategy.stop_loss ? `<div>🛡️ <b>Stop Loss:</b> ${data.strategy.stop_loss}</div>` : ''}
+                                    ${data.strategy.risk_level ? `<div>⚠️ <b>Risk Level:</b> ${data.strategy.risk_level}</div>` : ''}
                                 </div>
+                            </div>
+                        ` : ''}
+
+                        ${data.assessment ? `
+                            <div style="margin-top: 15px; padding: 12px; background: rgba(59,130,246,0.1); border-radius: 8px; font-size: 12px; color: var(--text-dim);">
+                                <i class="fas fa-info-circle"></i> ${data.assessment}
                             </div>
                         ` : ''}
                     </div>
