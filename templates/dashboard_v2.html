@@ -2186,9 +2186,14 @@
                     return;
                 }
 
+                console.log('Elliott Wave Data:', data);
+
                 // Fetch kline data for chart
                 const klineResponse = await fetch(`/api/klines/${coin}`);
                 const klineData = await klineResponse.json();
+
+                console.log('Kline Data Sample:', klineData.slice(0, 3));
+                console.log('First Kline:', klineData[0]);
 
                 // Create chart container
                 let html = `
@@ -2275,23 +2280,61 @@
                 return;
             }
 
+            if (!klineData || klineData.length === 0) {
+                console.error('No kline data available');
+                chartDiv.innerHTML = '<div style="color: #f59e0b; padding: 20px; text-align: center;"><i class="fas fa-exclamation-circle"></i> No price data available</div>';
+                return;
+            }
+
             try {
+                console.log('Creating chart with', klineData.length, 'data points');
+
                 // Clear existing content
                 chartDiv.innerHTML = '<canvas id="elliottCanvas"></canvas>';
                 const canvas = document.getElementById('elliottCanvas');
                 const ctx = canvas.getContext('2d');
 
-                // Prepare data - Fix date parsing
-                const labels = klineData.map(k => {
-                    const timestamp = parseInt(k[0]);
-                    const date = new Date(timestamp);
-                    const month = date.toLocaleString('en-US', { month: 'short' });
-                    const day = date.getDate();
-                    return `${month} ${day}`;
+                // Prepare data - Fix date parsing with multiple strategies
+                const labels = klineData.map((k, index) => {
+                    try {
+                        // Try different timestamp formats
+                        let timestamp = k[0];
+
+                        // If timestamp is a string, parse it
+                        if (typeof timestamp === 'string') {
+                            timestamp = parseInt(timestamp);
+                        }
+
+                        // If timestamp is in seconds, convert to milliseconds
+                        if (timestamp < 10000000000) {
+                            timestamp = timestamp * 1000;
+                        }
+
+                        const date = new Date(timestamp);
+
+                        // Check if date is valid
+                        if (isNaN(date.getTime())) {
+                            console.warn('Invalid date at index', index, ':', k[0]);
+                            return `T${index}`;
+                        }
+
+                        const month = date.toLocaleString('en-US', { month: 'short' });
+                        const day = date.getDate();
+                        return `${month} ${day}`;
+                    } catch (e) {
+                        console.error('Date parsing error:', e, k[0]);
+                        return `T${index}`;
+                    }
                 });
-                const closePrices = klineData.map(k => parseFloat(k[4]));
-                const highPrices = klineData.map(k => parseFloat(k[2]));
-                const lowPrices = klineData.map(k => parseFloat(k[3]));
+
+                const closePrices = klineData.map(k => {
+                    const price = parseFloat(k[4]);
+                    return isNaN(price) ? 0 : price;
+                });
+
+                console.log('Sample labels:', labels.slice(0, 5));
+                console.log('Sample prices:', closePrices.slice(0, 5));
+                console.log('Price range:', Math.min(...closePrices), '-', Math.max(...closePrices));
 
                 // Calculate price range for better gradient
                 const minPrice = Math.min(...closePrices);
