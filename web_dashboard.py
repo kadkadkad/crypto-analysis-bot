@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import pytz
 import ccxt
-from flask import Flask, render_template, jsonify, send_file, request
+from flask import Flask, render_template, jsonify, send_file, request, make_response
 from flask_httpauth import HTTPBasicAuth
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -168,7 +168,11 @@ REPORTS_FILE = "web_reports.json"
 @auth.login_required
 def index():
     # Cache Buster V2 - New File
-    return render_template('dashboard_v2.html', v=int(time.time()))
+    response = make_response(render_template('dashboard_v2.html', v=int(time.time())))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 # 📊 API: Veri çekme (rate limited)
 @app.route('/api/data')
