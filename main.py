@@ -12300,10 +12300,10 @@ def handle_market_maker_analysis():
             order_book = analyze_order_book(bids, asks, price, coin["Coin"])
 
             # 3. Stop hunt analysis
-            stop_hunt = detect_stophunt_pattern(klines_15m)
+            stop_hunt = market_analyzer.detect_stophunt_pattern(klines_15m)
 
             # 4. Price compression analysis
-            compression = detect_price_compression(klines_1h)
+            compression = market_analyzer.detect_price_compression(klines_1h)
 
             # Build report for the coin
             report += f"<b>{clean_symbol} Analysis:</b>\n"
