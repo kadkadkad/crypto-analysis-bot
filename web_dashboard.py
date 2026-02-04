@@ -663,6 +663,22 @@ def elliott_wave_analysis():
         analyzer = ElliottWaveAnalyzer()
         result = analyzer.analyze(symbol, timeframe)
         
+        # Format current_wave for display
+        if result and 'current_wave' in result and isinstance(result['current_wave'], dict):
+            wave_obj = result['current_wave']
+            # Extract readable text from wave object
+            if 'label' in wave_obj and wave_obj['label']:
+                result['current_wave_display'] = f"Wave {wave_obj['label']}"
+            elif 'phase' in wave_obj and 'position' in wave_obj:
+                result['current_wave_display'] = f"{wave_obj['phase']} ({wave_obj['position']})"
+            elif 'phase' in wave_obj:
+                result['current_wave_display'] = wave_obj['phase']
+            elif 'message' in wave_obj:
+                # Extract first line of message
+                result['current_wave_display'] = wave_obj['message'].split('.')[0].split('!')[0]
+            else:
+                result['current_wave_display'] = "Wave Analysis"
+        
         return jsonify(result)
     except Exception as e:
         print(f"[API] Elliott Wave error: {e}")
