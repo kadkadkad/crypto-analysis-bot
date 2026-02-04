@@ -1260,6 +1260,9 @@
                         (Global)</button>
                     <button class="btn-item" onclick="api('Candle Patterns')"><i class="fas fa-fire-alt"></i>
                         Candlestick Patterns</button>
+                    <button class="btn-item" onclick="openElliottWave()" style="border-left: 3px solid #8b5cf6;">
+                        <i class="fas fa-wave-square"></i> 🌊 Elliott Wave
+                    </button>
                 </div>
             </div>
 
@@ -1774,7 +1777,10 @@
         };
 
         setInterval(pull, 30000);
-        setInterval(checkAlerts, 15000);
+        setInterval(checkAlerts, 30000);
+        pull();
+        setInterval(pull, 10000);
+        checkAlerts();
         setInterval(async () => {
             try {
                 const res = await fetch('/api/report/Live%20Ticker');
@@ -1942,6 +1948,127 @@
             } catch (e) {
                 console.error("Heatmap Error:", e);
                 grid.innerHTML = '<div style="color:red;">Error loading heatmap</div>';
+            }
+        }
+
+        // Elliott Wave Analysis Function
+        async function openElliottWave() {
+            const coins = db.map(c => c.Coin.replace('USDT', '')).filter(c => c);
+            const html = `
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #8b5cf6; margin-bottom: 20px;">🌊 Elliott Wave Analysis</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 15px;">Select a coin to analyze wave patterns:</p>
+                    <select id="elliottCoinSelect" style="
+                        padding: 12px 20px;
+                        border-radius: 8px;
+                        border: 1px solid var(--border);
+                        background: var(--dark-mid);
+                        color: var(--text);
+                        font-size: 14px;
+                        width: 300px;
+                        margin-bottom: 15px;
+                    ">
+                        ${coins.map(c => `<option value="${c}">${c}</option>`).join('')}
+                    </select>
+                    <br>
+                    <select id="elliottTimeframe" style="
+                        padding: 12px 20px;
+                        border-radius: 8px;
+                        border: 1px solid var(--border);
+                        background: var(--dark-mid);
+                        color: var(--text);
+                        font-size: 14px;
+                        width: 300px;
+                        margin-bottom: 20px;
+                    ">
+                        <option value="1h">1 Hour</option>
+                        <option value="4h" selected>4 Hours</option>
+                        <option value="1d">1 Day</option>
+                    </select>
+                    <br>
+                    <button onclick="runElliottAnalysis()" style="
+                        padding: 12px 30px;
+                        background: linear-gradient(135deg, #8b5cf6, #6366f1);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                        <i class="fas fa-chart-line"></i> Analyze Waves
+                    </button>
+                    <div id="elliottResult" style="margin-top: 20px; text-align: left;"></div>
+                </div>
+            `;
+
+            document.getElementById('modalT').innerText = '🌊 Elliott Wave Analysis';
+            document.getElementById('modalB').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        async function runElliottAnalysis() {
+            const coin = document.getElementById('elliottCoinSelect').value;
+            const timeframe = document.getElementById('elliottTimeframe').value;
+            const resultDiv = document.getElementById('elliottResult');
+
+            resultDiv.innerHTML = '<div style="text-align: center; color: var(--text-dim);">Analyzing wave patterns...</div>';
+
+            try {
+                const response = await fetch('/api/elliott-wave', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: coin, timeframe: timeframe })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 15px;">${data.error}</div>`;
+                    return;
+                }
+
+                // Display results
+                let html = `
+                    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-top: 15px;">
+                        <h4 style="color: #8b5cf6; margin-bottom: 15px;">Wave Analysis for ${data.symbol}</h4>
+                        <div style="color: var(--text-dim); margin-bottom: 10px;">Time: ${data.timestamp}</div>
+                        <div style="color: var(--text-dim); margin-bottom: 10px;">Timeframe: ${data.timeframe}</div>
+
+                        ${data.current_wave ? `
+                            <div style="margin: 15px 0; padding: 15px; background: rgba(139, 92, 246, 0.1); border-left: 3px solid #8b5cf6; border-radius: 4px;">
+                                <strong style="color: #8b5cf6;">Current Wave:</strong> ${data.current_wave}
+                            </div>
+                        ` : ''}
+
+                        ${data.trend ? `
+                            <div style="margin: 10px 0;"><strong>Trend:</strong> ${data.trend}</div>
+                        ` : ''}
+
+                        ${data.confidence ? `
+                            <div style="margin: 10px 0;"><strong>Confidence:</strong> ${data.confidence}%</div>
+                        ` : ''}
+
+                        ${data.signals && data.signals.length > 0 ? `
+                            <div style="margin: 15px 0;">
+                                <strong>Signals:</strong>
+                                <ul style="margin: 10px 0; padding-left: 20px;">
+                                    ${data.signals.map(s => `<li style="margin: 5px 0;">${s}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : ''}
+
+                        ${data.recommendation ? `
+                            <div style="margin: 15px 0; padding: 15px; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10b981; border-radius: 4px;">
+                                <strong style="color: #10b981;">Recommendation:</strong><br>${data.recommendation}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                resultDiv.innerHTML = `<div style="color: #ef4444; padding: 15px;">Error: ${error.message}</div>`;
             }
         }
     </script>
