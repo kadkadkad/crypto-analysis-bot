@@ -2281,14 +2281,22 @@
                 const canvas = document.getElementById('elliottCanvas');
                 const ctx = canvas.getContext('2d');
 
-                // Prepare data
+                // Prepare data - Fix date parsing
                 const labels = klineData.map(k => {
-                    const date = new Date(k[0]);
-                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    const timestamp = parseInt(k[0]);
+                    const date = new Date(timestamp);
+                    const month = date.toLocaleString('en-US', { month: 'short' });
+                    const day = date.getDate();
+                    return `${month} ${day}`;
                 });
                 const closePrices = klineData.map(k => parseFloat(k[4]));
                 const highPrices = klineData.map(k => parseFloat(k[2]));
                 const lowPrices = klineData.map(k => parseFloat(k[3]));
+
+                // Calculate price range for better gradient
+                const minPrice = Math.min(...closePrices);
+                const maxPrice = Math.max(...closePrices);
+                const priceRange = maxPrice - minPrice;
 
                 // Prepare Fibonacci levels as datasets
                 const datasets = [
@@ -2296,11 +2304,25 @@
                         label: 'Close Price',
                         data: closePrices,
                         borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        backgroundColor: function (context) {
+                            const chart = context.chart;
+                            const { ctx, chartArea } = chart;
+                            if (!chartArea) return null;
+
+                            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                            gradient.addColorStop(0, 'rgba(59, 130, 246, 0.05)');
+                            gradient.addColorStop(0.5, 'rgba(59, 130, 246, 0.15)');
+                            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.3)');
+                            return gradient;
+                        },
                         borderWidth: 3,
                         fill: true,
                         tension: 0.4,
                         pointRadius: 0,
+                        pointHoverRadius: 5,
+                        pointHoverBackgroundColor: '#3b82f6',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 2,
                         order: 1,
                     }
                 ];
@@ -2350,19 +2372,44 @@
                                 position: 'top',
                                 labels: {
                                     color: '#8b949e',
-                                    font: { size: 11 },
+                                    font: { size: 11, family: 'Outfit' },
                                     usePointStyle: true,
-                                    padding: 10,
+                                    padding: 15,
+                                    filter: function (item) {
+                                        // Show Close Price and first 3 Fib levels only
+                                        return item.text === 'Close Price' ||
+                                            item.text.includes('0.236') ||
+                                            item.text.includes('0.5') ||
+                                            item.text.includes('0.618');
+                                    }
                                 }
                             },
                             tooltip: {
+                                enabled: true,
                                 backgroundColor: 'rgba(13, 17, 23, 0.95)',
-                                titleColor: '#8b949e',
-                                bodyColor: '#c9d1d9',
+                                titleColor: '#c9d1d9',
+                                titleFont: { size: 13, weight: 'bold' },
+                                bodyColor: '#8b949e',
+                                bodyFont: { size: 12 },
                                 borderColor: '#30363d',
                                 borderWidth: 1,
-                                padding: 12,
+                                padding: 15,
                                 displayColors: true,
+                                callbacks: {
+                                    label: function (context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += '$' + context.parsed.y.toLocaleString(undefined, {
+                                                minimumFractionDigits: 2,
+                                                maximumFractionDigits: 2
+                                            });
+                                        }
+                                        return label;
+                                    }
+                                }
                             }
                         },
                         scales: {
