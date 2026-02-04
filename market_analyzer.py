@@ -13,11 +13,12 @@ def get_turkey_time():
     return datetime.now(TURKEY_TZ)
 
 
-def detect_stophunt_pattern(klines, threshold=3.0):
+def detect_stophunt_pattern(klines, threshold=1.5):  # Lowered from 3.0 to 1.5 for crypto sensitivity
     """
     Detects Stop-Hunt patterns
     """
     if not klines or len(klines) < 10:
+        print(f"[DEBUG-STOPHUNT] Insufficient klines: {len(klines) if klines else 0}")
         return {"detected": False}
 
     try:
@@ -30,6 +31,7 @@ def detect_stophunt_pattern(klines, threshold=3.0):
         df = df.dropna(subset=["close"])
 
         if len(df) < 10:
+            print(f"[DEBUG-STOPHUNT] After dropna, insufficient data: {len(df)}")
             return {"detected": False}
 
         recent_prices = df["close"].tail(10).values
@@ -46,7 +48,7 @@ def detect_stophunt_pattern(klines, threshold=3.0):
         if min_idx < len(recent_prices) - 1:
             recovery_pct = (recent_prices[-1] - recent_prices[min_idx]) / recent_prices[min_idx] * 100 if recent_prices[min_idx] > 0 else 0
 
-            if recovery_pct > threshold / 2:
+            if recovery_pct > threshold / 2:  # Recovery threshold also lowered proportionally
                 if len(df) > 10:
                     drop_volume = df["volume"].iloc[-(10 - min_idx):-1].mean()
                     avg_volume = df["volume"].iloc[:-10].mean() if len(df) > 20 else df["volume"].mean()
@@ -54,6 +56,7 @@ def detect_stophunt_pattern(klines, threshold=3.0):
                 else:
                     volume_spike = False
 
+                print(f"[DEBUG-STOPHUNT] ✅ DETECTED! Drop: {max_drop_pct:.2f}%, Recovery: {recovery_pct:.2f}%")
                 return {
                     "detected": True,
                     "drop_percent": max_drop_pct,
@@ -69,6 +72,7 @@ def detect_stophunt_pattern(klines, threshold=3.0):
 def detect_price_compression(klines, window=20):
     """Detects price compression (low volatility)"""
     if not klines or len(klines) < window * 2:
+        print(f"[DEBUG-COMPRESSION] Insufficient klines: {len(klines) if klines else 0}, need {window * 2}")
         return {"compression": False}
     try:
         df = pd.DataFrame(klines, columns=["timestamp", "open", "high", "low", "close", "volume",
@@ -79,6 +83,7 @@ def detect_price_compression(klines, window=20):
         df = df.dropna(subset=["high", "low", "close"])
 
         if len(df) < window * 2:
+            print(f"[DEBUG-COMPRESSION] After dropna, insufficient data: {len(df)}")
             return {"compression": False}
 
         atr_series = []
@@ -108,8 +113,14 @@ def detect_price_compression(klines, window=20):
         avg_older_atr = sum(older_atr) / len(older_atr)
         compression_ratio = avg_recent_atr / avg_older_atr if avg_older_atr > 0 else 1
 
+        # Lowered from 0.7 to 0.8 for better sensitivity
+        is_compressed = compression_ratio < 0.8
+        
+        if is_compressed:
+            print(f"[DEBUG-COMPRESSION] ✅ DETECTED! Ratio: {compression_ratio:.3f}")
+
         return {
-            "compression": compression_ratio < 0.7,
+            "compression": is_compressed,
             "compression_ratio": compression_ratio,
             "avg_recent_atr": avg_recent_atr,
             "avg_older_atr": avg_older_atr
