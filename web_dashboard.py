@@ -167,8 +167,8 @@ REPORTS_FILE = "web_reports.json"
 @app.route('/')
 @auth.login_required
 def index():
-    # Cache Buster V2 - New File
-    response = make_response(render_template('dashboard_v2.html', v=int(time.time())))
+    # Cache Buster V3 - Trade Doctor Modal Fix
+    response = make_response(render_template('dashboard_v2.html', v='20260204232000'))
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
