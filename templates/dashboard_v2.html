@@ -1397,7 +1397,7 @@
                         style="background: #3b82f6; border-color: #3b82f6; color: white;">📅 CALENDAR</button>
                     <button class="filter-btn" onclick="api('NEWS')"
                         style="background: #10b981; border-color: #10b981; color: white;">📰 NEWS</button>
-                    <button class="filter-btn" onclick="api('Deep Analysis')"
+                    <button class="filter-btn" onclick="openTradeDoctor()"
                         style="background: #f59e0b; border-color: #f59e0b; color: white;">🩺 TRADE DOCTOR</button>
                     <button class="filter-btn" onclick="api('Whale Movement')"
                         style="background: #06b6d4; border-color: #06b6d4; color: white;">🐋 WHALES</button>
@@ -2492,6 +2492,194 @@
             } catch (error) {
                 console.error('Chart creation error:', error);
                 chartDiv.innerHTML = '<div style="color: #ef4444; padding: 20px; text-align: center;"><i class="fas fa-exclamation-triangle"></i> Chart could not be loaded. Please refresh the page.</div>';
+            }
+        }
+
+        // 🩺 Trade Doctor Functions
+        async function openTradeDoctor() {
+            const coins = db.map(c => c.Coin.replace('USDT', '')).filter(c => c);
+            const html = `
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #f59e0b; margin-bottom: 20px;">🩺 AI Trade Doctor</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 15px;">Analyze your position and get AI recommendations</p>
+                    
+                    <div style="max-width: 400px; margin: 0 auto; text-align: left;">
+                        <label style="display: block; color: var(--text-dim); margin-bottom: 5px; font-size: 12px;">COIN</label>
+                        <select id="tdCoin" style="
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            background: var(--dark-mid);
+                            color: var(--text);
+                            width: 100%;
+                            margin-bottom: 15px;
+                        ">
+                            ${coins.map(c => `<option value="${c}">${c}</option>`).join('')}
+                        </select>
+
+                        <label style="display: block; color: var(--text-dim); margin-bottom: 5px; font-size: 12px;">ENTRY PRICE</label>
+                        <input type="number" id="tdEntry" placeholder="95000" step="0.01" style="
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            background: var(--dark-mid);
+                            color: var(--text);
+                            width: 100%;
+                            margin-bottom: 15px;
+                        ">
+
+                        <label style="display: block; color: var(--text-dim); margin-bottom: 5px; font-size: 12px;">QUANTITY</label>
+                        <input type="number" id="tdQty" placeholder="0.1" step="0.0001" style="
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            background: var(--dark-mid);
+                            color: var(--text);
+                            width: 100%;
+                            margin-bottom: 15px;
+                        ">
+
+                        <label style="display: block; color: var(--text-dim); margin-bottom: 5px; font-size: 12px;">POSITION TYPE</label>
+                        <select id="tdType" style="
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            background: var(--dark-mid);
+                            color: var(--text);
+                            width: 100%;
+                            margin-bottom: 20px;
+                        ">
+                            <option value="long">LONG</option>
+                            <option value="short">SHORT</option>
+                        </select>
+
+                        <button onclick="runTradeDoctor()" style="
+                            width: 100%;
+                            padding: 14px;
+                            background: linear-gradient(135deg, #f59e0b, #d97706);
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            font-size: 14px;
+                        ">
+                            <i class="fas fa-stethoscope"></i> Analyze Position
+                        </button>
+                    </div>
+                    
+                    <div id="tdResult" style="margin-top: 20px;"></div>
+                </div>
+            `;
+
+            document.getElementById('modalT').innerText = '🩺 AI Trade Doctor';
+            document.getElementById('modalB').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        async function runTradeDoctor() {
+            const coin = document.getElementById('tdCoin').value;
+            const entry = parseFloat(document.getElementById('tdEntry').value);
+            const quantity = parseFloat(document.getElementById('tdQty').value);
+            const type = document.getElementById('tdType').value;
+            const resultDiv = document.getElementById('tdResult');
+
+            if (!entry || !quantity) {
+                resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Please fill in all fields</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div style="color: #f59e0b; padding: 15px;"><i class="fas fa-spinner fa-spin"></i> Analyzing position...</div>';
+
+            try {
+                const response = await fetch('/api/trade-doctor', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: coin, entry_price: entry, quantity: quantity, position_type: type })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 15px;"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+                    return;
+                }
+
+                const pnl = data.pnl;
+                const tech = data.technicals;
+                const rec = data.recommendation;
+                const rr = data.risk_reward;
+
+                let html = `
+                    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 15px; text-align: left;">
+                        <h4 style="color: #f59e0b; margin: 0 0 15px 0;"><i class="fas fa-chart-line"></i> Position Analysis - ${coin}</h4>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px;">
+                            <div style="background: rgba(${pnl.status === 'profit' ? '16,185,129' : pnl.status === 'loss' ? '239,68,68' : '139,92,246'}, 0.1); padding: 12px; border-radius: 8px; border-left: 3px solid ${pnl.status === 'profit' ? '#10b981' : pnl.status === 'loss' ? '#ef4444' : '#8b5cf6'};">
+                                <div style="color: var(--text-dim); font-size: 10px;">P&L</div>
+                                <div style="font-size: 20px; font-weight: 700; color: ${pnl.status === 'profit' ? '#10b981' : pnl.status === 'loss' ? '#ef4444' : '#8b5cf6'};">
+                                    ${pnl.percentage > 0 ? '+' : ''}${pnl.percentage}%
+                                </div>
+                                <div style="color: var(--text-dim); font-size: 11px;">$${pnl.usd.toFixed(2)}</div>
+                            </div>
+                            
+                            <div style="background: rgba(59,130,246,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #3b82f6;">
+                                <div style="color: var(--text-dim); font-size: 10px;">RSI</div>
+                                <div style="font-size: 20px; font-weight: 700; color: #3b82f6;">${tech.rsi}</div>
+                                <div style="color: var(--text-dim); font-size: 11px;">${tech.rsi_signal}</div>
+                            </div>
+                            
+                            <div style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #10b981;">
+                                <div style="color: var(--text-dim); font-size: 10px;">TREND</div>
+                                <div style="font-size: 20px; font-weight: 700; color: #10b981;">${tech.trend.toUpperCase()}</div>
+                                <div style="color: var(--text-dim); font-size: 11px;">Strength: ${tech.trend_strength}%</div>
+                            </div>
+                        </div>
+
+                        <div style="background: rgba(245,158,11,0.15); padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 15px;">
+                            <div style="font-size: 18px; font-weight: 700; margin-bottom: 8px;">${rec.action}</div>
+                            <div style="color: var(--text-dim); margin-bottom: 8px;">Confidence: ${rec.confidence}%</div>
+                            <div style="color: var(--text);">
+                                ${rec.reasons.map(r => `• ${r}`).join('<br>')}
+                            </div>
+                        </div>
+
+                        <div style="background: var(--dark-mid); padding: 15px; border-radius: 8px;">
+                            <div style="font-weight: 600; margin-bottom: 10px; color: var(--text);">Risk/Reward Setup:</div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 13px;">
+                                <div>
+                                    <span style="color: var(--text-dim);">Stop Loss:</span>
+                                    <span style="color: #ef4444; font-weight: 600;"> $${rr.stop_loss}</span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-dim);">Take Profit:</span>
+                                    <span style="color: #10b981; font-weight: 600;"> $${rr.take_profit}</span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-dim);">R/R Ratio:</span>
+                                    <span style="font-weight: 600;"> ${rr.risk_reward_ratio}:1</span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-dim);">Favorable:</span>
+                                    <span style="color: ${rr.is_favorable ? '#10b981' : '#ef4444'}; font-weight: 600;">
+                                        ${rr.is_favorable ? '✅ Yes' : '❌ No'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 15px; padding: 12px; background: rgba(59,130,246,0.1); border-radius: 8px; font-size: 12px; color: var(--text-dim);">
+                            <i class="fas fa-info-circle"></i> 
+                            Current Price: $${data.current_price} | Position Value: $${data.position_value_usd.toFixed(2)}
+                        </div>
+                    </div>
+                `;
+
+                resultDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Trade Doctor Error:', error);
+                resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Analysis failed. Please try again.</div>';
             }
         }
     </script>
