@@ -2845,6 +2845,120 @@
                 resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Analysis failed. Please try again.</div>';
             }
         }
+
+        // 🔍 Coin Analysis Report Functions
+        async function openCoinAnalysis() {
+            const coins = db.map(c => c.Coin.replace('USDT', '')).filter(c => c);
+            const html = `
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #ec4899; margin-bottom: 20px;">🔍 Coin Analysis Report</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 15px;">Comprehensive single-coin analysis with bullish/bearish factors</p>
+                    
+                    <select id="coinAnalysisSelect" style="
+                        padding: 12px 20px;
+                        border-radius: 8px;
+                        border: 1px solid var(--border);
+                        background: var(--dark-mid);
+                        color: var(--text);
+                        font-size: 14px;
+                        width: 300px;
+                        margin-bottom: 20px;
+                    ">
+                        ${coins.map(c => `<option value="${c}">${c}</option>`).join('')}
+                    </select>
+                    <br>
+                    <button onclick="runCoinAnalysis()" style="
+                        padding: 12px 30px;
+                        background: linear-gradient(135deg, #ec4899, #be185d);
+                        color: white;
+                        border: none;
+                        border-radius: 8px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">
+                        <i class="fas fa-chart-line"></i> Generate Report
+                    </button>
+                    <div id="coinAnalysisResult" style="margin-top: 20px; text-align: left;"></div>
+                </div>
+            `;
+
+            document.getElementById('modalT').innerText = '🔍 Coin Analysis Report';
+            document.getElementById('modalB').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        async function runCoinAnalysis() {
+            const coin = document.getElementById('coinAnalysisSelect').value;
+            const resultDiv = document.getElementById('coinAnalysisResult');
+
+            resultDiv.innerHTML = '<div style="color: #ec4899; padding: 15px; text-align: center;"><i class="fas fa-spinner fa-spin"></i> Analyzing...</div>';
+
+            try {
+                const response = await fetch(`/api/coin-analysis/${coin}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 15px;">${data.error}</div>`;
+                    return;
+                }
+
+                // Render the comprehensive report
+                let html = `
+                    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; max-width: 600px; margin: 0 auto;">
+                        <h4 style="color: #ec4899; margin: 0 0 15px 0;">${data.symbol} Analysis</h4>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <div style="font-size: 20px; font-weight: 700;">$${data.current_price}</div>
+                            <div style="font-size: 13px; color: var(--text-dim);">Smart Score: ${data.smart_score}/100 (Rank #${data.rank})</div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                            <div style="background: rgba(16,185,129,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #10b981;">
+                                <div style="color: var(--text-dim); font-size: 11px;">SUPPORT</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #10b981;">$${data.support}</div>
+                            </div>
+                            <div style="background: rgba(239,68,68,0.1); padding: 12px; border-radius: 8px; border-left: 3px solid #ef4444;">
+                                <div style="color: var(--text-dim); font-size: 11px;">RESISTANCE</div>
+                                <div style="font-size: 16px; font-weight: 700; color: #ef4444;">$${data.resistance}</div>
+                            </div>
+                        </div>
+
+                        ${data.bullish_signals && data.bullish_signals.length > 0 ? `
+                            <div style="background: rgba(16,185,129,0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                <div style="font-weight: 600; margin-bottom: 10px; color: #10b981;">🟢 BULLISH SIGNALS (${data.bullish_signals.length})</div>
+                                ${data.bullish_signals.map(s => `<div style="padding: 3px 0; font-size: 13px;">• ${s}</div>`).join('')}
+                            </div>
+                        ` : ''}
+
+                        ${data.bearish_risks && data.bearish_risks.length > 0 ? `
+                            <div style="background: rgba(239,68,68,0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                <div style="font-weight: 600; margin-bottom: 10px; color: #ef4444;">🔴 BEARISH RISKS (${data.bearish_risks.length})</div>
+                                ${data.bearish_risks.map(r => `<div style="padding: 3px 0; font-size: 13px;">• ${r}</div>`).join('')}
+                            </div>
+                        ` : ''}
+
+                        ${data.strategy ? `
+                            <div style="background: var(--dark-mid); padding: 15px; border-radius: 8px;">
+                                <div style="font-weight: 600; margin-bottom: 10px;">📊 STRATEGY</div>
+                                <div style="font-size: 13px; line-height: 1.6;">
+                                    ${data.strategy.entry ? `<div><b>Entry:</b> ${data.strategy.entry}</div>` : ''}
+                                    ${data.strategy.target ? `<div><b>Target:</b> ${data.strategy.target}</div>` : ''}
+                                    ${data.strategy.stop_loss ? `<div><b>Stop Loss:</b> ${data.strategy.stop_loss}</div>` : ''}
+                                    ${data.strategy.risk ? `<div><b>Risk:</b> ${data.strategy.risk}</div>` : ''}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                resultDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Coin Analysis Error:', error);
+                resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Analysis failed. Please try again.</div>';
+            }
+        }
     </script>
 </body>
 
