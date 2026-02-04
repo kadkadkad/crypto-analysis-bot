@@ -1401,7 +1401,7 @@
                         style="background: #f59e0b; border-color: #f59e0b; color: white;">🩺 TRADE DOCTOR</button>
                     <button class="filter-btn" onclick="api('Whale Movement')"
                         style="background: #06b6d4; border-color: #06b6d4; color: white;">🐋 WHALES</button>
-                    <button class="filter-btn" onclick="api('Pump Predictions')"
+                    <button class="filter-btn" onclick="openScamDetector()"
                         style="background: #ef4444; border-color: #ef4444; color: white;">🚀 SCAM CHECK</button>
                 </div>
             </div>
@@ -2679,6 +2679,170 @@
 
             } catch (error) {
                 console.error('Trade Doctor Error:', error);
+                resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Analysis failed. Please try again.</div>';
+            }
+        }
+
+        // 🛡️ Scam Detector Functions
+        async function openScamDetector() {
+            const html = `
+                <div style="text-align: center; padding: 20px;">
+                    <h3 style="color: #ef4444; margin-bottom: 20px;">🛡️ SCAM DETECTOR</h3>
+                    <p style="color: var(--text-dim); margin-bottom: 15px;">Analyze tokens for scam/rug pull indicators</p>
+                    
+                    <div style="max-width: 450px; margin: 0 auto; text-align: left;">
+                        <label style="display: block; color: var(--text-dim); margin-bottom: 5px; font-size: 12px;">TOKEN NAME OR CONTRACT ADDRESS</label>
+                        <input type="text" id="scamQuery" placeholder="PEPE, SHIB, or 0x..." style="
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            background: var(--dark-mid);
+                            color: var(--text);
+                            width: 100%;
+                            margin-bottom: 15px;
+                        ">
+
+                        <label style="display: block; color: var(--text-dim); margin-bottom: 5px; font-size: 12px;">BLOCKCHAIN</label>
+                        <select id="scamChain" style="
+                            padding: 12px;
+                            border-radius: 8px;
+                            border: 1px solid var(--border);
+                            background: var(--dark-mid);
+                            color: var(--text);
+                            width: 100%;
+                            margin-bottom: 20px;
+                        ">
+                            <option value="eth">Ethereum</option>
+                            <option value="bsc">Binance Smart Chain</option>
+                            <option value="polygon">Polygon</option>
+                            <option value="arbitrum">Arbitrum</option>
+                            <option value="base">Base</option>
+                            <option value="avalanche">Avalanche</option>
+                            <option value="solana">Solana</option>
+                        </select>
+
+                        <button onclick="runScamCheck()" style="
+                            width: 100%;
+                            padding: 14px;
+                            background: linear-gradient(135deg, #ef4444, #dc2626);
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-weight: 600;
+                            cursor: pointer;
+                            font-size: 14px;
+                        ">
+                            <i class="fas fa-shield-alt"></i> SCAN FOR SCAM
+                        </button>
+                    </div>
+                    
+                    <div id="scamResult" style="margin-top: 20px;"></div>
+                </div>
+            `;
+
+            document.getElementById('modalT').innerText = '🛡️ SCAM DETECTOR';
+            document.getElementById('modalB').innerHTML = html;
+            document.getElementById('modal').style.display = 'flex';
+        }
+
+        async function runScamCheck() {
+            const query = document.getElementById('scamQuery').value.trim();
+            const chain = document.getElementById('scamChain').value;
+            const resultDiv = document.getElementById('scamResult');
+
+            if (!query) {
+                resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Please enter a token name or address</div>';
+                return;
+            }
+
+            resultDiv.innerHTML = '<div style="color: #f59e0b; padding: 15px;"><i class="fas fa-spinner fa-spin"></i> Scanning token security...</div>';
+
+            try {
+                const response = await fetch('/api/scam-check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, chain: chain })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    resultDiv.innerHTML = `<div style="color: #ef4444; padding: 15px;"><i class="fas fa-exclamation-triangle"></i> ${data.error}</div>`;
+                    return;
+                }
+
+                const riskColor = data.risk_level === 'CRITICAL' ? '#dc2626' :
+                    data.risk_level === 'HIGH' ? '#ea580c' :
+                        data.risk_level === 'MEDIUM' ? '#f59e0b' :
+                            data.risk_level === 'LOW' ? '#84cc16' : '#10b981';
+
+                const tokenInfo = data.token_info || {};
+
+                let html = `
+                    <div style="background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-top: 15px; text-align: left;">
+                        <h4 style="color: #ef4444; margin: 0 0 15px 0;"><i class="fas fa-shield-alt"></i> Security Analysis</h4>
+                        
+                        ${tokenInfo.name ? `<div style="margin-bottom: 15px;">
+                            <div style="font-size: 18px; font-weight: 700; color: var(--text);">${tokenInfo.symbol || 'Unknown'}</div>
+                            <div style="font-size: 13px; color: var(--text-dim);">${tokenInfo.name}</div>
+                            ${tokenInfo.price_usd ? `<div style="font-size: 13px; color: var(--text-dim);">Price: $${tokenInfo.price_usd}</div>` : ''}
+                        </div>` : ''}
+
+                        <div style="background: rgba(${data.is_scam ? '220,38,38' : '16,185,129'}, 0.15); padding: 15px; border-radius: 8px; border-left: 4px solid ${riskColor}; margin-bottom: 15px;">
+                            <div style="font-size: 20px; font-weight: 700; margin-bottom: 5px; color: ${riskColor};">
+                                ${data.is_scam ? '🚨 SCAM DETECTED' : '✅ NO MAJOR THREATS'}
+                            </div>
+                            <div style="font-size: 16px; font-weight: 600; color: ${riskColor};">
+                                Risk Score: ${data.risk_score}/100 (${data.risk_level})
+                            </div>
+                        </div>
+
+                        ${data.warnings && data.warnings.length > 0 ? `
+                            <div style="background: var(--dark-mid); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                <div style="font-weight: 600; margin-bottom: 10px; color: var(--text);">⚠️ Security Warnings:</div>
+                                ${data.warnings.map(w => `<div style="padding: 5px 0; color: var(--text); font-size: 13px;">• ${w}</div>`).join('')}
+                            </div>
+                        ` : ''}
+
+                        ${data.security_checks && Object.keys(data.security_checks).length > 0 ? `
+                            <div style="background: var(--dark-mid); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                <div style="font-weight: 600; margin-bottom: 10px; color: var(--text);">🔍 Security Checks:</div>
+                                ${Object.entries(data.security_checks).map(([key, val]) => `
+                                    <div style="padding: 5px 0; display: flex; justify-content: space-between; font-size: 13px;">
+                                        <span style="color: var(--text-dim);">${key}:</span>
+                                        <span style="color: ${val.status === 'SAFE' ? '#10b981' : val.status === 'DANGER' ? '#ef4444' : '#f59e0b'};">
+                                            ${val.message || val.status}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+
+                        ${data.liquidity_info && data.liquidity_info.usd ? `
+                            <div style="background: var(--dark-mid); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                                <div style="font-weight: 600; margin-bottom: 10px; color: var(--text);">💧 Liquidity Info:</div>
+                                <div style="font-size: 14px; color: var(--text);">
+                                    Liquidity: $${data.liquidity_info.usd.toLocaleString()}
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        <div style="background: rgba(239,68,68,0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #ef4444;">
+                            <div style="font-weight: 600; margin-bottom: 8px; color: var(--text);">Recommendation:</div>
+                            <div style="color: var(--text); font-size: 13px;">${data.recommendation}</div>
+                        </div>
+
+                        <div style="margin-top: 15px; padding: 10px; background: rgba(59,130,246,0.1); border-radius: 6px; font-size: 11px; color: var(--text-dim); text-align: center;">
+                            <i class="fas fa-info-circle"></i> 
+                            Powered by GoPlus Security & DEXScreener | Always DYOR
+                        </div>
+                    </div>
+                `;
+
+                resultDiv.innerHTML = html;
+
+            } catch (error) {
+                console.error('Scam Check Error:', error);
                 resultDiv.innerHTML = '<div style="color: #ef4444; padding: 15px;">Analysis failed. Please try again.</div>';
             }
         }
