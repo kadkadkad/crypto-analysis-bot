@@ -12320,11 +12320,20 @@ def handle_market_maker_analysis():
             elif order_book.get("big_ask_wall", False):
                 report += f"  - ⚠️ Big Sell Wall: {format_money(order_book.get('max_ask_qty', 0))} volume\n"
 
-            # Pattern analysis
-            if stop_hunt and stop_hunt != "No pattern":
-                 report += f"• Stop Hunt: {stop_hunt}\n"
-            if compression and compression != "None":
-                 report += f"• Compression: {compression}\n"
+            # Pattern analysis - Format readable output
+            if stop_hunt and stop_hunt.get("detected", False):
+                drop = stop_hunt.get("drop_percent", 0)
+                recovery = stop_hunt.get("recovery_percent", 0)
+                confidence = stop_hunt.get("confidence", 0)
+                report += f"• Stop Hunt: ⚠️ Detected (Drop: {drop:.1f}%, Recovery: {recovery:.1f}%, Confidence: {confidence:.0f}%)\n"
+            else:
+                report += f"• Stop Hunt: ✅ None detected\n"
+                
+            if compression and compression.get("compression", False):
+                ratio = compression.get("compression_ratio", 0)
+                report += f"• Compression: ⚠️ Tight Range Detected (Ratio: {ratio:.2f})\n"
+            else:
+                report += f"• Compression: ✅ Normal volatility\n"
             
             report += "\n"
 
