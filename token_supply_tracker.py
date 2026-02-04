@@ -80,10 +80,15 @@ class TokenSupplyTracker:
                     "market_cap": mc,
                     "fdv": fdv
                 }
+            else:
+                print(f"[TOKEN-SUPPLY] CoinGecko API error for {clean_symbol}: HTTP {response.status_code}")
                 
+        except requests.exceptions.Timeout:
+            print(f"[TOKEN-SUPPLY] Timeout fetching data for {symbol}")
+        except requests.exceptions.RequestException as e:
+            print(f"[TOKEN-SUPPLY] Request error for {symbol}: {e}")
         except Exception as e:
-            # print(f"[DEBUG] Supply fetch failed for {symbol}: {e}")
-            pass
+            print(f"[TOKEN-SUPPLY] Unexpected error for {symbol}: {e}")
         return None
 
     def analyze_supply_risk(self, coins_data: List[Dict]) -> str:
