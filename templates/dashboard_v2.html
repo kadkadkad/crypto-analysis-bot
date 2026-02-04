@@ -2209,7 +2209,24 @@
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
                             <div style="background: rgba(139, 92, 246, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #8b5cf6;">
                                 <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 5px;">CURRENT WAVE</div>
-                                <div style="font-size: 24px; font-weight: 700; color: #8b5cf6;">${typeof data.current_wave === 'object' ? JSON.stringify(data.current_wave) : (data.current_wave || 'Unknown')}</div>
+                                <div style="font-size: 24px; font-weight: 700; color: #8b5cf6;">
+                                    ${(() => {
+                        if (!data.current_wave) return 'Unknown';
+                        if (typeof data.current_wave === 'string') return data.current_wave;
+                        if (typeof data.current_wave === 'object') {
+                            // Extract meaningful info from object
+                            const label = data.current_wave.label || '';
+                            const phase = data.current_wave.phase || '';
+                            const position = data.current_wave.position || '';
+
+                            if (label) return label;
+                            if (phase && position) return `${phase} (${position})`;
+                            if (phase) return phase;
+                            return 'Wave Analysis';
+                        }
+                        return 'Unknown';
+                    })()}
+                                </div>
                             </div>
                             <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #3b82f6;">
                                 <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 5px;">TREND</div>
