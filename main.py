@@ -12291,9 +12291,9 @@ def handle_market_maker_analysis():
             price = parse_money(coin["Price_Display"])
             volume_ratio = extract_numeric(coin["Volume Ratio"])
 
-            # 1. Fetch kline data
+            # 1. Fetch kline data - Increased limit for compression analysis
             klines_15m = sync_fetch_kline_data(symbol, "15m", limit=30) or []
-            klines_1h = sync_fetch_kline_data(symbol, "1h", limit=24) or []
+            klines_1h = sync_fetch_kline_data(symbol, "1h", limit=50) or []  # Increased from 24 to 50
 
             # 2. Fetch order book data
             bids, asks = fetch_order_book(symbol)
