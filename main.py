@@ -12269,11 +12269,11 @@ def get_whale_movement_report_html():
 
 def handle_market_maker_analysis():
     """
-    Executes market maker analysis and sends report to Telegram.
+    Executes market maker analysis and returns report for web dashboard.
+    Also sends report to Telegram.
     """
     if not ALL_RESULTS:
-        send_telegram_message_long("⚠️ No analysis data available yet.")
-        return
+        return "⚠️ No analysis data available yet."
 
     report = f"🎯 <b>Market Maker Analysis – {get_turkey_time().strftime('%Y-%m-%d %H:%M:%S')}</b>\n\n"
     report += "This report analyzes potential traps and strategies of market makers.\n\n"
@@ -12337,7 +12337,10 @@ def handle_market_maker_analysis():
     report += f"• Analyzed Coins: {len(top_coins)}\n"
     report += f"• Report generated based on Market Maker behavioral patterns.\n"
 
-    send_telegram_message_long(report)
+    # Send to Telegram (disabled currently)
+    # send_telegram_message_long(report)
+    
+    return report
 
 
 def handle_significant_changes():
@@ -14075,6 +14078,11 @@ async def analyze_market():
                         web_reports["Whale Movement"] = get_whale_movement_report_html()
                         
                         # Send text report to Telegram if needed (already handled by handle_whale_movement_analysis)
+                    except Exception as e: print(f"[WARN] Whale Movement report failed: {e}")
+                    
+                    # MM ANALYSIS (Market Maker Analysis)
+                    try: 
+                        web_reports["MM Analysis"] = handle_market_maker_analysis()
                     except Exception as e: print(f"[WARN] MM Analysis report failed: {e}")
                     
                     try: web_reports["Bollinger Squeeze"] = generate_bollinger_squeeze_report()

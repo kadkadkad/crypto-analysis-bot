@@ -1,5 +1,5 @@
 # 🧠 RADAR ULTRA - PROJECT MEMORY (CONTEXT FILE)
-> **Last Updated:** 2026-01-23
+> **Last Updated:** 2026-02-04
 > **Status:** Live & Stable
 > **Server:** Oracle Cloud (141.144.251.86)
 
@@ -10,6 +10,60 @@ Bu proje, Binance üzerinden kripto verilerini analiz eden, yapay zeka destekli 
 
 ### 📂 Kritik Dosyalar ve Görevleri
 *   **`main.py`**: Ana beyin. Veri toplama, analiz döngüsü, sinyal üretimi burada döner.
+*   **`web_dashboard.py`**: Flask sunucusu. API endpoints, web raporları, dashboard UI.
+*   **`telegram_bot.py`**: Telegram entegrasyonu (ŞU AN KAPALI).
+*   **`binance_client.py`**: Binance API istemcisi (veri çekimi).
+*   **Templates klasörü**: HTML template'leri (dashboard UI).
+*   **`web_reports.json`**: Web dashboard'da görüntülenen tüm raporlar.
+
+---
+
+## 📝 SON YAPILANLAR
+
+### ✅ MM Analysis Report Fix (2026-02-04)
+- **Sorun:** "MM Analysis" raporu web_reports.json'da yoktu
+- **Çözüm:** 
+  - `handle_market_maker_analysis()` fonksiyonu modifiye edildi
+  - Artık raporu return ediyor (önceden sadece Telegram'a gönderiyordu)
+  - Web reports sync kısmına `web_reports["MM Analysis"] = handle_market_maker_analysis()` eklendi
+- **Sonuç:** MM Analysis artık dashboard'da görünecek
+
+### 🎯 Whale Heatmap Revizyonu (Önceki)
+*   Whale Movement raporu RSI Heatmap stiline dönüştürüldü.
+*   HTML encoding bozulması giderildi.
+*   Tasarım: Koyu kartlar, renkli border, büyük rakamlar.
+*   GitHub'a push edildi, Oracle VM'e deploy edildi.
+
+---
+
+## ⏭️ DEVAM EDİLECEK İŞLER
+1.  Genel performans kontrolü (yeni heatmap + MM Analysis)
+2.  Order Block Raporu backend entegrasyonu
+3.  Mobil responsive optimizasyon
+
+---
+
+## 💡 ÖNEMLİ HATIRLATMALAR
+
+### Deployment Süreci (Oracle VM)
+1.  **Lokal Geliştirme** → GitHub'a push
+2.  **Oracle SSH**: `ssh -i id_rsa_oracle ubuntu@141.144.251.86`
+3.  **Kodları Güncelle**:
+    ```bash
+    cd ~/crypto-analysis-bot
+    git pull origin main
+    ```
+4.  **Servisleri Yeniden Başlat**:
+    ```bash
+    sudo systemctl restart crypto-bot
+    sudo systemctl restart web-dashboard
+    ```
+5.  **Log Kontrol**: `sudo journalctl -u crypto-bot -f`
+
+### Kritik Özel Notlar
+- ⚠️ **PROFESYONEL dil kullan** ("Abim" gibi hitaplar yasak)
+- 🎨 **Estetik ve Premium** hissiyat önemli
+- 🌐 **Raporlar İngilizce** olmalı
 *   **`market_analyzer.py`**: Piyasayı genel analiz eden modül. **Risk Raporu buradan çıkar.**
 *   **`web_dashboard.py`**: Flask sunucusu (Port 8050).
 *   **`binance_client.py`**: Binance API istemcisi.
