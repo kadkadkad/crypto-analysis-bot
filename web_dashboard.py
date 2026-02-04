@@ -20,6 +20,8 @@ from ls_ratio_tracker import get_ls_ratio_report
 from token_supply_tracker import get_token_supply_report
 from orderbook_depth import get_orderbook_report
 from market_calendar import MarketImpactAnalyzer
+from paper_trading import (PAPER_PORTFOLIO, get_paper_trading_stats, 
+                           open_paper_trade, close_paper_trade, check_paper_alerts)
 
 import threading
 import time
@@ -114,8 +116,9 @@ def run_background_cache_updater():
         time.sleep(CACHE_UPDATE_INTERVAL)
 
 # Start background thread
-cache_thread = threading.Thread(target=run_background_cache_updater, daemon=True)
-cache_thread.start()
+# This will be moved into the __main__ block
+# cache_thread = threading.Thread(target=run_background_cache_updater, daemon=True)
+# cache_thread.start()
 
 # Turkey timezone (GMT+3)
 TURKEY_TZ = pytz.timezone('Europe/Istanbul')
@@ -1652,6 +1655,110 @@ def internal_error_handler(e):
         "error": "Internal server error",
         "message": "Something went wrong"
     }), 500
+
+# ==================== PAPER TRADING ENDPOINTS ====================
+
+@app.route('/api/paper-trading/stats')
+@limiter.limit("60 per minute")
+@auth.login_required
+def get_paper_stats():
+    """Paper trading istatistikleri"""
+    try:
+        stats = get_paper_trading_stats()
+        return jsonify(stats)
+    except Exception as e:
+        print(f"[API] Paper stats error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/paper-trading/open', methods=['POST'])
+@limiter.limit("30 per minute")
+@auth.login_required
+def open_paper_position():
+    """Yeni paper pozisyon aç"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol')
+        entry = float(data.get('entry'))
+        stop = float(data.get('stop'))
+        target = float(data.get('target'))
+        risk_pct = float(data.get('risk_percent', 2.0))
+        
+        result = open_paper_trade(symbol, entry, stop, target, risk_pct)
+        return jsonify(result)
+    except Exception as e:
+        print(f"[API] Paper open error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/paper-trading/close', methods=['POST'])
+@limiter.limit("30 per minute")
+@auth.login_required
+def close_paper_position():
+    """Paper pozisyon kapat"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol')
+        exit_price = data.get('exit_price')  # Optional
+        reason = data.get('reason', 'Manual')
+        
+        result = close_paper_trade(symbol, exit_price, reason)
+        return jsonify(result)
+    except Exception as e:
+        print(f"[API] Paper close error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/paper-trading/positions')
+@limiter.limit("60 per minute")
+@auth.login_required
+def get_paper_positions():
+    """Açık pozisyonlar"""
+    try:
+        positions = PAPER_PORTFOLIO.portfolio.get('positions', {})
+        
+        # Güncel fiyatları ekle
+        positions_with_prices = {}
+        for symbol, pos in positions.items():
+            current_price = PAPER_PORTFOLIO.get_current_price(symbol)
+            pnl = (current_price - pos['entry_price']) * pos['quantity']
+            pnl_percent = ((current_price - pos['entry_price']) / pos['entry_price']) * 100
+            
+            positions_with_prices[symbol] = {
+                **pos,
+                "current_price": current_price,
+                "unrealized_pnl": pnl,
+                "unrealized_pnl_percent": pnl_percent
+            }
+        
+        return jsonify({"positions": positions_with_prices})
+    except Exception as e:
+        print(f"[API] Paper positions error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/paper-trading/trades')
+@limiter.limit("60 per minute")
+@auth.login_required
+def get_paper_trades():
+    """Trade geçmişi"""
+    try:
+        trades = PAPER_PORTFOLIO.trades[-50:]  # Son 50 trade
+        return jsonify({"trades": trades})
+    except Exception as e:
+        print(f"[API] Paper trades error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/paper-trading/reset', methods=['POST'])
+@limiter.limit("10 per minute")
+@auth.login_required
+def reset_paper_portfolio():
+    """Portföyü sıfırla"""
+    try:
+        data = request.get_json()
+        new_capital = float(data.get('capital', 5000))
+        result = PAPER_PORTFOLIO.reset_portfolio(new_capital)
+        return jsonify(result)
+    except Exception as e:
+        print(f"[API] Paper reset error: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 
 if __name__ == '__main__':
     # Development
