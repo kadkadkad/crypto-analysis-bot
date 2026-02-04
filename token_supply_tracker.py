@@ -14,10 +14,10 @@ class TokenSupplyTracker:
         self.cache = {}
         self.cache_ttl = 3600  # 1 hour cache (supply doesn't change fast)
     
-    def get_token_supply_data(self, symbol: str) -> Optional[Dict]:
-        """Get supply data from CoinGecko (Free API)"""
+    def get_batch_supply_data(self, symbols: List[str]) -> Dict[str, Dict]:
+        """Get supply data for multiple coins in one batch request"""
         try:
-            # Map symbol to CoinGecko ID (comprehensive mapping)
+            # Map symbols to CoinGecko IDs
             symbol_map = {
                 # Top 20
                 "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "BNB": "binancecoin",
@@ -73,47 +73,62 @@ class TokenSupplyTracker:
                 "SENT": "sentinel-group", "USD1": "usd-coin"  # Fallback mappings
             }
             
-            clean_symbol = symbol.replace("USDT", "").upper()
-            coin_id = symbol_map.get(clean_symbol)
+            # Map symbols to IDs
+            coin_ids = []
+            symbol_to_id = {}
+            for sym in symbols:
+                clean_sym = sym.replace("USDT", "").replace("BUSD", "").upper()
+                coin_id = symbol_map.get(clean_sym, clean_sym.lower())
+                coin_ids.append(coin_id)
+                symbol_to_id[coin_id] = clean_sym
             
-            if not coin_id:
-                # Fallback: try using symbol as id (often works)
-                coin_id = clean_symbol.lower()
-            
-            url = f"{self.coingecko_url}/coins/{coin_id}"
+            # Batch request to CoinGecko markets endpoint
+            url = f"{self.coingecko_url}/coins/markets"
             params = {
-                "localization": "false",
-                "tickers": "false",
-                "market_data": "true",
-                "community_data": "false",
-                "developer_data": "false"
+                "vs_currency": "usd",
+                "ids": ",".join(coin_ids[:50]),  # Max 50 per request
+                "per_page": 50,
+                "page": 1,
+                "sparkline": "false",
+                "price_change_percentage": "24h"
             }
             
-            response = requests.get(url, params=params, timeout=10)
-            if response.status_code == 200:
-                data = response.json()
-                md = data.get("market_data", {})
+            response = requests.get(url, params=params, timeout=15)
+            
+            if response.status_code != 200:
+                print(f"[TOKEN-SUPPLY] Batch API error: HTTP {response.status_code}")
+                return {}
+            
+            data = response.json()
+            results = {}
+            
+            for coin in data:
+                coin_id = coin.get("id")
+                symbol = symbol_to_id.get(coin_id, coin.get("symbol", "").upper())
                 
-                circulating = md.get("circulating_supply", 0)
-                total = md.get("total_supply", 0)
-                max_supply = md.get("max_supply", 0)
+                circulating = coin.get("circulating_supply", 0)
+                total = coin.get("total_supply", 0)
+                max_supply = coin.get("max_supply", 0)
                 
-                # Use total if max is missing (for uncapped coins approx)
+                # Use total if max is missing
                 final_total = max_supply if max_supply else total
-                
                 if not final_total or final_total == 0:
-                    final_total = circulating  # Fallback to avoid division by zero
+                    final_total = circulating
                 
                 unlock_pct = (circulating / final_total) * 100 if final_total > 0 else 100
                 locked_pct = 100 - unlock_pct
                 
-                fdv = md.get("fully_diluted_valuation", {}).get("usd", 0)
-                mc = md.get("market_cap", {}).get("usd", 0)
+                fdv = coin.get("fully_diluted_valuation", 0)
+                mc = coin.get("market_cap", 0)
+                
+                # Handle None values
+                if fdv is None: fdv = mc or 0
+                if mc is None: mc = 0
                 
                 mc_fdv_ratio = mc / fdv if fdv > 0 else 1.0
                 
-                return {
-                    "symbol": clean_symbol,
+                results[symbol] = {
+                    "symbol": symbol,
                     "circulating_supply": circulating,
                     "total_supply": final_total,
                     "locked_percent": locked_pct,
@@ -122,15 +137,24 @@ class TokenSupplyTracker:
                     "market_cap": mc,
                     "fdv": fdv
                 }
-            else:
-                print(f"[TOKEN-SUPPLY] CoinGecko API error for {clean_symbol}: HTTP {response.status_code}")
-                
+            
+            return results
+            
         except requests.exceptions.Timeout:
-            print(f"[TOKEN-SUPPLY] Timeout fetching data for {symbol}")
+            print(f"[TOKEN-SUPPLY] Batch request timeout")
         except requests.exceptions.RequestException as e:
-            print(f"[TOKEN-SUPPLY] Request error for {symbol}: {e}")
+            print(f"[TOKEN-SUPPLY] Batch request error: {e}")
         except Exception as e:
-            print(f"[TOKEN-SUPPLY] Unexpected error for {symbol}: {e}")
+            print(f"[TOKEN-SUPPLY] Unexpected batch error: {e}")
+        
+        return {}
+    
+    def get_token_supply_data(self, symbol: str) -> Optional[Dict]:
+        """Get supply data from CoinGecko (Free API) - DEPRECATED, use batch instead"""
+        print(f"[TOKEN-SUPPLY] Warning: get_token_supply_data is deprecated. Use get_batch_supply_data instead.")
+        # This method is now a placeholder. For actual data, the batch method is preferred.
+        # If a single call is absolutely needed, one could implement it by calling the batch method
+        # with a list containing only 'symbol' and then extracting the result.
         return None
 
     def analyze_supply_risk(self, coins_data: List[Dict]) -> str:
@@ -151,17 +175,22 @@ class TokenSupplyTracker:
             reverse=True
         )[:15]
         
+        # Extract symbols for batch request
+        symbols = [coin.get("Coin", "") for coin in sorted_coins if coin.get("Coin")]
+        
+        # Get all supply data in one batch request
+        supply_data_map = self.get_batch_supply_data(symbols)
+        
         analyzed_count = 0
         for coin in sorted_coins:
             symbol = coin.get("Coin", "")
             if not symbol: continue
             
-            # Rate limit prevention - CoinGecko free tier is limited
-            time.sleep(0.5)
+            clean_symbol = symbol.replace("USDT", "").replace("BUSD", "").upper()
+            supply_data = supply_data_map.get(clean_symbol)
             
-            supply_data = self.get_token_supply_data(symbol)
             if not supply_data:
-                failed_coins.append(symbol.replace("USDT", ""))
+                failed_coins.append(clean_symbol)
                 continue
             
             analyzed_count += 1
