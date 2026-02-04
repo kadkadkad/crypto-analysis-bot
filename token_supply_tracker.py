@@ -95,25 +95,29 @@ class TokenSupplyTracker:
         high_risk_coins = []
         medium_risk_coins = []
         low_risk_coins = []
+        failed_coins = []
         
-        # Analyze top 20 interesting coins from the list to avoid rate limits
-        # Sort by volume to prioritize relevant coins
+        # Analyze top 15 coins by volume
         sorted_coins = sorted(
             coins_data, 
             key=lambda x: float(str(x.get("24h Volume", 0)).replace(",", "")), 
             reverse=True
-        )[:8]  # Limit to top 8 to prevent timeout
+        )[:15]
         
+        analyzed_count = 0
         for coin in sorted_coins:
-            symbol = coin.get("Coin", "")  # Changed from "Symbol"
+            symbol = coin.get("Coin", "")
             if not symbol: continue
             
-            # Simple rate limit prevention
-            time.sleep(0.2)  # Reduced sleep time 
+            # Rate limit prevention
+            time.sleep(0.25)
             
             supply_data = self.get_token_supply_data(symbol)
-            if not supply_data: continue
+            if not supply_data:
+                failed_coins.append(symbol.replace("USDT", ""))
+                continue
             
+            analyzed_count += 1
             locked = supply_data["locked_percent"]
             ratio = supply_data["mc_fdv_ratio"]
             
@@ -121,40 +125,66 @@ class TokenSupplyTracker:
                 "symbol": supply_data["symbol"],
                 "locked": locked,
                 "ratio": ratio,
-                "fdv": supply_data["fdv"]
+                "fdv": supply_data["fdv"],
+                "mc": supply_data["market_cap"]
             }
             
             # Risk Categorization
-            # Low MC/FDV (< 0.2) means massive future unlocks -> High Inflation Risk
             if ratio < 0.20 or locked > 80:
                 high_risk_coins.append(entry)
             elif ratio < 0.50 or locked > 50:
                 medium_risk_coins.append(entry)
             else:
                 low_risk_coins.append(entry)
-                
-        high_risk_coins.sort(key=lambda x: x["ratio"])
         
+        # Sort by risk (lowest ratio first for high risk)
+        high_risk_coins.sort(key=lambda x: x["ratio"])
+        medium_risk_coins.sort(key=lambda x: x["ratio"])
+        low_risk_coins.sort(key=lambda x: x["ratio"], reverse=True)
+        
+        # Report Header
+        report += f"📈 <b>Analyzed {analyzed_count} top coins</b>\n"
+        report += f"🚨 High Risk: {len(high_risk_coins)} | 🟠 Medium: {len(medium_risk_coins)} | ✅ Low: {len(low_risk_coins)}\n\n"
+        
+        # High Risk Section
         if high_risk_coins:
+            report += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
             report += "🚨 <b>HIGH INFLATION RISK (Low Float)</b>\n"
             report += "⚠️ Massive unlocks expected. Long term dilution risk.\n\n"
-            for c in high_risk_coins[:5]:
+            for c in high_risk_coins:
                 report += f"<b>${c['symbol']}</b>\n"
                 report += f"   🔒 Locked Supply: <b>{c['locked']:.1f}%</b>\n"
                 report += f"   📉 MC/FDV Ratio: <b>{c['ratio']:.2f}</b>\n"
-                report += f"   💰 FDV: ${c['fdv']/1e9:.2f}B\n\n"
+                report += f"   💰 MC: ${c['mc']/1e9:.2f}B | FDV: ${c['fdv']/1e9:.2f}B\n\n"
         
+        # Medium Risk Section
         if medium_risk_coins:
-            report += "🟠 <b>MEDIUM INFLATION RISK</b>\n\n"
-            for c in medium_risk_coins[:5]:
-                report += f"<b>${c['symbol']}</b> - Locked: {c['locked']:.1f}% | Ratio: {c['ratio']:.2f}\n"
+            report += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            report += "🟠 <b>MEDIUM INFLATION RISK</b>\n"
+            report += "⚡ Moderate unlock schedule. Monitor closely.\n\n"
+            for c in medium_risk_coins:
+                report += f"<b>${c['symbol']}</b>\n"
+                report += f"   🔒 Locked: {c['locked']:.1f}% | MC/FDV: {c['ratio']:.2f}\n"
+                report += f"   💰 MC: ${c['mc']/1e9:.2f}B | FDV: ${c['fdv']/1e9:.2f}B\n\n"
         
-        if not high_risk_coins and not medium_risk_coins:
-            report += "✅ Analyzed coins show healthy supply distribution.\n"
-            
-        report += "\n💡 <b>Guide:</b>\n"
+        # Low Risk Section
+        if low_risk_coins:
+            report += "━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            report += "✅ <b>LOW INFLATION RISK (Healthy Float)</b>\n"
+            report += "🟢 Most tokens already circulating. Low dilution risk.\n\n"
+            for c in low_risk_coins[:10]:  # Show top 10 low risk
+                report += f"<b>${c['symbol']}</b> - Locked: {c['locked']:.1f}% | MC/FDV: {c['ratio']:.2f}\n"
+        
+        # Failed Coins
+        if failed_coins:
+            report += f"\n⚠️ <i>Data unavailable for: {', '.join(failed_coins[:5])}</i>\n"
+        
+        # Guide Section
+        report += "\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        report += "💡 <b>Guide:</b>\n"
         report += "• <b>MC/FDV < 0.1</b>: Toxic Tokenomics (VC dump risk)\n"
         report += "• <b>High Locked %</b>: Future selling pressure guaranteed\n"
+        report += "• <b>MC/FDV > 0.8</b>: Healthy circulation, low dilution\n"
         
         return report
 
