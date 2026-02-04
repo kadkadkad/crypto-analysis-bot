@@ -17,18 +17,60 @@ class TokenSupplyTracker:
     def get_token_supply_data(self, symbol: str) -> Optional[Dict]:
         """Get supply data from CoinGecko (Free API)"""
         try:
-            # Map symbol to CoinGecko ID (simplified mapping)
+            # Map symbol to CoinGecko ID (comprehensive mapping)
             symbol_map = {
+                # Top 20
                 "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana", "BNB": "binancecoin",
                 "XRP": "ripple", "ADA": "cardano", "AVAX": "avalanche-2", "DOGE": "dogecoin",
                 "TRX": "tron", "LINK": "chainlink", "DOT": "polkadot", "MATIC": "matic-network",
                 "SHIB": "shiba-inu", "LTC": "litecoin", "UNI": "uniswap", "ARB": "arbitrum",
-                "OP": "optimism", "SUI": "sui", "APT": "aptos", "WLD": "worldcoin-org",
-                "TIA": "celestia", "SEI": "sei-network", "INJ": "injective-protocol",
-                "RNDR": "render-token", "FIL": "filecoin", "ATOM": "cosmos", "IMX": "immutable-x",
-                "NEAR": "near", "STX": "blockstack", "SAND": "the-sandbox", "MANA": "decentraland",
-                "AXS": "axie-infinity", "STRK": "starknet", "JUP": "jupiter-exchange-solana",
-                "PYTH": "pyth-network", "ENA": "ethena", "WIF": "dogwifcoin"
+                
+                # Layer 2s & New Chains
+                "OP": "optimism", "SUI": "sui", "APT": "aptos", "SEI": "sei-network",
+                "TIA": "celestia", "STRK": "starknet", "IMX": "immutable-x",
+                "BLAST": "blast", "MANTA": "manta-network", "ZK": "zksync",
+                
+                # DeFi Tokens
+                "AAVE": "aave", "MKR": "maker", "COMP": "compound-governance-token",
+                "CRV": "curve-dao-token", "SNX": "synthetix-network-token",
+                "SUSHI": "sushi", "BAL": "balancer", "YFI": "yearn-finance",
+                "1INCH": "1inch", "LDO": "lido-dao",
+                
+                # AI & Data
+                "FET": "fetch-ai", "RNDR": "render-token", "WLD": "worldcoin-wld",
+                "GRT": "the-graph", "OCEAN": "ocean-protocol",
+                
+                # Gaming & Metaverse
+                "SAND": "the-sandbox", "MANA": "decentraland", "AXS": "axie-infinity",
+                "GALA": "gala", "ENJ": "enjincoin", "IMX": "immutable-x",
+                
+                # Memecoins
+                "PEPE": "pepe", "WIF": "dogwifcoin", "BONK": "bonk", 
+                "FLOKI": "floki", "BRETT": "brett",
+                
+                # Solana Ecosystem
+                "JUP": "jupiter-exchange-solana", "PYTH": "pyth-network", 
+                "JTO": "jito-governance-token", "WEN": "wen-4",
+                
+                # Storage & Infrastructure
+                "FIL": "filecoin", "AR": "arweave", "STORJ": "storj",
+                
+                # Cosmos Ecosystem
+                "ATOM": "cosmos", "INJ": "injective-protocol", "OSMO": "osmosis",
+                "TIA": "celestia", "DYM": "dymension",
+                
+                # Other Notable
+                "NEAR": "near", "STX": "blockstack", "RUNE": "thorchain",
+                "FTM": "fantom", "ALGO": "algorand", "ETC": "ethereum-classic",
+                "XLM": "stellar", "VET": "vechain", "HBAR": "hedera-hashgraph",
+                "ICP": "internet-computer", "APE": "apecoin",
+                "ENA": "ethena", "PENDLE": "pendle",
+                
+                # Stablecoins & Wrapped
+                "WBTC": "wrapped-bitcoin", "WETH": "weth", "USDT": "tether",
+                "USDC": "usd-coin", "DAI": "dai", "BUSD": "binance-usd",
+                "TUSD": "true-usd", "PAXG": "pax-gold",
+                "SENT": "sentinel-group", "USD1": "usd-coin"  # Fallback mappings
             }
             
             clean_symbol = symbol.replace("USDT", "").upper()
@@ -47,7 +89,7 @@ class TokenSupplyTracker:
                 "developer_data": "false"
             }
             
-            response = requests.get(url, params=params, timeout=5)
+            response = requests.get(url, params=params, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 md = data.get("market_data", {})
@@ -114,8 +156,8 @@ class TokenSupplyTracker:
             symbol = coin.get("Coin", "")
             if not symbol: continue
             
-            # Rate limit prevention
-            time.sleep(0.25)
+            # Rate limit prevention - CoinGecko free tier is limited
+            time.sleep(0.5)
             
             supply_data = self.get_token_supply_data(symbol)
             if not supply_data:
