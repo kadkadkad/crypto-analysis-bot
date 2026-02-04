@@ -9,7 +9,7 @@
         href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>>>
     <style>
         :root {
             --bg: #010409;
@@ -2269,55 +2269,39 @@
 
         function createElliottChart(klineData, elliottData) {
             const chartDiv = document.getElementById('elliottChart');
-            if (!chartDiv || !window.LightweightCharts) {
-                console.error('Chart div or LightweightCharts not available');
+            if (!chartDiv || !window.Chart) {
+                console.error('Chart div or Chart.js not available');
+                chartDiv.innerHTML = '<div style="color: #f59e0b; padding: 20px; text-align: center;"><i class="fas fa-chart-line"></i> Chart library loading...</div>';
                 return;
             }
 
             try {
-                const chart = window.LightweightCharts.createChart(chartDiv, {
-                    width: chartDiv.clientWidth,
-                    height: 400,
-                    layout: {
-                        background: { color: '#0d1117' },
-                        textColor: '#8b949e',
-                    },
-                    grid: {
-                        vertLines: { color: '#30363d' },
-                        horzLines: { color: '#30363d' },
-                    },
-                    timeScale: {
-                        borderColor: '#30363d',
-                        timeVisible: true,
-                        secondsVisible: false,
-                    },
-                    rightPriceScale: {
-                        borderColor: '#30363d',
-                    },
-                });
+                // Clear existing content
+                chartDiv.innerHTML = '<canvas id="elliottCanvas"></canvas>';
+                const canvas = document.getElementById('elliottCanvas');
+                const ctx = canvas.getContext('2d');
 
-                // Add candlestick series
-                const candleSeries = chart.addCandlestickSeries({
-                    upColor: '#10b981',
-                    downColor: '#ef4444',
-                    borderUpColor: '#10b981',
-                    borderDownColor: '#ef4444',
-                    wickUpColor: '#10b981',
-                    wickDownColor: '#ef4444',
-                });
+                // Prepare data
+                const labels = klineData.map(k => new Date(k[0]).toLocaleDateString());
+                const closePrices = klineData.map(k => parseFloat(k[4]));
+                const highPrices = klineData.map(k => parseFloat(k[2]));
+                const lowPrices = klineData.map(k => parseFloat(k[3]));
 
-                // Format kline data
-                const formattedData = klineData.map(k => ({
-                    time: Math.floor(k[0] / 1000),
-                    open: parseFloat(k[1]),
-                    high: parseFloat(k[2]),
-                    low: parseFloat(k[3]),
-                    close: parseFloat(k[4]),
-                }));
+                // Prepare Fibonacci levels as datasets
+                const datasets = [
+                    {
+                        label: 'Close Price',
+                        data: closePrices,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.1,
+                        pointRadius: 0,
+                    }
+                ];
 
-                candleSeries.setData(formattedData);
-
-                // Add Fibonacci levels as price lines
+                // Add Fibonacci levels as horizontal lines
                 if (elliottData.fibonacci_levels && elliottData.fibonacci_levels.retracement) {
                     const fibColors = {
                         '0.0': '#10b981',
@@ -2330,26 +2314,87 @@
                     };
 
                     Object.entries(elliottData.fibonacci_levels.retracement).forEach(([level, price]) => {
-                        candleSeries.createPriceLine({
-                            price: price,
-                            color: fibColors[level] || '#6366f1',
-                            lineWidth: 1,
-                            lineStyle: window.LightweightCharts.LineStyle.Dashed,
-                            axisLabelVisible: true,
-                            title: `Fib ${level}`,
+                        datasets.push({
+                            label: `Fib ${level}`,
+                            data: Array(klineData.length).fill(price),
+                            borderColor: fibColors[level] || '#6366f1',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            pointRadius: 0,
+                            fill: false,
                         });
                     });
                 }
 
-                chart.timeScale().fitContent();
+                const config = {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: '#8b949e',
+                                    font: { size: 11 },
+                                    usePointStyle: true,
+                                    padding: 10,
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(13, 17, 23, 0.95)',
+                                titleColor: '#8b949e',
+                                bodyColor: '#c9d1d9',
+                                borderColor: '#30363d',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: true,
+                            }
+                        },
+                        scales: {
+                            x: {
+                                display: true,
+                                grid: {
+                                    color: '#30363d',
+                                    drawBorder: false,
+                                },
+                                ticks: {
+                                    color: '#8b949e',
+                                    maxRotation: 0,
+                                    autoSkipPadding: 20,
+                                }
+                            },
+                            y: {
+                                display: true,
+                                position: 'right',
+                                grid: {
+                                    color: '#30363d',
+                                    drawBorder: false,
+                                },
+                                ticks: {
+                                    color: '#8b949e',
+                                    callback: function (value) {
+                                        return '$' + value.toFixed(2);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
 
-                // Responsive resize
-                window.addEventListener('resize', () => {
-                    chart.applyOptions({ width: chartDiv.clientWidth });
-                });
+                new Chart(ctx, config);
             } catch (error) {
                 console.error('Chart creation error:', error);
-                chartDiv.innerHTML = '<div style="color: #ef4444; padding: 20px; text-align: center;">Chart could not be loaded. Please refresh the page.</div>';
+                chartDiv.innerHTML = '<div style="color: #ef4444; padding: 20px; text-align: center;"><i class="fas fa-exclamation-triangle"></i> Chart could not be loaded. Please refresh the page.</div>';
             }
         }
     </script>
