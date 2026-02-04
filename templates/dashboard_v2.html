@@ -2204,7 +2204,7 @@
                         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
                             <div style="background: rgba(139, 92, 246, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #8b5cf6;">
                                 <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 5px;">CURRENT WAVE</div>
-                                <div style="font-size: 24px; font-weight: 700; color: #8b5cf6;">${data.current_wave || 'Unknown'}</div>
+                                <div style="font-size: 24px; font-weight: 700; color: #8b5cf6;">${typeof data.current_wave === 'object' ? JSON.stringify(data.current_wave) : (data.current_wave || 'Unknown')}</div>
                             </div>
                             <div style="background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border-left: 3px solid #3b82f6;">
                                 <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 5px;">TREND</div>
@@ -2282,7 +2282,10 @@
                 const ctx = canvas.getContext('2d');
 
                 // Prepare data
-                const labels = klineData.map(k => new Date(k[0]).toLocaleDateString());
+                const labels = klineData.map(k => {
+                    const date = new Date(k[0]);
+                    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                });
                 const closePrices = klineData.map(k => parseFloat(k[4]));
                 const highPrices = klineData.map(k => parseFloat(k[2]));
                 const lowPrices = klineData.map(k => parseFloat(k[3]));
@@ -2293,11 +2296,12 @@
                         label: 'Close Price',
                         data: closePrices,
                         borderColor: '#3b82f6',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                        borderWidth: 2,
+                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                        borderWidth: 3,
                         fill: true,
-                        tension: 0.1,
+                        tension: 0.4,
                         pointRadius: 0,
+                        order: 1,
                     }
                 ];
 
@@ -2318,10 +2322,11 @@
                             label: `Fib ${level}`,
                             data: Array(klineData.length).fill(price),
                             borderColor: fibColors[level] || '#6366f1',
-                            borderWidth: 1,
+                            borderWidth: 1.5,
                             borderDash: [5, 5],
                             pointRadius: 0,
                             fill: false,
+                            order: 2,
                         });
                     });
                 }
