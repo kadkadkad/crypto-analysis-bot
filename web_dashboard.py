@@ -1608,18 +1608,9 @@ def get_klines(symbol):
         # Fetch OHLCV
         ohlcv = exchange.fetch_ohlcv(f"{clean_symbol}/USDT", interval, limit=limit)
         
-        # Format for Lightweight Charts
-        data = []
-        for candle in ohlcv:
-            data.append({
-                'time': int(candle[0] / 1000), # Unix Timestamp (Seconds)
-                'open': candle[1],
-                'high': candle[2],
-                'low': candle[3],
-                'close': candle[4]
-            })
-            
-        return jsonify(data)
+        # Return raw array format for Chart.js [[timestamp, open, high, low, close, volume], ...]
+        return jsonify(ohlcv)
+        
     except Exception as e:
         print(f"Kline Error: {e}")
         return jsonify({"error": str(e)}), 500
