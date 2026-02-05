@@ -67,13 +67,20 @@ class AlphaBot:
         print(f"📝 [DECISION] {decision_type}: {details.get('message', 'No message')}")
     
     def get_dashboard_data(self) -> Optional[Dict]:
-        """Dashboard'dan coin listesi al"""
+        """Dashboard verisini direkt dosyadan oku (HTTP hatasını önler)"""
         try:
-            response = requests.get(f"{self.base_url}/api/data", auth=self.auth, timeout=10)
-            if response.status_code == 200:
-                return response.json()
+            file_path = "web_results.json"
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    # Data yapısını API yanıtına benzet: {"coins": [...]}
+                    if isinstance(data, list):
+                        return {"coins": data}
+                    return data
+            else:
+                print(f"❌ '{file_path}' bulunamadı.")
         except Exception as e:
-            print(f"❌ Dashboard data fetch failed: {e}")
+            print(f"❌ Data file read failed: {e}")
         return None
     
     def check_setup(self, coin: Dict) -> Tuple[bool, str, List[str], Dict]:
