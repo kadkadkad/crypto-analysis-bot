@@ -119,6 +119,9 @@ class PaperTradingPortfolio:
                 "message": f"❌ Yetersiz sermaye. Gerekli: ${position_value:.2f}"
             }
         
+        # Pozisyon yönü belirle
+        side = 'SHORT' if stop_loss > entry_price else 'LONG'
+        
         # Pozisyon aç
         self.portfolio['positions'][symbol] = {
             "quantity": position_size,
@@ -127,6 +130,7 @@ class PaperTradingPortfolio:
             "target": target,
             "risk_amount": risk_amount,
             "rr_ratio": rr_ratio,
+            "side": side,
             "entry_time": datetime.now().isoformat()
         }
         
@@ -135,7 +139,7 @@ class PaperTradingPortfolio:
         
         return {
             "success": True,
-            "message": f"✅ Pozisyon açıldı: {symbol}",
+            "message": f"✅ {side} Pozisyon açıldı: {symbol}",
             "position_size": position_size,
             "position_value": position_value,
             "risk_amount": risk_amount,
@@ -150,6 +154,7 @@ class PaperTradingPortfolio:
             return {"success": False, "message": f"❌ Açık pozisyon yok: {symbol}"}
         
         pos = self.portfolio['positions'][symbol]
+        side = pos.get('side', 'LONG')
         
         # Çıkış fiyatını al
         if exit_price is None:
@@ -161,14 +166,22 @@ class PaperTradingPortfolio:
         quantity = pos['quantity']
         entry_value = quantity * pos['entry_price']
         exit_value = quantity * exit_price
-        pnl = exit_value - entry_value
+        
+        if side == 'SHORT':
+            # Short: Entry yüksekten, Exit düşükten olmalı. 
+            # EntryValue (borç) - ExitValue (geri ödeme) = Kar
+            pnl = entry_value - exit_value
+        else:
+            # Long: ExitValue - EntryValue
+            pnl = exit_value - entry_value
+            
         pnl_percent = (pnl / entry_value) * 100
         
         # R multiple hesapla (kaç R kazandık/kaybettik)
         r_value = pnl / pos['risk_amount']
         
         # Portföyü güncelle
-        self.portfolio['current_capital'] += exit_value
+        self.portfolio['current_capital'] += (entry_value + pnl) # Return principal + pnl
         self.portfolio['total_pnl'] += pnl
         self.portfolio['daily_pnl'] += pnl
         self.portfolio['total_trades'] += 1
@@ -202,6 +215,7 @@ class PaperTradingPortfolio:
             "id": len(self.trades) + 1,
             "symbol": symbol,
             "type": trade_type,
+            "side": side,
             "entry_price": pos['entry_price'],
             "exit_price": exit_price,
             "quantity": quantity,
@@ -244,25 +258,45 @@ class PaperTradingPortfolio:
             if current_price == 0:
                 continue
             
-            # Stop-loss hit
-            if current_price <= pos['stop_loss']:
-                result = self.close_position(symbol, current_price, "Stop-Loss Hit")
-                alerts.append({
-                    "symbol": symbol,
-                    "type": "STOP_LOSS",
-                    "message": f"🛑 Stop-loss hit: {symbol} @ ${current_price:.6f}",
-                    "pnl": result.get('pnl', 0)
-                })
+            side = pos.get('side', 'LONG')
             
-            # Target hit
-            elif current_price >= pos['target']:
-                result = self.close_position(symbol, current_price, "Target Hit")
-                alerts.append({
-                    "symbol": symbol,
-                    "type": "TARGET",
-                    "message": f"🎯 Target hit: {symbol} @ ${current_price:.6f}",
-                    "pnl": result.get('pnl', 0)
-                })
+            # LONG Check
+            if side == 'LONG':
+                if current_price <= pos['stop_loss']:
+                    result = self.close_position(symbol, current_price, "Stop-Loss Hit")
+                    alerts.append({
+                        "symbol": symbol,
+                        "type": "STOP_LOSS",
+                        "message": f"🛑 [LONG] Stop-loss hit: {symbol} @ ${current_price:.6f}",
+                        "pnl": result.get('pnl', 0)
+                    })
+                elif current_price >= pos['target']:
+                    result = self.close_position(symbol, current_price, "Target Hit")
+                    alerts.append({
+                        "symbol": symbol,
+                        "type": "TARGET",
+                        "message": f"🎯 [LONG] Target hit: {symbol} @ ${current_price:.6f}",
+                        "pnl": result.get('pnl', 0)
+                    })
+            
+            # SHORT Check
+            else:
+                if current_price >= pos['stop_loss']:
+                    result = self.close_position(symbol, current_price, "Stop-Loss Hit")
+                    alerts.append({
+                        "symbol": symbol,
+                        "type": "STOP_LOSS",
+                        "message": f"🛑 [SHORT] Stop-loss hit: {symbol} @ ${current_price:.6f}",
+                        "pnl": result.get('pnl', 0)
+                    })
+                elif current_price <= pos['target']:
+                    result = self.close_position(symbol, current_price, "Target Hit")
+                    alerts.append({
+                        "symbol": symbol,
+                        "type": "TARGET",
+                        "message": f"🎯 [SHORT] Target hit: {symbol} @ ${current_price:.6f}",
+                        "pnl": result.get('pnl', 0)
+                    })
         
         return alerts
     

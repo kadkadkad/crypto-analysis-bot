@@ -76,87 +76,77 @@ class AlphaBot:
             print(f"❌ Dashboard data fetch failed: {e}")
         return None
     
-    def check_5_criteria(self, coin: Dict) -> Tuple[bool, List[str], Dict]:
+    def check_setup(self, coin: Dict) -> Tuple[bool, str, List[str], Dict]:
         """
-        Ross Cameron'ın 5 kriterini kontrol et
-        Returns: (passed, reasons, scores)
+        Coin için uygun setup (LONG veya SHORT) kontrol et
+        Returns: (passed, direction, reasons, scores)
         """
         symbol = coin.get('Coin', '').replace('USDT', '')
         reasons = []
         scores = {}
         
-        # 1. HABER KATALİZÖRÜ (Smart Score proxy)
-        smart_score = float(coin.get('Smart Score', 0))
-        scores['smart_score'] = smart_score
-        if smart_score < 65:
-            reasons.append(f"❌ Smart Score çok düşük: {smart_score} (min: 65)")
-            return False, reasons, scores
-        reasons.append(f"✅ Smart Score OK: {smart_score}")
-        
-        # 2. PRE-MARKET GAP UP (4h change > 8%)
+        # Temel verileri al
         try:
+            smart_score = float(coin.get('Smart Score', 0))
             change_24h = float(str(coin.get('24h Change', '0')).replace('%', ''))
-            scores['gap_up'] = change_24h
-            if change_24h < 8:
-                reasons.append(f"❌ Gap up yetersiz: {change_24h}% (min: 8%)")
-                return False, reasons, scores
-            reasons.append(f"✅ Gap up OK: {change_24h}%")
-        except:
-            reasons.append("❌ 24h change parse failed")
-            return False, reasons, scores
-        
-        # 3. VOLUME SPIKE (5x+)
-        try:
-            volume_str = str(coin.get('24h Volume', '0'))
-            # Volume spike proxy: if in top 20 by volume, likely spiking
-            scores['volume_rank'] = 'high'  # Simplified
-            reasons.append("✅ Volume spike assumed (top volume)")
-        except:
-            reasons.append("⚠️ Volume check skipped")
-        
-        # 4. PRICE RANGE ($0.10-$50)
-        try:
             price = float(str(coin.get('Price', '0')).replace('$', '').replace(',', ''))
+            
+            scores['smart_score'] = smart_score
+            scores['change_24h'] = change_24h
             scores['price'] = price
-            if price < 0.10 or price > 50:
-                reasons.append(f"❌ Price out of range: ${price} (range: $0.10-$50)")
-                return False, reasons, scores
-            reasons.append(f"✅ Price OK: ${price}")
         except:
-            reasons.append("❌ Price parse failed")
-            return False, reasons, scores
+            return False, 'NONE', ["❌ Data parse error"], {}
+
+        # Fiyat filtrelemesi (Penny stock & aşırı pahalıları ele)
+        if price < 0.10 or price > 1000:
+            return False, 'NONE', [f"❌ Price logic: ${price}"], scores
+
+        # --- STRATEJİ 1: LONG (Momentum / Gap Up) ---
+        if change_24h >= 5:  # %5+ Yükseliş
+            if smart_score >= 60:
+                reasons.append(f"✅ [LONG] Strong Momentum: +{change_24h}%")
+                reasons.append(f"✅ [LONG] Smart Score: {smart_score}")
+                return True, 'LONG', reasons, scores
+            else:
+                reasons.append(f"⚠️ [LONG] Düşük Score: {smart_score}")
+
+        # --- STRATEJİ 2: SHORT (Breakdown / Crash) ---
+        elif change_24h <= -4:  # %4+ Düşüş (Momentum Breakdown)
+            if smart_score <= 45:
+                reasons.append(f"✅ [SHORT] Breakdown Detected: {change_24h}%")
+                reasons.append(f"✅ [SHORT] Weak Score: {smart_score}")
+                return True, 'SHORT', reasons, scores
+            else:
+                reasons.append(f"⚠️ [SHORT] Score hala yüksek: {smart_score}")
         
-        # 5. FLOAT (Token Supply - Low risk)
-        # This would need token supply API call - for now use Smart Score as proxy
-        if smart_score > 75:
-            reasons.append("✅ Float assumed healthy (high smart score)")
-            scores['float_risk'] = 'low'
-        else:
-            reasons.append("⚠️ Float risk moderate")
-            scores['float_risk'] = 'medium'
-        
-        return True, reasons, scores
+        reasons.append(f"❌ No valid setup detected (Change: {change_24h}%)")
+        return False, 'NONE', reasons, scores
     
-    def calculate_entry_stop_target(self, coin: Dict) -> Optional[Dict]:
+    def calculate_entry_stop_target(self, coin: Dict, direction: str) -> Optional[Dict]:
         """
-        Entry/Stop/Target seviyelerini hesapla
-        Dashboard'dan support/resistance kullan veya default logic
+        Entry/Stop/Target - Yön bazlı hesaplama
         """
         try:
             price = float(str(coin.get('Price', '0')).replace('$', '').replace(',', ''))
             
-            # Basit strateji: Price action based
-            # Entry: Current price + 0.5% (breakout confirmation)
-            entry = price * 1.005
+            if direction == 'LONG':
+                # Entry: Current + 0.5%
+                entry = price * 1.005
+                # Stop: 2.5% below entry
+                stop = entry * 0.975
+                # Target: 5% above entry (2:1 R/R)
+                target = entry * 1.05
             
-            # Stop: 2.5% below entry (pullback protection)
-            stop = entry * 0.975
+            else: # SHORT
+                # Entry: Current - 0.5% (düşüş onayı)
+                entry = price * 0.995 
+                # Stop: 2.5% ABOVE entry
+                stop = entry * 1.025
+                # Target: 5% BELOW entry
+                target = entry * 0.95
             
-            # Target: 5% above entry (2:1 R/R with 2.5% risk)
-            target = entry * 1.05
-            
-            risk = entry - stop
-            reward = target - entry
+            risk = abs(entry - stop)
+            reward = abs(target - entry)
             rr_ratio = reward / risk if risk > 0 else 0
             
             return {
@@ -173,10 +163,10 @@ class AlphaBot:
     
     def scan_and_select_coin(self) -> Optional[Dict]:
         """
-        Market'i tara, 5 kriteri karşılayan en iyi coin'i seç
+        Market tara ve en iyi LONG/SHORT fırsatını seç
         """
         print("\n" + "="*80)
-        print("🔍 MARKET SCAN BAŞLIYOR")
+        print("🔍 MARKET SCAN BAŞLIYOR (LONG & SHORT)")
         print("="*80)
         
         self.learning['total_scans'] += 1
@@ -194,47 +184,53 @@ class AlphaBot:
         
         for coin in coins:
             symbol = coin.get('Coin', '')
-            passed, reasons, scores = self.check_5_criteria(coin)
+            # Yeni check fonksiyonu
+            passed, direction, reasons, scores = self.check_setup(coin)
             
             if passed:
-                levels = self.calculate_entry_stop_target(coin)
+                levels = self.calculate_entry_stop_target(coin, direction)
                 if levels and levels['rr_ratio'] >= 1.5:
                     candidates.append({
                         "coin": coin,
                         "symbol": symbol,
+                        "type": direction,
                         "scores": scores,
                         "levels": levels,
                         "reasons": reasons
                     })
-                    print(f"\n✅ ADAY BULUNDU: {symbol}")
+                    print(f"\n✅ {direction} ADAYI: {symbol}")
                     for reason in reasons:
                         print(f"   {reason}")
                     print(f"   📈 R/R Ratio: {levels['rr_ratio']}")
         
         if not candidates:
             self.log_decision("NO_SETUP", {
-                "message": "5 kriteri karşılayan coin bulunamadı",
+                "message": "Uygun LONG/SHORT setup bulunamadı",
                 "coins_scanned": len(coins)
             })
-            print("\n❌ Uygun setup yok. Bekleme moduna geçiliyor...")
+            print("\n❌ Setup yok. Bekleme modu...")
             return None
         
-        # En yüksek Smart Score + en iyi R/R olanı seç
-        best = max(candidates, key=lambda x: (
-            x['scores']['smart_score'] * 0.6 + 
-            x['levels']['rr_ratio'] * 40
-        ))
+        # En iyi adayı seç (Puanlama: Smart score gücü ve R/R)
+        # Not: Short için düşük smart score iyidir, o yüzden ters orantı
+        def score_candidate(c):
+            base_score = c['scores']['smart_score']
+            if c['type'] == 'SHORT':
+                base_score = 100 - base_score # Short için düşük puan yüksek skor demek
+            
+            return (base_score * 0.6) + (c['levels']['rr_ratio'] * 40)
+
+        best = max(candidates, key=score_candidate)
         
-        print(f"\n🎯 EN İYİ ADAY: {best['symbol']}")
-        print(f"   Smart Score: {best['scores']['smart_score']}")
-        print(f"   Gap Up: {best['scores']['gap_up']}%")
-        print(f"   R/R Ratio: {best['levels']['rr_ratio']}")
+        print(f"\n🎯 SEÇİLEN ADAY: {best['symbol']} ({best['type']})")
+        print(f"   Score: {best['scores']['smart_score']}")
+        print(f"   Change: {best['scores']['change_24h']}%")
         
         self.log_decision("COIN_SELECTED", {
             "symbol": best['symbol'],
+            "type": best['type'],
             "smart_score": best['scores']['smart_score'],
-            "rr_ratio": best['levels']['rr_ratio'],
-            "reasons": best['reasons']
+            "rr_ratio": best['levels']['rr_ratio']
         })
         
         return best
