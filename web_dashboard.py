@@ -508,6 +508,63 @@ def get_data_internal():
         pass
     return []
 
+# 📊 API: Market Regime
+@app.route('/api/regime')
+@auth.login_required
+def get_market_regime():
+    """Returns current market regime (Bull/Bear)"""
+    try:
+        # Get BTC data from web_results
+        data = get_data_internal()
+        btc = next((c for c in data if "BTC" in c.get("Coin", "")), None)
+        
+        regime = {
+            "display": "NEUTRAL",
+            "emoji": "⚖️",
+            "description": "Market is sideways",
+            "confidence": 0.5,
+            "strategy": "Range Trading",
+            "color": "#eab308"
+        }
+
+        if btc:
+            try:
+                price = float(btc.get("Price", 0))
+                ema50 = float(btc.get("ema_50", 0))
+                ema200 = float(btc.get("ema_200", 0))
+                
+                if price > ema50:
+                    regime = {
+                        "display": "BULLISH TREND",
+                        "emoji": "🚀",
+                        "description": "Price above EMA 50",
+                        "confidence": 0.75,
+                        "strategy": "Buy Dips",
+                        "color": "#10b981"
+                    }
+                    if ema50 > ema200:
+                         regime["display"] = "STRONG BULL"
+                         regime["description"] = "Golden Cross Active"
+                         regime["confidence"] = 0.90
+                elif price < ema50:
+                    regime = {
+                        "display": "BEARISH TREND",
+                        "emoji": "🐻",
+                        "description": "Price below EMA 50",
+                        "confidence": 0.75,
+                        "strategy": "Sell Rallies",
+                        "color": "#ef4444"
+                    }
+                    if ema50 < ema200:
+                         regime["display"] = "STRONG BEAR"
+                         regime["description"] = "Death Cross Active"
+                         regime["confidence"] = 0.90
+            except: pass
+        
+        return jsonify(regime)
+    except Exception as e:
+        return jsonify({"display": "ERROR", "description": str(e), "emoji": "⚠️"})
+
 # -------------------------------------------------------------------
 
 # 🔔 API: Alert durumu (public - rate limited)
