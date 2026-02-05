@@ -3032,99 +3032,132 @@
         }
 
         // ==================== PAPER TRADING FUNCTIONS ====================
+        // ==================== PAPER TRADING FUNCTIONS ====================
         async function showPaperTradingStats() {
-            const modal = document.getElementById('reportModal');
-            const content = document.getElementById('reportContent');
-            const title = document.getElementById('reportTitle');
-            title.textContent = '💰 Paper Trading Portfolio';
-            content.innerHTML = '<div class="loading">Loading...</div>';
-            modal.style.display = 'flex';
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "💰 PAPER TRADING PORTFOLIO";
+            m.style.display = 'flex';
+            b.innerHTML = "<i>Loading stats...</i>";
             try {
                 const response = await fetch('/api/paper-trading/stats');
                 const stats = await response.json();
                 const roi = stats.roi_percent || 0;
                 const roiColor = roi > 0 ? '#10b981' : '#ef4444';
-                content.innerHTML = `<div style="padding:20px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:30px;"><div style="background:linear-gradient(135deg,#10b981,#059669);padding:20px;border-radius:12px;color:white;"><div style="font-size:14px;opacity:0.9;">Capital</div><div style="font-size:28px;font-weight:bold;margin-top:5px;">$${stats.current_capital?.toFixed(2)||'0'}</div><div style="font-size:12px;margin-top:5px;">Initial: $${stats.initial_capital?.toFixed(2)||'0'}</div></div><div style="background:linear-gradient(135deg,${roiColor},${roi>0?'#047857':'#dc2626'});padding:20px;border-radius:12px;color:white;"><div style="font-size:14px;opacity:0.9;">Total P&L</div><div style="font-size:28px;font-weight:bold;margin-top:5px;">$${stats.total_pnl?.toFixed(2)||'0'}</div><div style="font-size:12px;margin-top:5px;">ROI: ${roi.toFixed(2)}%</div></div><div style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);padding:20px;border-radius:12px;color:white;"><div style="font-size:14px;opacity:0.9;">Win Rate</div><div style="font-size:28px;font-weight:bold;margin-top:5px;">${stats.win_rate?.toFixed(1)||'0'}%</div><div style="font-size:12px;margin-top:5px;">${stats.winning_trades||0}W/${stats.losing_trades||0}L</div></div></div></div>`;
+                b.innerHTML = `<div style="padding:20px;"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:30px;"><div style="background:linear-gradient(135deg,#10b981,#059669);padding:20px;border-radius:12px;color:white;"><div style="font-size:14px;opacity:0.9;">Capital</div><div style="font-size:28px;font-weight:bold;margin-top:5px;">$${stats.current_capital?.toFixed(2)||'0'}</div><div style="font-size:12px;margin-top:5px;">Initial: $${stats.initial_capital?.toFixed(2)||'0'}</div></div><div style="background:linear-gradient(135deg,${roiColor},${roi>0?'#047857':'#dc2626'});padding:20px;border-radius:12px;color:white;"><div style="font-size:14px;opacity:0.9;">Total P&L</div><div style="font-size:28px;font-weight:bold;margin-top:5px;">$${stats.total_pnl?.toFixed(2)||'0'}</div><div style="font-size:12px;margin-top:5px;">ROI: ${roi.toFixed(2)}%</div></div><div style="background:linear-gradient(135deg,#8b5cf6,#7c3aed);padding:20px;border-radius:12px;color:white;"><div style="font-size:14px;opacity:0.9;">Win Rate</div><div style="font-size:28px;font-weight:bold;margin-top:5px;">${stats.win_rate?.toFixed(1)||'0'}%</div><div style="font-size:12px;margin-top:5px;">${stats.winning_trades||0}W/${stats.losing_trades||0}L</div></div></div><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:15px;"><div style="background:#1e293b;padding:15px;border-radius:8px;border-left:3px solid #3b82f6;"><div style="color:#94a3b8;font-size:12px;">Total Trades</div><div style="font-size:20px;font-weight:bold;color:white;">${stats.total_trades||0}</div></div><div style="background:#1e293b;padding:15px;border-radius:8px;border-left:3px solid #10b981;"><div style="color:#94a3b8;font-size:12px;">Avg Win</div><div style="font-size:20px;font-weight:bold;color:#10b981;">$${stats.avg_win?.toFixed(2)||'0'}</div></div><div style="background:#1e293b;padding:15px;border-radius:8px;border-left:3px solid #ef4444;"><div style="color:#94a3b8;font-size:12px;">Avg Loss</div><div style="font-size:20px;font-weight:bold;color:#ef4444;">$${stats.avg_loss?.toFixed(2)||'0'}</div></div><div style="background:#1e293b;padding:15px;border-radius:8px;border-left:3px solid #f59e0b;"><div style="color:#94a3b8;font-size:12px;">Profit Factor</div><div style="font-size:20px;font-weight:bold;color:white;">${stats.profit_factor?.toFixed(2)||'0'}</div></div></div></div>`;
             } catch (error) {
-                content.innerHTML = `<div style="color:#ef4444;padding:20px;">Error: ${error.message}</div>`;
+                b.innerHTML = `<div style="color:#ef4444;padding:20px;">Error: ${error.message}</div>`;
             }
         }
         async function showPaperPositions() {
-            const modal = document.getElementById('reportModal');
-            const content = document.getElementById('reportContent');
-            const title = document.getElementById('reportTitle');
-            title.textContent = '📊 Open Positions';
-            content.innerHTML = '<div class="loading">Loading...</div>';
-            modal.style.display = 'flex';
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "📊 OPEN POSITIONS";
+            m.style.display = 'flex';
+            b.innerHTML = "<i>Loading positions...</i>";
             try {
                 const response = await fetch('/api/paper-trading/positions');
                 const data = await response.json();
                 const positions = data.positions || {};
                 if (Object.keys(positions).length === 0) {
-                    content.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">No open positions</div>';
+                    b.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">No open positions</div>';
                     return;
                 }
                 let html = '<div style="padding:20px;">';
                 for (const [symbol, pos] of Object.entries(positions)) {
                     const pnl = pos.unrealized_pnl || 0;
+                    const pnlPercent = pos.unrealized_pnl_percent || 0;
                     const pnlColor = pnl >= 0 ? '#10b981' : '#ef4444';
-                    html += `<div style="background:#1e293b;padding:20px;border-radius:12px;margin-bottom:15px;border-left:4px solid ${pnlColor};"><div style="display:flex;justify-content:space-between;"><div><div style="font-size:20px;font-weight:bold;color:white;">${symbol}</div></div><div style="text-align:right;"><div style="font-size:24px;font-weight:bold;color:${pnlColor};">$${pnl.toFixed(2)}</div></div></div></div>`;
+                    html += `<div style="background:#1e293b;padding:20px;border-radius:12px;margin-bottom:15px;border-left:4px solid ${pnlColor};"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;"><div><div style="font-size:20px;font-weight:bold;color:white;">${symbol}</div><div style="color:#94a3b8;font-size:12px;">Qty: ${pos.quantity?.toFixed(4)}</div></div><div style="text-align:right;"><div style="font-size:24px;font-weight:bold;color:${pnlColor};">$${pnl.toFixed(2)}</div><div style="color:${pnlColor};font-size:14px;">${pnlPercent.toFixed(2)}%</div></div></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:12px;"><div><div style="color:#94a3b8;">Entry</div><div style="color:white;font-weight:bold;">$${pos.entry_price?.toFixed(6)}</div></div><div><div style="color:#94a3b8;">Current</div><div style="color:white;font-weight:bold;">$${pos.current_price?.toFixed(6)}</div></div><div><div style="color:#94a3b8;">Stop</div><div style="color:#ef4444;font-weight:bold;">$${pos.stop_loss?.toFixed(6)}</div></div><div><div style="color:#94a3b8;">Target</div><div style="color:#10b981;font-weight:bold;">$${pos.target?.toFixed(6)}</div></div></div><div style="margin-top:15px;"><button onclick="closePaperPosition('${symbol}')" style="background:#ef4444;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;">Close Position</button></div></div>`;
                 }
                 html += '</div>';
-                content.innerHTML = html;
+                b.innerHTML = html;
             } catch (error) {
-                content.innerHTML = `<div style="color:#ef4444;padding:20px;">Error: ${error.message}</div>`;
+                b.innerHTML = `<div style="color:#ef4444;padding:20px;">Error: ${error.message}</div>`;
             }
         }
         async function showPaperTrades() {
-            const modal = document.getElementById('reportModal');
-            const content = document.getElementById('reportContent');
-            const title = document.getElementById('reportTitle');
-            title.textContent = '📜 Trade History';
-            content.innerHTML = '<div class="loading">Loading...</div>';
-            modal.style.display = 'flex';
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "📜 TRADE HISTORY";
+            m.style.display = 'flex';
+            b.innerHTML = "<i>Loading trades...</i>";
             try {
                 const response = await fetch('/api/paper-trading/trades');
                 const data = await response.json();
                 const trades = data.trades || [];
                 if (trades.length === 0) {
-                    content.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">No trades yet</div>';
+                    b.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">No trades yet</div>';
                     return;
                 }
-                let html = '<div style="padding:20px;">';
+                let html = '<div style="padding:20px;"><div style="display:flex;flex-direction:column;gap:12px;">';
                 trades.reverse().forEach(trade => {
-                    const color = trade.type === 'WIN' ? '#10b981' : '#ef4444';
-                    html += `<div style="background:#1e293b;padding:15px;border-radius:8px;border-left:4px solid ${color};margin-bottom:10px;"><div style="color:white;"><strong>${trade.symbol}</strong> - <span style="color:${color};">${trade.type}</span></div><div style="color:${color};font-size:18px;">$${trade.pnl?.toFixed(2)}</div></div>`;
+                    const typeColors = {'WIN':'#10b981','LOSS':'#ef4444','SCRATCH':'#f59e0b'};
+                    const color = typeColors[trade.type] || '#94a3b8';
+                    html += `<div style="background:#1e293b;padding:15px;border-radius:8px;border-left:4px solid ${color};"><div style="display:flex;justify-content:space-between;align-items:center;"><div><span style="font-weight:bold;color:white;font-size:16px;">${trade.symbol}</span> <span style="color:${color};margin-left:10px;font-weight:bold;">${trade.type}</span></div><div style="text-align:right;"><div style="font-size:18px;font-weight:bold;color:${color};">$${trade.pnl?.toFixed(2)}</div><div style="font-size:12px;color:#94a3b8;">${trade.r_value?.toFixed(2)}R</div></div></div><div style="margin-top:8px;font-size:11px;color:#64748b;">${new Date(trade.exit_time).toLocaleString()} • Entry: $${trade.entry_price?.toFixed(6)} → Exit: $${trade.exit_price?.toFixed(6)}</div></div>`;
                 });
-                html += '</div>';
-                content.innerHTML = html;
+                html += '</div></div>';
+                b.innerHTML = html;
             } catch (error) {
-                content.innerHTML = `<div style="color:#ef4444;padding:20px;">Error: ${error.message}</div>`;
+                b.innerHTML = `<div style="color:#ef4444;padding:20px;">Error: ${error.message}</div>`;
             }
         }
         function openNewPaperTrade() {
-            alert('Use Coin Analysis Report to get Entry/Stop/Target levels, then use API:\ncurl -X POST /api/paper-trading/open');
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "📝 NEW PAPER TRADE";
+            m.style.display = 'flex';
+            b.innerHTML = `<div style="padding:30px;"><div style="background:#1e293b;padding:20px;border-radius:12px;margin-bottom:20px;"><h3 style="color:white;margin-bottom:15px;">📊 How to Open a Trade:</h3><ol style="color:#94a3b8;line-height:2;"><li>Use <strong style="color:#10b981;">Coin Analysis Report</strong> to get Entry/Stop/Target levels</li><li>Click on a coin to see recommended levels</li><li>Use the curl command below to open position</li></ol></div><div style="background:#0f172a;padding:20px;border-radius:8px;border-left:3px solid #3b82f6;"><div style="color:#94a3b8;font-size:12px;margin-bottom:10px;">📋 CURL Command:</div><code style="color:#10b981;font-size:13px;display:block;white-space:pre-wrap;">curl -X POST -u admin:Admin123! \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "symbol": "BTCUSDT",
+    "entry": 103000,
+    "stop": 102500,
+    "target": 104500,
+    "risk_percent": 2.0
+  }' \\
+  http://141.144.251.86:5001/api/paper-trading/open</code></div></div>`;
         }
-        function closePaperPosition(symbol) {
-            if (!confirm(`Close ${symbol}?`)) return;
-            fetch('/api/paper-trading/close', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({symbol, reason: 'Manual'})
-            }).then(r => r.json()).then(d => { alert('Closed: $' + d.pnl?.toFixed(2)); showPaperPositions(); });
+        async function closePaperPosition(symbol) {
+            if (!confirm(\`Close position for \${symbol}?\`)) return;
+            try {
+                const response = await fetch('/api/paper-trading/close', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({symbol, reason: 'Manual Close'})
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert(\`Position closed! P&L: $\${result.pnl.toFixed(2)}\`);
+                    showPaperPositions();
+                } else {
+                    alert('Error: ' + (result.message || result.error));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
         }
         function showAlphaBotStatus() {
-            alert('AlphaBot Status:\n\nRun: python3 alpha_bot.py\n24/7: nohup ./run_alphabot.sh &');
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "🤖 ALPHABOT STATUS";
+            m.style.display = 'flex';
+            b.innerHTML = `<div style="padding:30px;"><div style="background:linear-gradient(135deg,#ec4899,#be185d);padding:20px;border-radius:12px;margin-bottom:20px;text-align:center;color:white;"><div style="font-size:48px;margin-bottom:10px;">🤖</div><div style="font-size:24px;font-weight:bold;">AlphaBot</div><div style="font-size:14px;opacity:0.9;margin-top:5px;">Autonomous Self-Learning Trader</div></div><div style="background:#1e293b;padding:20px;border-radius:8px;margin-bottom:15px;"><h3 style="color:white;margin-bottom:15px;">📊 How to Run:</h3><div style="background:#0f172a;padding:15px;border-radius:6px;margin-bottom:10px;"><div style="color:#94a3b8;font-size:12px;margin-bottom:5px;">Single Test:</div><code style="color:#10b981;font-size:13px;">python3 alpha_bot.py</code></div><div style="background:#0f172a;padding:15px;border-radius:6px;"><div style="color:#94a3b8;font-size:12px;margin-bottom:5px;">24/7 Mode:</div><code style="color:#10b981;font-size:13px;">nohup ./run_alphabot.sh > alphabot.log 2>&1 &</code></div></div></div>`;
         }
         function showAlphaBotLearning() {
-            alert('AlphaBot Learning:\n\nCheck: cat alpha_bot_learning.json');
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "🧠 ALPHABOT LEARNING";
+            m.style.display = 'flex';
+            b.innerHTML = `<div style="padding:30px;"><div style="background:#1e293b;padding:20px;border-radius:12px;margin-bottom:20px;"><h3 style="color:white;margin-bottom:15px;">📚 Learning Database:</h3><div style="background:#0f172a;padding:15px;border-radius:6px;"><div style="color:#94a3b8;font-size:13px;">Check learning progress:</div><code style="color:#10b981;font-size:13px;display:block;margin-top:10px;">cat alpha_bot_learning.json | python3 -m json.tool</code></div></div><div style="background:#1e293b;padding:20px;border-radius:8px;"><h3 style="color:white;margin-bottom:15px;">🎯 What AlphaBot Learns:</h3><div style="display:grid;gap:12px;"><div style="background:#0f172a;padding:12px;border-radius:6px;border-left:3px solid #10b981;"><div style="color:#10b981;font-weight:bold;">✅ Winning Patterns</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">Coins that win, best entry times</div></div><div style="background:#0f172a;padding:12px;border-radius:6px;border-left:3px solid #ef4444;"><div style="color:#ef4444;font-weight:bold;">❌ Loss Diagnosis</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">Why trades failed</div></div><div style="background:#0f172a;padding:12px;border-radius:6px;border-left:3px solid #8b5cf6;"><div style="color:#8b5cf6;font-weight:bold;">🔧 Strategy Tuning</div><div style="color:#94a3b8;font-size:12px;margin-top:5px;">Auto-optimizes parameters</div></div></div></div></div>`;
         }
         function showAlphaBotDecisions() {
-            alert('AlphaBot Decisions:\n\nCheck: cat alpha_bot_decisions.json');
+            const m = document.getElementById('modal');
+            const b = document.getElementById('modalB');
+            document.getElementById('modalT').innerText = "📋 ALPHABOT DECISIONS";
+            m.style.display = 'flex';
+            b.innerHTML = `<div style="padding:30px;"><div style="background:#1e293b;padding:20px;border-radius:12px;margin-bottom:20px;"><h3 style="color:white;margin-bottom:15px;">📜 Decision Log:</h3><div style="background:#0f172a;padding:15px;border-radius:6px;"><div style="color:#94a3b8;font-size:13px;">View recent decisions:</div><code style="color:#10b981;font-size:13px;display:block;margin-top:10px;">cat alpha_bot_decisions.json | python3 -m json.tool | tail -100</code></div></div><div style="background:#1e293b;padding:20px;border-radius:8px;"><h3 style="color:white;margin-bottom:15px;">🔍 Decision Types:</h3><ul style="color:#94a3b8;line-height:2;"><li><strong style="color:#3b82f6;">COIN_SELECTED:</strong> Which coin, why</li><li><strong style="color:#10b981;">TRADE_OPENED:</strong> Entry/stop/target</li><li><strong style="color:#ef4444;">TRADE_REJECTED:</strong> Why not taken</li><li><strong style="color:#f59e0b;">NO_SETUP:</strong> No valid setups</li></ul></div></div>`;
         }
     </script>
 </body>
-</html>
-</body>
-
 </html>
