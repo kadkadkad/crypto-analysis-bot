@@ -97,18 +97,24 @@ async def fetch_order_book_async(session, symbol, limit=100):
     return [], []
 
 def calculate_adx(df, window=14):
-    if len(df) < window + 1: return None
-    return ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=window).adx().iloc[-1]
+    try:
+        if len(df) < window + 1: return 0.0
+        return ADXIndicator(high=df["high"], low=df["low"], close=df["close"], window=window).adx().iloc[-1]
+    except: return 0.0
 
 def calculate_net_accumulation_detailed(df):
-    whale_buy = df["taker_buy_quote"].sum()
-    total_quote = df["quote_volume"].sum()
-    whale_sell = total_quote - whale_buy
-    return {"buy": whale_buy, "sell": whale_sell, "net": whale_buy - whale_sell}
+    try:
+        whale_buy = df["taker_buy_quote"].sum()
+        total_quote = df["quote_volume"].sum()
+        whale_sell = total_quote - whale_buy
+        return {"buy": whale_buy, "sell": whale_sell, "net": whale_buy - whale_sell}
+    except: return {"buy": 0, "sell": 0, "net": 0}
 
 def calculate_ema(df, window):
-    if len(df) < window: return None
-    return EMAIndicator(close=df["close"], window=window).ema_indicator().iloc[-1]
+    try:
+        if len(df) < window: return 0.0
+        return EMAIndicator(close=df["close"], window=window).ema_indicator().iloc[-1]
+    except: return 0.0
 
 async def fetch_binance_data_async(session, symbol, ref_returns=None):
     try:

@@ -13982,11 +13982,14 @@ async def analyze_market():
                                         cc[k] = round(v, 4)
                             clean_results.append(cc)
                             
-                        with open("web_results.json", "w") as f:
+                        import shutil
+                        temp_file = "web_results.json.tmp"
+                        with open(temp_file, "w") as f:
                             json.dump(clean_results, f, default=str)
                             f.flush()
                             os.fsync(f.fileno())
-                        print(f"[WEB-SYNC] Final results saved safely with NaN sanitization.")
+                        shutil.move(temp_file, "web_results.json")
+                        print(f"[WEB-SYNC] Final results saved safely (atomic write).")
                     except Exception as e:
                         print(f"[ERROR] Failed to save web data: {e}")
                     
