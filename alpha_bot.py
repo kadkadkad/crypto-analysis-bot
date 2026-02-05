@@ -17,7 +17,7 @@ class AlphaBot:
     def __init__(self):
         self.learning_file = "alpha_bot_learning.json"
         self.decisions_file = "alpha_bot_decisions.json"
-        self.base_url = "http://localhost:5001"
+        self.base_url = "http://localhost:8050"
         self.auth = ("admin", "Admin123!")
         
         # Learning database
