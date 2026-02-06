@@ -3232,6 +3232,7 @@ def generate_dynamic_cash_flow_report():
 
     intervals = {"15m": "15m", "1h": "1h", "4h": "4h", "12h": "12h", "1d": "1d"}
     buyer_ratios = {}
+    net_flows = {}
 
     for interval_name, interval in intervals.items():
         with ThreadPoolExecutor(max_workers=10) as executor:
@@ -3239,6 +3240,7 @@ def generate_dynamic_cash_flow_report():
             kline_results = list(executor.map(lambda s: sync_fetch_kline_data(s, interval, limit=10), symbols))
             
             total_buy_v = 0
+            total_sell_v = 0
             total_mkt_v = 0
             
             for k_data in kline_results:
@@ -3252,18 +3254,31 @@ def generate_dynamic_cash_flow_report():
                     
                     # Take the last 5 candles for high-frequency sentiment
                     recent = df.tail(5)
-                    total_buy_v += recent["taker_buy_quote"].sum()
-                    total_mkt_v += recent["quote_volume"].sum()
+                    buy_vol = recent["taker_buy_quote"].sum()
+                    total_vol = recent["quote_volume"].sum()
+                    sell_vol = total_vol - buy_vol
+                    
+                    total_buy_v += buy_vol
+                    total_sell_v += sell_vol
+                    total_mkt_v += total_vol
                 except: continue
             
+            # Calculate Ratio
             if total_mkt_v > 0:
                 buyer_ratios[interval_name] = round((total_buy_v / total_mkt_v) * 100, 1)
+                # Calculate Net Flow in Millions
+                net_flow_val = (total_buy_v - total_sell_v)
+                net_flows[interval_name] = round(net_flow_val / 1_000_000, 2) # Convert to Million
             else:
                 buyer_ratios[interval_name] = 50.0
+                net_flows[interval_name] = 0.0
 
     # Update global for dashboard
     global MARKET_CASH_FLOW_DATA
-    MARKET_CASH_FLOW_DATA = buyer_ratios
+    MARKET_CASH_FLOW_DATA = {
+        "ratios": buyer_ratios,
+        "net_flows": net_flows
+    }
 
     top_cash_ins = []
     valid_symbols = set(t["symbol"] for t in ticker_data)

@@ -1493,20 +1493,43 @@
                     <div class="cash-item">
                         <div class="cash-tf">1d FLOW</div>
                         <div id="flow-1d-val" class="internal-cash-val">--%</div>
-                        <div class="cash-bar">
-                            <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
-                        </div>
                     </div>
                 </div>
             </div>
 
-            <div id="moneyFlowSection" class="money-flow-container" style="display: none;">
-                <div class="flow-title">🌊 WHALE MONEY FLOW (RT)</div>
-                <div id="flowGrid" class="flow-grid"></div>
+            <!-- 🌊 NET VOLUME DELTA (SMART MONEY) -->
+            <div id="netFlowDashboard" class="cash-flow-dashboard"
+                style="display: none; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">15m NET ($)</div>
+                    <div id="net-15m-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">1h NET ($)</div>
+                    <div id="net-1h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">4h NET ($)</div>
+                    <div id="net-4h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">1d NET ($)</div>
+                    <div id="net-1d-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
             </div>
-
-            <div id="grid" class="grid"></div>
         </div>
+
+        <div id="moneyFlowSection" class="money-flow-container" style="display: none;">
+            <div class="flow-title">🌊 WHALE MONEY FLOW (RT)</div>
+            <div id="flowGrid" class="flow-grid"></div>
+        </div>
+
+        <div id="grid" class="grid"></div>
+    </div>
     </div>
 
     <!-- RSI Heatmap Modal -->
@@ -2053,10 +2076,17 @@
                 const res = await fetch('/api/report/Market%20Cash%20Flow%20Data');
                 const data = await res.json();
                 if (data.content) {
-                    const ratios = JSON.parse(data.content);
+                    const parsedData = JSON.parse(data.content);
+
+                    // Handle both old format (direct ratios) and new format (nested)
+                    const ratios = parsedData.ratios || parsedData;
+                    const netFlows = parsedData.net_flows || {};
+
                     const dash = document.getElementById('cashFlowDashboard');
+                    const netDash = document.getElementById('netFlowDashboard');
+
                     if (dash) {
-                        dash.style.display = 'grid';
+                        dash.style.display = 'grid'; // Grid layout
                         Object.keys(ratios).forEach(tf => {
                             const val = ratios[tf];
                             const valEl = document.getElementById(`flow-${tf}-val`);
@@ -2069,6 +2099,20 @@
                             if (fillEl) {
                                 fillEl.style.width = `${val}%`;
                                 fillEl.style.background = val >= 50 ? '#3fb950' : '#f85149';
+                            }
+                        });
+                    }
+
+                    // Update Net Flow Dashboard
+                    if (netDash && Object.keys(netFlows).length > 0) {
+                        netDash.style.display = 'grid'; // Show if data exists
+                        Object.keys(netFlows).forEach(tf => {
+                            const val = parseFloat(netFlows[tf]);
+                            const valEl = document.getElementById(`net-${tf}-val`);
+                            if (valEl) {
+                                const sign = val > 0 ? '+' : '';
+                                valEl.innerText = `${sign}$${Math.abs(val)}M`;
+                                valEl.style.color = val > 0 ? '#3fb950' : '#f85149'; // Green if positive, Red if negative
                             }
                         });
                     }
