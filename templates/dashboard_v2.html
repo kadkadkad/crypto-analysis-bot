@@ -1961,9 +1961,13 @@
                 const data = await res.json();
 
                 if (data.last_update && data.last_update > lastAlertTime) {
-                    document.getElementById('alertBadge').style.display = 'block';
-                    if (lastAlertTime > 0) {
-                        showToast("🔔 NEW SIGNAL!", "New technical crossover or volume surge detected in the market. Click to view.");
+                    const badge = document.getElementById('alertBadge');
+                    // Only show notification if we haven't shown it yet (badge is not block)
+                    if (badge.style.display !== 'block') {
+                        badge.style.display = 'block';
+                        if (lastAlertTime > 0) {
+                            showToast("🔔 NEW SIGNAL!", "New technical crossover or volume surge detected in the market. Click to view.");
+                        }
                     }
                 }
             } catch (e) { console.error("Alert check error:", e); }
