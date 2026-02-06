@@ -14189,6 +14189,20 @@ async def analyze_market():
                         tvl_anoms = get_tvl_anomalies()
                         web_reports["Pump Predictions"] = PREDICTION_ENGINE.generate_prediction_report(ALL_RESULTS, tvl_anoms)
                     except Exception as e: print(f"[WARN] Pump Predictions report failed: {e}")
+                    
+                    # SAVE REPORTS TO FILE FOR FLASH DASHBOARD
+                    try:
+                        import json
+                        import shutil
+                        temp_rep = "web_reports.json.tmp"
+                        with open(temp_rep, "w") as f:
+                            json.dump(web_reports, f, default=str)
+                            f.flush()
+                            os.fsync(f.fileno())
+                        shutil.move(temp_rep, "web_reports.json")
+                        # print("[WEB-SYNC] web_reports.json saved successfully.")
+                    except Exception as e:
+                        print(f"[ERROR] Failed to save web_reports.json: {e}")
                     try:
                         # Global Analysis report construction
                         g_report = "🌐 <b>GLOBAL MARKET MONITOR</b>\n"
