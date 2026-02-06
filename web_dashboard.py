@@ -338,6 +338,8 @@ def get_report(report_type):
                 "Support/Resistance": "Support/Resistance",
                 "Market Cash Flow Data": "Market Cash Flow Data",
                 "YouTube Alpha": "YouTube Alpha",
+                "Market Regime Data": "Market Regime Data",
+                "Money Flow Viz": "Money Flow Viz",
                 "TVL Alpha": "TVL Alpha",
                 "Pump Predictions": "Pump Predictions",
                 "Deep Analysis": "Deep Analysis",
