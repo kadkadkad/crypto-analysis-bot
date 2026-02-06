@@ -14058,7 +14058,7 @@ async def analyze_market():
                 except Exception as e:
                     print(f"[WARN] Money flow analysis failed: {e}")
                 
-                # Detect market regime
+                # --- MARKET REGIME & DASHBOARD SYNC ---
                 regime_banner = "Analyzing market regime..."
                 market_regime = {}
                 try:
@@ -14067,9 +14067,35 @@ async def analyze_market():
                 except Exception as e:
                     print(f"[WARN] Market regime detection failed: {e}")
 
-                # Web Raporlarını Senkronize Et (Burada 'analysis_message' artık mevcut)
-                web_reports = {}
-                analysis_message = "Current market analysis data is being generated..."
+                # Save available data immediately to improve UX
+                try:
+                    web_reports = {} # Start fresh for this cycle
+                    web_reports["Current Analysis"] = analysis_message # From earlier calculation
+                    
+                    # Add available metrics
+                    if 'money_flow_report' in locals(): web_reports["Money Flow"] = money_flow_report
+                    if 'money_flow_viz' in locals(): web_reports["Money Flow Viz"] = json.dumps(money_flow_viz)
+                    web_reports["Market Regime"] = regime_banner
+                    web_reports["Market Regime Data"] = json.dumps(market_regime)
+                    
+                    # Add Cash Flow Data (Global)
+                    if 'MARKET_CASH_FLOW_DATA' in globals():
+                        web_reports["Market Cash Flow Data"] = json.dumps(MARKET_CASH_FLOW_DATA)
+                    
+                    # Quick Save
+                    import json, shutil
+                    temp_rep_early = "web_reports.json.early.tmp"
+                    with open(temp_rep_early, "w") as f:
+                        json.dump(web_reports, f, default=str)
+                        f.flush()
+                        os.fsync(f.fileno())
+                    shutil.move(temp_rep_early, "web_reports.json")
+                    print("[WEB-SYNC] ⚡ Early dashboard data synced (Regime, Flow, Analysis).")
+                except Exception as e:
+                    print(f"[WARN] Early dashboard sync failed: {e}")
+                # --------------------------------------
+                
+
                 try:
                     try:
                         analysis_message, coin_details, _ = generate_detailed_analysis_message(ALL_RESULTS)
