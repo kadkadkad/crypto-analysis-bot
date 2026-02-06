@@ -1463,106 +1463,80 @@
                 <!-- Cash Flow Dashboard Moved Below -->
             </div>
 
-            <!-- End top-stats-container -->
-        </div>
 
-        <!-- 🌊 NET VOLUME DELTA (SMART MONEY) -->
-        <div id="netFlowDashboard" class="cash-flow-dashboard"
-            style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">15m NET ($)</div>
-                <div id="net-15m-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">1h NET ($)</div>
-                <div id="net-1h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">4h NET ($)</div>
-                <div id="net-4h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">1d NET ($)</div>
-                <div id="net-1d-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-        </div>
 
-        <!-- 💰 CASH FLOW RATIOS (BUYER/SELLER PRESSURE) -->
-        <div id="cashFlowDashboard" class="cash-flow-dashboard" style="display: none; margin-top: 15px;"
-            title="Market Cash Flow: Buyer Ratio (Taker Buy Volume / Total Volume). >50% = Buyer Pressure, <50% = Seller Pressure">
-            <div class="cash-item">
-                <div class="cash-tf">15m FLOW</div>
-                <div id="flow-15m-val" class="cash-val">--%</div>
-                <div class="cash-bar">
-                    <div id="flow-15m-fill" class="cash-fill" style="width: 0%"></div>
+            <!-- 💰 CASH FLOW RATIOS (BUYER/SELLER PRESSURE) -->
+            <div id="cashFlowDashboard" class="cash-flow-dashboard" style="display: none; margin-top: 15px;"
+                title="Market Cash Flow: Buyer Ratio (Taker Buy Volume / Total Volume). >50% = Buyer Pressure, <50% = Seller Pressure">
+                <div class="cash-item">
+                    <div class="cash-tf">15m FLOW</div>
+                    <div id="flow-15m-val" class="cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-15m-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">1h FLOW</div>
+                    <div id="flow-1h-val" class="internal-cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-1h-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">4h FLOW</div>
+                    <div id="flow-4h-val" class="internal-cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-4h-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">12h FLOW</div>
+                    <div id="flow-12h-val" class="internal-cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-12h-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf">1d FLOW</div>
+                    <div id="flow-1d-val" class="internal-cash-val">--%</div>
+                    <div class="cash-bar">
+                        <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
+                    </div>
                 </div>
             </div>
-            <div class="cash-item">
-                <div class="cash-tf">1h FLOW</div>
-                <div id="flow-1h-val" class="internal-cash-val">--%</div>
-                <div class="cash-bar">
-                    <div id="flow-1h-fill" class="cash-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf">4h FLOW</div>
-                <div id="flow-4h-val" class="internal-cash-val">--%</div>
-                <div class="cash-bar">
-                    <div id="flow-4h-fill" class="cash-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf">12h FLOW</div>
-                <div id="flow-12h-val" class="internal-cash-val">--%</div>
-                <div class="cash-bar">
-                    <div id="flow-12h-fill" class="cash-fill" style="width: 0%"></div>
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf">1d FLOW</div>
-                <div id="flow-1d-val" class="internal-cash-val">--%</div>
-                <div class="cash-bar">
-                    <div id="flow-1d-fill" class="cash-fill" style="width: 0%"></div>
-                </div>
-            </div>
-        </div>
 
-        <!-- 🌊 NET VOLUME DELTA (SMART MONEY) -->
-        <div id="netFlowDashboard" class="cash-flow-dashboard"
-            style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">15m NET ($)</div>
-                <div id="net-15m-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+            <!-- 🌊 NET VOLUME DELTA (SMART MONEY) -->
+            <div id="netFlowDashboard" class="cash-flow-dashboard"
+                style="display: none; margin-top: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">15m NET ($)</div>
+                    <div id="net-15m-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">1h NET ($)</div>
+                    <div id="net-1h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">4h NET ($)</div>
+                    <div id="net-4h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
+                </div>
+                <div class="cash-item">
+                    <div class="cash-tf" style="color: #60a5fa;">1d NET ($)</div>
+                    <div id="net-1d-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
+                    </div>
                 </div>
             </div>
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">1h NET ($)</div>
-                <div id="net-1h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">4h NET ($)</div>
-                <div id="net-4h-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-            <div class="cash-item">
-                <div class="cash-tf" style="color: #60a5fa;">1d NET ($)</div>
-                <div id="net-1d-val" class="internal-cash-val" style="font-size: 1.1em; font-weight: bold;">--M
-                </div>
-            </div>
-        </div>
 
-        <div id="moneyFlowSection" class="money-flow-container" style="display: none;">
-            <div class="flow-title">🌊 WHALE MONEY FLOW (RT)</div>
-            <div id="flowGrid" class="flow-grid"></div>
-        </div>
+            <div id="moneyFlowSection" class="money-flow-container" style="display: none;">
+                <div class="flow-title">🌊 WHALE MONEY FLOW (RT)</div>
+                <div id="flowGrid" class="flow-grid"></div>
+            </div>
 
-        <div id="grid" class="grid"></div>
-    </div>
+            <div id="grid" class="grid"></div>
+        </div>
     </div>
 
     <!-- RSI Heatmap Modal -->
