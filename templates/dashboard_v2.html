@@ -1447,7 +1447,7 @@
         </div>
 
         <div class="content">
-            <div class="top-stats-container">
+            <div class="top-stats-container" style="display: flex; gap: 15px;">
                 <div id="regimeBanner" class="regime-banner">
                     <div class="regime-title">
                         <span id="regimeEmoji">🔄</span> <span id="regimeDisplay">ANALYZING MARKET...</span>
@@ -1460,7 +1460,8 @@
                     </div>
                 </div>
 
-                <div id="cashFlowDashboard" class="cash-flow-dashboard" style="display: none;"
+                <div id="cashFlowDashboard" class="cash-flow-dashboard"
+                    style="display: grid; flex: 1; grid-template-columns: repeat(5, 1fr); gap: 8px;"
                     title="Market Cash Flow: Buyer Ratio (Taker Buy Volume / Total Volume). >50% = Buyer Pressure, <50% = Seller Pressure">
                     <div class="cash-item">
                         <div class="cash-tf">15m FLOW</div>
@@ -2022,6 +2023,16 @@
                 const res = await fetch('/api/report/Market%20Regime%20Data');
                 const data = await res.json();
                 if (data.content) {
+                    if (typeof data.content === 'string' && !data.content.trim().startsWith('{')) {
+                        // Backend returned a message/error, not JSON
+                        const banner = document.getElementById('regimeBanner');
+                        if (banner) {
+                            document.getElementById('regimeDisplay').innerText = "LOADING...";
+                            document.getElementById('regimeDesc').innerText = data.content;
+                            banner.style.display = 'block';
+                        }
+                        return;
+                    }
                     const regime = JSON.parse(data.content);
                     const banner = document.getElementById('regimeBanner');
                     if (banner) {
@@ -2087,6 +2098,7 @@
                 const res = await fetch('/api/report/Market%20Cash%20Flow%20Data');
                 const data = await res.json();
                 if (data.content) {
+                    if (typeof data.content === 'string' && !data.content.trim().startsWith('{')) return;
                     const parsedData = JSON.parse(data.content);
 
                     // Handle both old format (direct ratios) and new format (nested)
